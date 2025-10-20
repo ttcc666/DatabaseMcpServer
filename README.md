@@ -54,8 +54,8 @@
 1. **克隆项目**
 
 ```bash
-git clone https://github.com/yourusername/database-mcp-server.git
-cd database-mcp-server
+git clone https://github.com/ttcc666/SampleMcpServer.git
+cd SampleMcpServer
 ```
 
 2. **配置 MCP 客户端**

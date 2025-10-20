@@ -24,6 +24,9 @@
     <PackageVersion>0.1.0-beta</PackageVersion>
     <PackageTags>AI; MCP; server; stdio</PackageTags>
     <Description>An MCP server using the MCP C# SDK.</Description>
+    <RepositoryUrl>https://github.com/ttcc666/SampleMcpServer</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/ttcc666/SampleMcpServer</PackageProjectUrl>
   </PropertyGroup>
 
   <!-- Include additional files for browsing the MCP server. -->

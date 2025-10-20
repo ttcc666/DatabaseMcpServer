@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "description": "一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。通过环境变量配置连接信息，提供数据库连接管理、查询执行、数据操作和事务处理等功能。",
-  "name": "io.github.yourusername/database-mcp-server",
+  "name": "io.github.ttcc666/database-mcp-server",
   "version": "0.1.0-beta",
   "packages": [
     {
@@ -27,7 +27,7 @@
     }
   ],
   "repository": {
-    "url": "https://github.com/yourusername/database-mcp-server",
+    "url": "https://github.com/ttcc666/SampleMcpServer",
     "source": "github"
   },
   "tools": [
