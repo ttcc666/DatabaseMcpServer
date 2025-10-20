@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "DatabaseMcpServer": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "D:/Demo/my-mcp/SampleMcpServer"
+      ],
+      "env": {
+        "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
+        "DB_TYPE": "MySql"
+      }
+    }
+  }
+}

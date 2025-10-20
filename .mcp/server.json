@@ -1,0 +1,109 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "description": "一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。通过环境变量配置连接信息，提供数据库连接管理、查询执行、数据操作和事务处理等功能。",
+  "name": "io.github.yourusername/database-mcp-server",
+  "version": "0.1.0-beta",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "DatabaseMcpServer",
+      "version": "0.1.0-beta",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [],
+      "environmentVariables": [
+        {
+          "name": "DB_CONNECTION_STRING",
+          "description": "数据库连接字符串（必需）",
+          "required": true
+        },
+        {
+          "name": "DB_TYPE",
+          "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle（可选，默认 MySql）",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/yourusername/database-mcp-server",
+    "source": "github"
+  },
+  "tools": [
+    {
+      "name": "get_random_number",
+      "description": "生成指定最小值和最大值之间的随机数"
+    },
+    {
+      "name": "test_connection",
+      "description": "测试数据库连接"
+    },
+    {
+      "name": "list_databases",
+      "description": "列出所有数据库"
+    },
+    {
+      "name": "list_tables",
+      "description": "列出当前数据库中的所有表"
+    },
+    {
+      "name": "get_table_schema",
+      "description": "获取表结构信息"
+    },
+    {
+      "name": "execute_query",
+      "description": "执行 SQL 查询并返回结果"
+    },
+    {
+      "name": "simple_query",
+      "description": "执行不带参数的简单查询"
+    },
+    {
+      "name": "execute_command",
+      "description": "执行 SQL 命令 (INSERT, UPDATE, DELETE)"
+    },
+    {
+      "name": "insert_data",
+      "description": "将数据插入到表中"
+    },
+    {
+      "name": "update_data",
+      "description": "更新表中的数据"
+    },
+    {
+      "name": "delete_data",
+      "description": "从表中删除数据"
+    },
+    {
+      "name": "execute_transaction",
+      "description": "执行包含多条 SQL 命令的事务"
+    },
+    {
+      "name": "get_database_config",
+      "description": "从环境变量中获取当前数据库配置"
+    },
+    {
+      "name": "validate_configuration",
+      "description": "验证数据库配置是否正确"
+    }
+  ],
+  "capabilities": {
+    "databases": ["MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle"],
+    "features": [
+      "环境变量全局配置",
+      "数据库连接管理",
+      "元数据查询（数据库列表、表列表、表结构）",
+      "SQL 查询执行（支持参数化查询）",
+      "数据操作（插入、更新、删除）",
+      "事务支持",
+      "危险操作检测和防护"
+    ],
+    "security": [
+      "参数化查询防止 SQL 注入",
+      "危险操作检测（DROP、TRUNCATE、ALTER 等）",
+      "敏感信息隐藏",
+      "错误处理和异常捕获"
+    ]
+  }
+}
