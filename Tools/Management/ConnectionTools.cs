@@ -3,17 +3,13 @@ using ModelContextProtocol.Server;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Services;
 
-namespace DatabaseMcpServer.Tools;
+namespace DatabaseMcpServer.Tools.Management;
 
 /// <summary>
-/// 数据库连接工具类，用于管理数据库连接。
+/// 数据库连接与配置管理工具类
 /// </summary>
-internal class DatabaseConnectionTools
+internal class ConnectionTools
 {
-    /// <summary>
-    /// 测试数据库连接（使用环境变量中的配置）。
-    /// </summary>
-    /// <returns>包含连接测试结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("测试数据库连接")]
     public string TestConnection()
@@ -35,5 +31,19 @@ internal class DatabaseConnectionTools
         {
             return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
         }
+    }
+
+    [McpServerTool]
+    [Description("从环境变量中获取当前数据库配置")]
+    public string GetDatabaseConfig()
+    {
+        return DatabaseConfigService.GetConfigurationSummary();
+    }
+
+    [McpServerTool]
+    [Description("验证数据库配置是否正确")]
+    public string ValidateConfiguration()
+    {
+        return DatabaseConfigService.GetConfigurationSummary();
     }
 }

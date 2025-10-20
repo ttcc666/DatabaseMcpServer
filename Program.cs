@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using DatabaseMcpServer.Tools;
+using DatabaseMcpServer.Tools.Management;
+using DatabaseMcpServer.Tools.Query;
+using DatabaseMcpServer.Tools.Command;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -12,11 +14,9 @@ builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<ConfigurationTools>()
-    .WithTools<DatabaseCommandTools>()
-    .WithTools<DatabaseConnectionTools>()
-    .WithTools<DatabaseQueryTools>()
-    .WithTools<DatabaseSchemaTools>()
-    .WithTools<AdvancedSqlTools>();
+    .WithTools<ConnectionTools>()
+    .WithTools<SchemaTools>()
+    .WithTools<QueryTools>()
+    .WithTools<CommandTools>();
 
 await builder.Build().RunAsync();

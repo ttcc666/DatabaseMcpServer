@@ -5,19 +5,15 @@ using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Services;
 using SqlSugar;
 
-namespace DatabaseMcpServer.Tools;
+namespace DatabaseMcpServer.Tools.Management;
 
 /// <summary>
 /// 数据库架构管理工具类，用于执行数据库架构相关操作。
 /// </summary>
-internal class DatabaseSchemaTools
+internal class SchemaTools
 {
     #region 数据库信息查询
 
-    /// <summary>
-    /// 获取所有数据库名称。
-    /// </summary>
-    /// <returns>包含数据库列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取所有数据库名称")]
     public string GetDataBaseList()
@@ -34,10 +30,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 查询所有视图。
-    /// </summary>
-    /// <returns>包含视图列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("查询所有视图")]
     public string GetViewInfoList()
@@ -54,10 +46,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 获取所有表名。
-    /// </summary>
-    /// <returns>包含表列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取所有表名")]
     public string GetTableInfoList()
@@ -74,11 +62,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 根据表名获取字段信息。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含字段信息列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("根据表名获取字段信息")]
     public string GetColumnInfosByTableName(
@@ -96,11 +79,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 获取自增列。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含自增列列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取自增列")]
     public string GetIsIdentities(
@@ -118,11 +96,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 获取主键。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含主键列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取主键")]
     public string GetPrimaries(
@@ -144,11 +117,6 @@ internal class DatabaseSchemaTools
 
     #region 存在性检查
 
-    /// <summary>
-    /// 判断表是否存在。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断表是否存在")]
     public string IsAnyTable(
@@ -166,12 +134,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 判断列是否存在。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断列是否存在")]
     public string IsAnyColumn(
@@ -190,12 +152,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 判断主键是否存在。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断主键是否存在")]
     public string IsPrimaryKey(
@@ -214,12 +170,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 判断自增是否存在。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断自增是否存在")]
     public string IsIdentity(
@@ -238,11 +188,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 判断约束是否存在。
-    /// </summary>
-    /// <param name="constraintName">约束名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断约束是否存在")]
     public string IsAnyConstraint(
@@ -264,11 +209,6 @@ internal class DatabaseSchemaTools
 
     #region 表操作
 
-    /// <summary>
-    /// 删除表。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除表")]
     public string DropTable(
@@ -286,11 +226,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 清空表。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("清空表")]
     public string TruncateTable(
@@ -308,12 +243,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 备份表。
-    /// </summary>
-    /// <param name="oldTableName">原表名</param>
-    /// <param name="newTableName">新表名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("备份表")]
     public string BackupTable(
@@ -332,12 +261,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 重命名表。
-    /// </summary>
-    /// <param name="oldTableName">原表名</param>
-    /// <param name="newTableName">新表名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("重命名表")]
     public string RenameTable(
@@ -360,12 +283,6 @@ internal class DatabaseSchemaTools
 
     #region 列操作
 
-    /// <summary>
-    /// 添加列。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnInfo">列信息 JSON</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("添加列")]
     public string AddColumn(
@@ -396,12 +313,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 更新列。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnInfo">列信息 JSON</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("更新列")]
     public string UpdateColumn(
@@ -432,12 +343,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除列。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除列")]
     public string DropColumn(
@@ -456,13 +361,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 重命名列。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="oldColumnName">原列名</param>
-    /// <param name="newColumnName">新列名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("重命名列")]
     public string RenameColumn(
@@ -486,12 +384,6 @@ internal class DatabaseSchemaTools
 
     #region 约束和索引操作
 
-    /// <summary>
-    /// 添加主键。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("添加主键")]
     public string AddPrimaryKey(
@@ -510,12 +402,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除约束。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="constraintName">约束名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除约束")]
     public string DropConstraint(
@@ -534,14 +420,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 创建索引或唯一约束。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="indexName">索引名</param>
-    /// <param name="columnName">列名</param>
-    /// <param name="isUnique">是否唯一索引</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("创建索引或唯一约束")]
     public string CreateIndex(
@@ -562,11 +440,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 判断索引是否存在。
-    /// </summary>
-    /// <param name="indexName">索引名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断索引是否存在")]
     public string IsAnyIndex(
@@ -584,11 +457,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 获取所有索引名字集合。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含索引列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取所有索引名字集合")]
     public string GetIndexList(
@@ -610,13 +478,6 @@ internal class DatabaseSchemaTools
 
     #region 默认值和注释
 
-    /// <summary>
-    /// 添加默认值。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <param name="defaultValue">默认值</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("添加默认值")]
     public string AddDefaultValue(
@@ -636,12 +497,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 添加表描述。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="description">表描述</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("添加表描述")]
     public string AddTableRemark(
@@ -660,11 +515,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 判断是否存在表描述。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含检查结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("判断是否存在表描述")]
     public string IsAnyTableRemark(
@@ -682,11 +532,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除表描述。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除表描述")]
     public string DeleteTableRemark(
@@ -704,13 +549,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 添加列描述。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <param name="description">列描述</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("添加列描述")]
     public string AddColumnRemark(
@@ -730,12 +568,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除列描述。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <param name="columnName">列名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除列描述")]
     public string DeleteColumnRemark(
@@ -758,10 +590,6 @@ internal class DatabaseSchemaTools
 
     #region 存储过程、函数、视图操作
 
-    /// <summary>
-    /// 获取存储过程名字集合。
-    /// </summary>
-    /// <returns>包含存储过程列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取存储过程名字集合")]
     public string GetProcList()
@@ -778,10 +606,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 获取函数集合。
-    /// </summary>
-    /// <returns>包含函数列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取函数集合")]
     public string GetFuncList()
@@ -798,11 +622,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除视图。
-    /// </summary>
-    /// <param name="viewName">视图名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除视图")]
     public string DropView(
@@ -820,11 +639,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除函数。
-    /// </summary>
-    /// <param name="functionName">函数名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除函数")]
     public string DropFunc(
@@ -842,11 +656,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 删除存储过程。
-    /// </summary>
-    /// <param name="procedureName">存储过程名</param>
-    /// <returns>包含操作结果的 JSON 字符串</returns>
     [McpServerTool]
     [Description("删除存储过程")]
     public string DropProc(
@@ -868,10 +677,6 @@ internal class DatabaseSchemaTools
 
     #region 其他工具
 
-    /// <summary>
-    /// 获取数据库类型集合。
-    /// </summary>
-    /// <returns>包含数据库类型列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取数据库类型集合")]
     public string GetDbTypes()
@@ -888,11 +693,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 根据表名获取触发器集合。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含触发器列表的 JSON 字符串</returns>
     [McpServerTool]
     [Description("根据表名获取触发器集合")]
     public string GetTriggerNames(
@@ -910,11 +710,6 @@ internal class DatabaseSchemaTools
         }
     }
 
-    /// <summary>
-    /// 获取表结构信息。
-    /// </summary>
-    /// <param name="tableName">表名</param>
-    /// <returns>包含表结构信息的 JSON 字符串</returns>
     [McpServerTool]
     [Description("获取表结构信息")]
     public string GetTableSchema(
