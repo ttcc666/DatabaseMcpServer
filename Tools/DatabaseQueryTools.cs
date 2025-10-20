@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
-using SampleMcpServer.Helpers;
-using SampleMcpServer.Services;
+using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Services;
 
-namespace SampleMcpServer.Tools;
+namespace DatabaseMcpServer.Tools;
 
 /// <summary>
 /// 数据库查询工具类，用于执行 SQL 查询操作。

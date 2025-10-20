@@ -20,13 +20,13 @@
 
     <!-- Set recommended package metadata -->
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageId>SampleMcpServer</PackageId>
+    <PackageId>DatabaseMcpServer</PackageId>
     <PackageVersion>0.1.0-beta</PackageVersion>
     <PackageTags>AI; MCP; server; stdio</PackageTags>
-    <Description>An MCP server using the MCP C# SDK.</Description>
-    <RepositoryUrl>https://github.com/ttcc666/SampleMcpServer</RepositoryUrl>
+    <Description>一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。</Description>
+    <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/ttcc666/SampleMcpServer</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/ttcc666/DatabaseMcpServer</PackageProjectUrl>
   </PropertyGroup>
 
   <!-- Include additional files for browsing the MCP server. -->

@@ -54,8 +54,8 @@
 1. **克隆项目**
 
 ```bash
-git clone https://github.com/ttcc666/SampleMcpServer.git
-cd SampleMcpServer
+git clone https://github.com/ttcc666/DatabaseMcpServer.git
+cd DatabaseMcpServer
 ```
 
 2. **配置 MCP 客户端**
@@ -71,7 +71,7 @@ cd SampleMcpServer
       "args": [
         "run",
         "--project",
-        "D:/Demo/my-mcp/SampleMcpServer"
+        "D:/Demo/my-mcp/DatabaseMcpServer"
       ],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
@@ -91,7 +91,7 @@ cd SampleMcpServer
       "args": [
         "run",
         "--project",
-        "D:\\Demo\\my-mcp\\SampleMcpServer"
+        "D:\\Demo\\my-mcp\\DatabaseMcpServer"
       ],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
@@ -319,9 +319,9 @@ builder.Services
 ```csharp
 using System.ComponentModel;
 using ModelContextProtocol.Server;
-using SampleMcpServer.Services;
+using DatabaseMcpServer.Services;
 
-namespace SampleMcpServer.Tools;
+namespace DatabaseMcpServer.Tools;
 
 internal class YourNewTools
 {

@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using SqlSugar;
 
-namespace SampleMcpServer.Helpers;
+namespace DatabaseMcpServer.Helpers;
 
 /// <summary>
 /// 数据库操作辅助类。

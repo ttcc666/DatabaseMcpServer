@@ -14,7 +14,7 @@
     "DatabaseMcpServer": {
       "type": "stdio",
       "command": "dotnet",
-      "args": ["run", "--project", "D:/Demo/my-mcp/SampleMcpServer"],
+      "args": ["run", "--project", "D:/Demo/my-mcp/DatabaseMcpServer"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
         "DB_TYPE": "MySql"
@@ -34,7 +34,7 @@
     "DatabaseMcpServer": {
       "type": "stdio",
       "command": "dotnet",
-      "args": ["run", "--project", "D:\\Demo\\my-mcp\\SampleMcpServer"],
+      "args": ["run", "--project", "D:\\Demo\\my-mcp\\DatabaseMcpServer"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
         "DB_TYPE": "MySql"

@@ -1,8 +1,8 @@
 
 using SqlSugar;
-using SampleMcpServer.Helpers;
+using DatabaseMcpServer.Helpers;
 
-namespace SampleMcpServer.Services;
+namespace DatabaseMcpServer.Services;
 
 /// <summary>
 /// 数据库配置服务 - 从环境变量读取数据库配置。

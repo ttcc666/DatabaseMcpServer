@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
-using SampleMcpServer.Services;
+using DatabaseMcpServer.Services;
 
-namespace SampleMcpServer.Tools;
+namespace DatabaseMcpServer.Tools;
 
 /// <summary>
 /// 配置工具类，用于管理和获取数据库配置信息。

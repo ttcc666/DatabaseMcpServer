@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
-using SampleMcpServer.Helpers;
-using SampleMcpServer.Services;
+using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Services;
 
-namespace SampleMcpServer.Tools;
+namespace DatabaseMcpServer.Tools;
 
 /// <summary>
 /// 数据库连接工具类，用于管理数据库连接和元数据查询。

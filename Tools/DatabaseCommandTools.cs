@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
-using SampleMcpServer.Helpers;
-using SampleMcpServer.Services;
+using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Services;
 
-namespace SampleMcpServer.Tools;
+namespace DatabaseMcpServer.Tools;
 
 /// <summary>
 /// 数据库命令工具类，用于执行数据库的 INSERT、UPDATE、DELETE 等操作。

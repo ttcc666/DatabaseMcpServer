@@ -1,17 +1,34 @@
 {
+  "capabilities": {
+    "databases": ["MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle"],
+    "features": [
+      "环境变量全局配置",
+      "数据库连接管理",
+      "元数据查询（数据库列表、表列表、表结构）",
+      "SQL 查询执行（支持参数化查询）",
+      "数据操作（插入、更新、删除）",
+      "事务支持",
+      "危险操作检测和防护"
+    ],
+    "security": [
+      "参数化查询防止 SQL 注入",
+      "危险操作检测（DROP、TRUNCATE、ALTER 等）",
+      "敏感信息隐藏",
+      "错误处理和异常捕获"
+    ]
+  },
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
-  "description": "一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。通过环境变量配置连接信息，提供数据库连接管理、查询执行、数据操作和事务处理等功能。",
   "name": "io.github.ttcc666/database-mcp-server",
-  "version": "0.1.0-beta",
+  "description": "一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。通过环境变量配置连接信息，提供数据库连接管理、查询执行、数据操作和事务处理等功能。",
   "packages": [
     {
+      "packageArguments": [],
       "registryType": "nuget",
       "identifier": "DatabaseMcpServer",
-      "version": "0.1.0-beta",
       "transport": {
         "type": "stdio"
       },
-      "packageArguments": [],
+      "version": "0.1.0-beta",
       "environmentVariables": [
         {
           "name": "DB_CONNECTION_STRING",
@@ -27,7 +44,7 @@
     }
   ],
   "repository": {
-    "url": "https://github.com/ttcc666/SampleMcpServer",
+    "url": "https://github.com/ttcc666/DatabaseMcpServer",
     "source": "github"
   },
   "tools": [
@@ -88,22 +105,5 @@
       "description": "验证数据库配置是否正确"
     }
   ],
-  "capabilities": {
-    "databases": ["MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle"],
-    "features": [
-      "环境变量全局配置",
-      "数据库连接管理",
-      "元数据查询（数据库列表、表列表、表结构）",
-      "SQL 查询执行（支持参数化查询）",
-      "数据操作（插入、更新、删除）",
-      "事务支持",
-      "危险操作检测和防护"
-    ],
-    "security": [
-      "参数化查询防止 SQL 注入",
-      "危险操作检测（DROP、TRUNCATE、ALTER 等）",
-      "敏感信息隐藏",
-      "错误处理和异常捕获"
-    ]
-  }
+  "version": "0.1.0-beta"
 }
