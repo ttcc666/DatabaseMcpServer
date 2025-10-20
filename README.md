@@ -30,6 +30,26 @@
 - **execute_query** - 执行 SQL 查询并返回结果（支持参数化查询）
 - **simple_query** - 执行不带参数的简单查询
 
+### 🚀 高级 SQL 工具
+
+- **sql_query** - 执行复杂 SQL 查询并返回强类型实体集合
+- **sql_query_single** - 执行 SQL 查询并返回单条记录
+- **get_data_reader** - 获取 DataReader 数据（自动处理释放）
+- **get_data_set_all** - 获取多个结果集，支持一次执行多个查询
+- **get_scalar** - 获取首行首列的值（标量值）
+- **get_string** - 获取首行首列的字符串值
+- **get_int** - 获取首行首列的整数值
+- **get_long** - 获取首行首列的长整数值
+- **get_double** - 获取首行首列的双精度浮点数值
+- **get_decimal** - 获取首行首列的十进制数值
+- **get_datetime** - 获取首行首列的日期时间值
+- **call_stored_procedure** - 调用存储过程（简单用法）
+- **call_stored_procedure_with_output** - 调用带有输出参数的存储过程
+- **execute_command_with_go** - 执行包含 GO 语句的 SQL Server 脚本
+- **sql_query_multiple** - 执行查询并返回两个结果集（类似 Dapper QueryMultiple）
+- **batch_execute_commands** - 批量执行 SQL 命令（使用长连接优化性能）
+- **sql_query_with_in_parameter** - 处理 IN 参数查询，支持数组参数
+
 ### ✏️ 数据操作工具
 
 - **execute_command** - 执行 SQL 命令（INSERT、UPDATE、DELETE）
@@ -46,6 +66,11 @@
 ### 🎲 示例工具
 
 - **get_random_number** - 生成随机数（用于演示）
+
+## 📖 详细文档
+
+- [高级 SQL 工具使用指南](doc/advanced-sql-usage.md) - 详细的使用示例和最佳实践
+- [高级 SQL 工具测试指南](doc/test-advanced-sql.md) - 完整的测试用例和验证方法
 
 ## 🚀 快速开始
 
@@ -229,6 +254,34 @@ AI 会自动使用环境变量中的连接信息执行查询。
   "message": "配置有效"
 }
 ```
+
+### 示例 7：高级 SQL 操作
+
+```
+使用高级 SQL 工具查询用户订单统计信息
+```
+
+AI 会自动使用 `sql_query_multiple` 工具执行多结果集查询：
+```sql
+SELECT * FROM users WHERE status = 1; 
+SELECT COUNT(*) as order_count, SUM(amount) as total_amount FROM orders WHERE user_id IN (SELECT id FROM users WHERE status = 1)
+```
+
+### 示例 8：存储过程调用
+
+```
+调用存储过程 sp_get_user_summary，传入用户ID 1，并获取输出参数 total_orders
+```
+
+AI 会使用 `call_stored_procedure_with_output` 工具处理带输出参数的存储过程。
+
+### 示例 9：批量操作
+
+```
+批量更新多个用户的状态为激活状态
+```
+
+AI 会使用 `batch_execute_commands` 工具优化批量操作性能。
 
 ## 🔒 安全特性
 

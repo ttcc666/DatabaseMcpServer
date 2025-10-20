@@ -16,6 +16,7 @@ builder.Services
     .WithTools<DatabaseCommandTools>()
     .WithTools<DatabaseConnectionTools>()
     .WithTools<DatabaseQueryTools>()
-    .WithTools<DatabaseSchemaTools>();
+    .WithTools<DatabaseSchemaTools>()
+    .WithTools<AdvancedSqlTools>();
 
 await builder.Build().RunAsync();
