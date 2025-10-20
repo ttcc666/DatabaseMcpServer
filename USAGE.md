@@ -10,9 +10,8 @@
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "DatabaseMcpServer": {
-      "type": "stdio",
       "command": "dotnet",
       "args": ["run", "--project", "D:/Demo/my-mcp/DatabaseMcpServer"],
       "env": {
@@ -30,9 +29,8 @@
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "DatabaseMcpServer": {
-      "type": "stdio",
       "command": "dotnet",
       "args": ["run", "--project", "D:\\Demo\\my-mcp\\DatabaseMcpServer"],
       "env": {
@@ -92,8 +90,14 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 # 查询数据
 "查询 users 表的所有数据"
 
+# 获取表结构
+"获取 users 表的完整结构信息"
+
 # 插入数据
 "向 products 表插入数据: {\"name\":\"iPhone\",\"price\":5999}"
+
+# 执行事务
+"执行事务：更新订单状态并记录日志"
 ```
 
 ## 验证配置
@@ -113,3 +117,9 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
   "message": "配置有效"
 }
 ```
+
+## 安全提示
+
+- 不要在公共仓库中提交包含真实密码的配置文件
+- 建议使用 `.gitignore` 忽略配置文件
+- 在生产环境中使用更安全的凭据管理方式
