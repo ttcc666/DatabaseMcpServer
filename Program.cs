@@ -1,9 +1,9 @@
+using DatabaseMcpServer.Tools.Command;
+using DatabaseMcpServer.Tools.Management;
+using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using DatabaseMcpServer.Tools.Management;
-using DatabaseMcpServer.Tools.Query;
-using DatabaseMcpServer.Tools.Command;
 
 var builder = Host.CreateApplicationBuilder(args);
 

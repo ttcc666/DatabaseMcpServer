@@ -1,7 +1,7 @@
-using System.ComponentModel;
-using ModelContextProtocol.Server;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Services;
+using ModelContextProtocol.Server;
+using System.ComponentModel;
 
 namespace DatabaseMcpServer.Tools.Management;
 

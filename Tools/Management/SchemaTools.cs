@@ -1,9 +1,9 @@
-using System.ComponentModel;
-using System.Text.Json;
-using ModelContextProtocol.Server;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Services;
+using ModelContextProtocol.Server;
 using SqlSugar;
+using System.ComponentModel;
+using System.Text.Json;
 
 namespace DatabaseMcpServer.Tools.Management;
 
@@ -113,7 +113,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 数据库信息查询
 
     #region 存在性检查
 
@@ -205,7 +205,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 存在性检查
 
     #region 表操作
 
@@ -279,7 +279,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 表操作
 
     #region 列操作
 
@@ -380,7 +380,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 列操作
 
     #region 约束和索引操作
 
@@ -474,7 +474,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 约束和索引操作
 
     #region 默认值和注释
 
@@ -586,7 +586,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 默认值和注释
 
     #region 存储过程、函数、视图操作
 
@@ -673,7 +673,7 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 存储过程、函数、视图操作
 
     #region 其他工具
 
@@ -740,5 +740,5 @@ internal class SchemaTools
         }
     }
 
-    #endregion
+    #endregion 其他工具
 }

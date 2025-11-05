@@ -1,6 +1,6 @@
 {
   "capabilities": {
-    "databases": ["MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle"],
+    "databases": [ "MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle" ],
     "features": [
       "环境变量全局配置",
       "数据库连接管理",
