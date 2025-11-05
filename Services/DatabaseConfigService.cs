@@ -1,19 +1,32 @@
 using SqlSugar;
-using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Interfaces;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace DatabaseMcpServer.Services;
 
 /// <summary>
 /// 数据库配置服务 - 从环境变量读取数据库配置。
 /// </summary>
-internal static class DatabaseConfigService
+internal class DatabaseConfigService : IDatabaseConfigService
 {
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<DatabaseConfigService> _logger;
+    private readonly IDatabaseHelperService _databaseHelper;
+
+    public DatabaseConfigService(IConfiguration configuration, ILogger<DatabaseConfigService> logger, IDatabaseHelperService databaseHelper)
+    {
+        _configuration = configuration;
+        _logger = logger;
+        _databaseHelper = databaseHelper;
+    }
+
     /// <summary>
     /// 从环境变量读取数据库连接字符串。
     /// </summary>
     /// <returns>连接字符串,如果未配置则抛出异常</returns>
     /// <exception cref="InvalidOperationException">当环境变量未配置时抛出</exception>
-    public static string GetConnectionString()
+    public string GetConnectionString()
     {
         var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -28,7 +41,7 @@ internal static class DatabaseConfigService
     /// 从环境变量读取数据库类型。
     /// </summary>
     /// <returns>数据库类型字符串,如果未配置则返回 MySql(默认值)</returns>
-    public static string GetDatabaseType()
+    public string GetDatabaseType()
     {
         var dbType = Environment.GetEnvironmentVariable("DB_TYPE");
         if (string.IsNullOrWhiteSpace(dbType))
@@ -43,28 +56,40 @@ internal static class DatabaseConfigService
     /// 从环境变量读取 DbType 枚举。
     /// </summary>
     /// <returns>对应的 DbType 枚举值</returns>
-    public static DbType GetParsedDbType()
+    public DbType GetParsedDbType()
     {
         var dbType = GetDatabaseType();
-        return DatabaseHelper.ParseDbType(dbType);
+        return _databaseHelper.ParseDbType(dbType);
     }
 
     /// <summary>
-    /// 创建全局数据库客户端。
+    /// 创建数据库客户端。
     /// </summary>
     /// <returns>配置好的 SqlSugarClient 实例</returns>
-    public static SqlSugarClient CreateGlobalClient()
+    public SqlSugarClient CreateClient()
     {
+        _logger.LogDebug("正在创建数据库客户端连接");
         var connectionString = GetConnectionString();
         var dbType = GetParsedDbType();
-        return DatabaseHelper.CreateClient(connectionString, dbType);
+        var client = _databaseHelper.CreateClient(connectionString, dbType);
+        _logger.LogInformation("数据库客户端连接创建成功，类型: {DbType}", dbType);
+        return client;
+    }
+
+    /// <summary>
+    /// 异步创建数据库客户端。
+    /// </summary>
+    /// <returns>配置好的 SqlSugarClient 实例</returns>
+    public async Task<SqlSugarClient> CreateClientAsync()
+    {
+        return await Task.FromResult(CreateClient());
     }
 
     /// <summary>
     /// 验证数据库配置是否正确。
     /// </summary>
     /// <returns>如果配置正确返回 true,否则返回 false</returns>
-    public static bool ValidateConfiguration()
+    public bool ValidateConfiguration()
     {
         try
         {
@@ -82,7 +107,7 @@ internal static class DatabaseConfigService
     /// 获取配置信息摘要。
     /// </summary>
     /// <returns>配置信息 JSON 字符串</returns>
-    public static string GetConfigurationSummary()
+    public string GetConfigurationSummary()
     {
         var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ?? "未配置";
         // 隐藏连接字符串的敏感信息
@@ -91,7 +116,7 @@ internal static class DatabaseConfigService
         var dbType = GetDatabaseType();
         var isValid = ValidateConfiguration();
 
-        return DatabaseHelper.SerializeResult(new
+        return _databaseHelper.SerializeResult(new
         {
             configured = isValid,
             databaseType = dbType,

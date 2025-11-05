@@ -1,21 +1,30 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SqlSugar;
+using DatabaseMcpServer.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace DatabaseMcpServer.Helpers;
 
 /// <summary>
 /// 数据库操作辅助类。
 /// </summary>
-internal static class DatabaseHelper
+internal class DatabaseHelper : IDatabaseHelperService
 {
+    private readonly ILogger<DatabaseHelper> _logger;
+
+    public DatabaseHelper(ILogger<DatabaseHelper> logger)
+    {
+        _logger = logger;
+    }
+
     /// <summary>
     /// 将字符串类型转换为 SqlSugar 的 DbType 枚举。
     /// </summary>
     /// <param name="dbType">数据库类型字符串 (MySql, SqlServer, Sqlite, PostgreSQL, Oracle)</param>
     /// <returns>对应的 DbType 枚举值</returns>
     /// <exception cref="ArgumentException">当数据库类型不支持时抛出</exception>
-    public static DbType ParseDbType(string dbType)
+    public DbType ParseDbType(string dbType)
     {
         return dbType.ToLowerInvariant() switch
         {
@@ -33,7 +42,7 @@ internal static class DatabaseHelper
     /// </summary>
     /// <param name="parametersJson">JSON 格式的参数字符串</param>
     /// <returns>SqlSugar 参数数组,如果输入为空则返回 null</returns>
-    public static SugarParameter[]? ParseParameters(string? parametersJson)
+    public SugarParameter[]? ParseParameters(string? parametersJson)
     {
         if (string.IsNullOrWhiteSpace(parametersJson))
             return null;
@@ -50,7 +59,7 @@ internal static class DatabaseHelper
     /// </summary>
     /// <param name="data">要序列化的数据对象</param>
     /// <returns>格式化的 JSON 字符串</returns>
-    public static string SerializeResult(object data)
+    public string SerializeResult(object data)
     {
         return JsonSerializer.Serialize(data, new JsonSerializerOptions
         {
@@ -65,8 +74,9 @@ internal static class DatabaseHelper
     /// <param name="connectionString">数据库连接字符串</param>
     /// <param name="dbType">数据库类型</param>
     /// <returns>配置好的 SqlSugarClient 实例</returns>
-    public static SqlSugarClient CreateClient(string connectionString, DbType dbType)
+    public SqlSugarClient CreateClient(string connectionString, DbType dbType)
     {
+        _logger.LogDebug("创建数据库客户端，类型: {DbType}", dbType);
         return new SqlSugarClient(new ConnectionConfig
         {
             ConnectionString = connectionString,
@@ -89,7 +99,7 @@ internal static class DatabaseHelper
     /// - ALTER TABLE (修改表结构)
     /// - CREATE TABLE (创建表)
     /// </remarks>
-    public static bool DetectDangerousOperation(string sql)
+    public bool DetectDangerousOperation(string sql)
     {
         var dangerousPatterns = new[]
         {

@@ -1,6 +1,8 @@
-using DatabaseMcpServer.Helpers;
-using DatabaseMcpServer.Services;
+using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Models;
 using ModelContextProtocol.Server;
+using Microsoft.Extensions.Logging;
 using SqlSugar;
 using System.ComponentModel;
 using System.Data;
@@ -13,6 +15,17 @@ namespace DatabaseMcpServer.Tools.Command;
 /// </summary>
 internal class CommandTools
 {
+    private readonly IDatabaseConfigService _databaseConfig;
+    private readonly IDatabaseHelperService _databaseHelper;
+    private readonly ILogger<CommandTools> _logger;
+
+    public CommandTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper, ILogger<CommandTools> logger)
+    {
+        _databaseConfig = databaseConfig;
+        _databaseHelper = databaseHelper;
+        _logger = logger;
+    }
+
     [McpServerTool]
     [Description("执行 SQL 命令 (INSERT, UPDATE, DELETE)")]
     public string ExecuteCommand(
@@ -21,26 +34,23 @@ internal class CommandTools
     {
         try
         {
-            if (DatabaseHelper.DetectDangerousOperation(sql))
+            if (_databaseHelper.DetectDangerousOperation(sql))
             {
-                return DatabaseHelper.SerializeResult(new
-                {
-                    success = false,
-                    error = "检测到危险操作。请使用特定工具进行架构操作。"
-                });
+                throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
+                    "检测到危险操作。请使用特定工具进行架构操作。");
             }
 
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
             var affectedRows = parsedParams != null
                 ? db.Ado.ExecuteCommand(sql, parsedParams)
                 : db.Ado.ExecuteCommand(sql);
 
-            return DatabaseHelper.SerializeResult(new { success = true, affectedRows });
+            return _databaseHelper.SerializeResult(new { success = true, affectedRows });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -52,17 +62,17 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
             if (dataDict == null)
                 throw new ArgumentException("无效的 JSON 数据");
 
             var result = db.Insertable(dataDict).AS(tableName).ExecuteCommand();
-            return DatabaseHelper.SerializeResult(new { success = true, affectedRows = result });
+            return _databaseHelper.SerializeResult(new { success = true, affectedRows = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -75,17 +85,17 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
             if (dataDict == null)
                 throw new ArgumentException("无效的 JSON 数据");
 
             var result = db.Updateable(dataDict).AS(tableName).Where(whereClause).ExecuteCommand();
-            return DatabaseHelper.SerializeResult(new { success = true, affectedRows = result });
+            return _databaseHelper.SerializeResult(new { success = true, affectedRows = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -97,13 +107,13 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.Deleteable<object>().AS(tableName).Where(whereClause).ExecuteCommand();
-            return DatabaseHelper.SerializeResult(new { success = true, affectedRows = result });
+            return _databaseHelper.SerializeResult(new { success = true, affectedRows = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -114,7 +124,7 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var commandList = JsonSerializer.Deserialize<string[]>(commands);
             if (commandList == null || commandList.Length == 0)
                 throw new ArgumentException("无效的命令数组");
@@ -123,17 +133,17 @@ internal class CommandTools
             {
                 foreach (var cmd in commandList)
                 {
-                    if (DatabaseHelper.DetectDangerousOperation(cmd))
+                    if (_databaseHelper.DetectDangerousOperation(cmd))
                         throw new InvalidOperationException("在事务中检测到危险操作");
                     db.Ado.ExecuteCommand(cmd);
                 }
             });
 
-            return DatabaseHelper.SerializeResult(new { success = result.IsSuccess, error = result.ErrorMessage });
+            return _databaseHelper.SerializeResult(new { success = result.IsSuccess, error = result.ErrorMessage });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -145,13 +155,13 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
 
             if (string.IsNullOrWhiteSpace(parameters))
             {
                 var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName);
                 var rows = ConvertDataTableToList(result);
-                return DatabaseHelper.SerializeResult(new
+                return _databaseHelper.SerializeResult(new
                 {
                     success = true,
                     rowCount = rows.Count,
@@ -166,7 +176,7 @@ internal class CommandTools
 
                 var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, paramsDict);
                 var rows = ConvertDataTableToList(result);
-                return DatabaseHelper.SerializeResult(new
+                return _databaseHelper.SerializeResult(new
                 {
                     success = true,
                     rowCount = rows.Count,
@@ -176,7 +186,7 @@ internal class CommandTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -189,7 +199,7 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var sugarParams = new List<SugarParameter>();
 
             if (!string.IsNullOrWhiteSpace(inputParameters))
@@ -223,7 +233,7 @@ internal class CommandTools
                 outputValues[param.ParameterName] = param.Value;
             }
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 rowCount = rows.Count,
@@ -233,7 +243,7 @@ internal class CommandTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -244,10 +254,10 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.Ado.ExecuteCommandWithGo(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 affectedRows = result
@@ -255,7 +265,7 @@ internal class CommandTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -267,7 +277,7 @@ internal class CommandTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var commandList = JsonSerializer.Deserialize<string[]>(commands);
             if (commandList == null || commandList.Length == 0)
                 throw new ArgumentException("无效的命令数组");
@@ -287,7 +297,7 @@ internal class CommandTools
                     try
                     {
                         var cmd = commandList[i];
-                        if (DatabaseHelper.DetectDangerousOperation(cmd))
+                        if (_databaseHelper.DetectDangerousOperation(cmd))
                         {
                             results.Add(new { success = false, error = "检测到危险操作", commandIndex = i });
                             continue;
@@ -313,7 +323,7 @@ internal class CommandTools
                 }
             }
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 totalCommands = commandList.Length,
@@ -322,7 +332,7 @@ internal class CommandTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 

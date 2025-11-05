@@ -1,6 +1,7 @@
-using DatabaseMcpServer.Helpers;
-using DatabaseMcpServer.Services;
+using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Filters;
 using ModelContextProtocol.Server;
+using Microsoft.Extensions.Logging;
 using SqlSugar;
 using System.ComponentModel;
 using System.Text.Json;
@@ -12,6 +13,17 @@ namespace DatabaseMcpServer.Tools.Management;
 /// </summary>
 internal class SchemaTools
 {
+    private readonly IDatabaseConfigService _databaseConfig;
+    private readonly IDatabaseHelperService _databaseHelper;
+    private readonly ILogger<SchemaTools> _logger;
+
+    public SchemaTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper, ILogger<SchemaTools> logger)
+    {
+        _databaseConfig = databaseConfig;
+        _databaseHelper = databaseHelper;
+        _logger = logger;
+    }
+
     #region 数据库信息查询
 
     [McpServerTool]
@@ -20,13 +32,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var databases = db.DbMaintenance.GetDataBaseList();
-            return DatabaseHelper.SerializeResult(new { success = true, data = databases });
+            return _databaseHelper.SerializeResult(new { success = true, data = databases });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -36,13 +48,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var views = db.DbMaintenance.GetViewInfoList();
-            return DatabaseHelper.SerializeResult(new { success = true, data = views });
+            return _databaseHelper.SerializeResult(new { success = true, data = views });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -52,13 +64,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var tables = db.DbMaintenance.GetTableInfoList(false);
-            return DatabaseHelper.SerializeResult(new { success = true, data = tables });
+            return _databaseHelper.SerializeResult(new { success = true, data = tables });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -69,13 +81,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
-            return DatabaseHelper.SerializeResult(new { success = true, data = columns });
+            return _databaseHelper.SerializeResult(new { success = true, data = columns });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -86,13 +98,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var identities = db.DbMaintenance.GetIsIdentities(tableName);
-            return DatabaseHelper.SerializeResult(new { success = true, data = identities });
+            return _databaseHelper.SerializeResult(new { success = true, data = identities });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -103,13 +115,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var primaries = db.DbMaintenance.GetPrimaries(tableName);
-            return DatabaseHelper.SerializeResult(new { success = true, data = primaries });
+            return _databaseHelper.SerializeResult(new { success = true, data = primaries });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -124,13 +136,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var exists = db.DbMaintenance.IsAnyTable(tableName, false);
-            return DatabaseHelper.SerializeResult(new { success = true, exists });
+            return _databaseHelper.SerializeResult(new { success = true, exists });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -142,13 +154,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var exists = db.DbMaintenance.IsAnyColumn(tableName, columnName);
-            return DatabaseHelper.SerializeResult(new { success = true, exists });
+            return _databaseHelper.SerializeResult(new { success = true, exists });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -160,13 +172,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var isPrimary = db.DbMaintenance.IsPrimaryKey(tableName, columnName);
-            return DatabaseHelper.SerializeResult(new { success = true, isPrimary });
+            return _databaseHelper.SerializeResult(new { success = true, isPrimary });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -178,13 +190,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var isIdentity = db.DbMaintenance.IsIdentity(tableName, columnName);
-            return DatabaseHelper.SerializeResult(new { success = true, isIdentity });
+            return _databaseHelper.SerializeResult(new { success = true, isIdentity });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -195,13 +207,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var exists = db.DbMaintenance.IsAnyConstraint(constraintName);
-            return DatabaseHelper.SerializeResult(new { success = true, exists });
+            return _databaseHelper.SerializeResult(new { success = true, exists });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -216,13 +228,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DropTable(tableName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -233,13 +245,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.TruncateTable(tableName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -251,13 +263,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.BackupTable(oldTableName, newTableName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -269,13 +281,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.RenameTable(oldTableName, newTableName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -291,7 +303,7 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var columnData = JsonSerializer.Deserialize<Dictionary<string, object>>(columnInfo);
             if (columnData == null)
                 throw new ArgumentException("无效的列信息 JSON");
@@ -305,11 +317,11 @@ internal class SchemaTools
             };
 
             var result = db.DbMaintenance.AddColumn(tableName, column);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -321,7 +333,7 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var columnData = JsonSerializer.Deserialize<Dictionary<string, object>>(columnInfo);
             if (columnData == null)
                 throw new ArgumentException("无效的列信息 JSON");
@@ -335,11 +347,11 @@ internal class SchemaTools
             };
 
             var result = db.DbMaintenance.UpdateColumn(tableName, column);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -351,13 +363,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DropColumn(tableName, columnName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -370,13 +382,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.RenameColumn(tableName, oldColumnName, newColumnName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -392,13 +404,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.AddPrimaryKey(tableName, columnName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -410,13 +422,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DropConstraint(tableName, constraintName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -430,13 +442,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.CreateIndex(tableName, new string[] { columnName }, indexName, isUnique);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -447,13 +459,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var exists = db.DbMaintenance.IsAnyIndex(indexName);
-            return DatabaseHelper.SerializeResult(new { success = true, exists });
+            return _databaseHelper.SerializeResult(new { success = true, exists });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -464,13 +476,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var indexes = db.DbMaintenance.GetIndexList(tableName);
-            return DatabaseHelper.SerializeResult(new { success = true, data = indexes });
+            return _databaseHelper.SerializeResult(new { success = true, data = indexes });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -487,13 +499,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.AddDefaultValue(tableName, columnName, defaultValue);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -505,13 +517,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.AddTableRemark(tableName, description);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -522,13 +534,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var exists = db.DbMaintenance.IsAnyTableRemark(tableName);
-            return DatabaseHelper.SerializeResult(new { success = true, exists });
+            return _databaseHelper.SerializeResult(new { success = true, exists });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -539,13 +551,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DeleteTableRemark(tableName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -558,13 +570,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.AddColumnRemark(tableName, columnName, description);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -576,13 +588,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DeleteColumnRemark(tableName, columnName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -596,13 +608,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var procedures = db.DbMaintenance.GetProcList();
-            return DatabaseHelper.SerializeResult(new { success = true, data = procedures });
+            return _databaseHelper.SerializeResult(new { success = true, data = procedures });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -612,13 +624,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var functions = db.DbMaintenance.GetFuncList();
-            return DatabaseHelper.SerializeResult(new { success = true, data = functions });
+            return _databaseHelper.SerializeResult(new { success = true, data = functions });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -629,13 +641,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DropView(viewName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -646,13 +658,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DropFunction(functionName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -663,13 +675,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.DropProc(procedureName);
-            return DatabaseHelper.SerializeResult(new { success = result });
+            return _databaseHelper.SerializeResult(new { success = result });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -683,13 +695,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var dbTypes = db.DbMaintenance.GetDbTypes();
-            return DatabaseHelper.SerializeResult(new { success = true, data = dbTypes });
+            return _databaseHelper.SerializeResult(new { success = true, data = dbTypes });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -700,13 +712,13 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var triggers = db.DbMaintenance.GetTriggerNames(tableName);
-            return DatabaseHelper.SerializeResult(new { success = true, data = triggers });
+            return _databaseHelper.SerializeResult(new { success = true, data = triggers });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -717,7 +729,7 @@ internal class SchemaTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
             var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName);
             var primaries = db.DbMaintenance.GetPrimaries(tableName);
             var identities = db.DbMaintenance.GetIsIdentities(tableName);
@@ -732,11 +744,11 @@ internal class SchemaTools
                 indexes
             };
 
-            return DatabaseHelper.SerializeResult(new { success = true, data = schema });
+            return _databaseHelper.SerializeResult(new { success = true, data = schema });
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 

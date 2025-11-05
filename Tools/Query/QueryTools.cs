@@ -1,6 +1,8 @@
-using DatabaseMcpServer.Helpers;
-using DatabaseMcpServer.Services;
+using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Models;
 using ModelContextProtocol.Server;
+using Microsoft.Extensions.Logging;
 using SqlSugar;
 using System.ComponentModel;
 using System.Data;
@@ -14,6 +16,17 @@ namespace DatabaseMcpServer.Tools.Query;
 /// </summary>
 internal class QueryTools
 {
+    private readonly IDatabaseConfigService _databaseConfig;
+    private readonly IDatabaseHelperService _databaseHelper;
+    private readonly ILogger<QueryTools> _logger;
+
+    public QueryTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper, ILogger<QueryTools> logger)
+    {
+        _databaseConfig = databaseConfig;
+        _databaseHelper = databaseHelper;
+        _logger = logger;
+    }
+
     [McpServerTool]
     [Description("执行 SQL 查询并返回强类型实体集合，支持复杂 SQL")]
     public string SqlQuery(
@@ -22,14 +35,19 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            if (string.IsNullOrWhiteSpace(sql))
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 查询不能为空");
+            }
+
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.SqlQuery<dynamic>(sql, parsedParams)
                 : db.Ado.SqlQuery<dynamic>(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 rowCount = result.Count,
@@ -38,7 +56,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -50,14 +68,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.SqlQuery<dynamic>(sql, parsedParams).FirstOrDefault()
                 : db.Ado.SqlQuery<dynamic>(sql).FirstOrDefault();
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 data = result
@@ -65,7 +83,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -77,8 +95,8 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var rows = new List<Dictionary<string, object?>>();
 
@@ -96,7 +114,7 @@ internal class QueryTools
                 rows.Add(dict);
             }
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 rowCount = rows.Count,
@@ -105,7 +123,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -117,8 +135,8 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var dataSet = parsedParams != null
                 ? db.Ado.GetDataSetAll(sql, parsedParams)
@@ -132,7 +150,7 @@ internal class QueryTools
                 resultSets.Add(new { rowCount = rows.Count, data = rows });
             }
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 resultSetCount = resultSets.Count,
@@ -141,7 +159,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -153,14 +171,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetScalar(sql, parsedParams)
                 : db.Ado.GetScalar(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -168,7 +186,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -180,14 +198,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetString(sql, parsedParams)
                 : db.Ado.GetString(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -195,7 +213,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -207,14 +225,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetInt(sql, parsedParams)
                 : db.Ado.GetInt(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -222,7 +240,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -234,14 +252,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetLong(sql, parsedParams)
                 : db.Ado.GetLong(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -249,7 +267,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -261,14 +279,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetDouble(sql, parsedParams)
                 : db.Ado.GetDouble(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -276,7 +294,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -288,14 +306,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetDecimal(sql, parsedParams)
                 : db.Ado.GetDecimal(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -303,7 +321,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -315,14 +333,14 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             var result = parsedParams != null
                 ? db.Ado.GetDateTime(sql, parsedParams)
                 : db.Ado.GetDateTime(sql);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 value = result
@@ -330,7 +348,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -342,8 +360,8 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
-            var parsedParams = DatabaseHelper.ParseParameters(parameters);
+            using var db = _databaseConfig.CreateClient();
+            var parsedParams = _databaseHelper.ParseParameters(parameters);
 
             if (db.CurrentConnectionConfig.DbType == DbType.Sqlite)
             {
@@ -362,7 +380,7 @@ internal class QueryTools
             var firstResultSet = ConvertDataTableToList(dataSet.Tables[0]);
             var secondResultSet = ConvertDataTableToList(dataSet.Tables[1]);
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 firstResultSet = new { rowCount = firstResultSet.Count, data = firstResultSet },
@@ -371,7 +389,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
@@ -385,11 +403,11 @@ internal class QueryTools
     {
         try
         {
-            using var db = DatabaseConfigService.CreateGlobalClient();
+            using var db = _databaseConfig.CreateClient();
 
             var inArray = JsonSerializer.Deserialize<object[]>(inValues);
             if (inArray == null)
-                throw new ArgumentException("无效的 IN 参数值数组");
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的 IN 参数值数组");
 
             var sugarParams = new List<SugarParameter>
             {
@@ -398,7 +416,7 @@ internal class QueryTools
 
             if (!string.IsNullOrWhiteSpace(otherParameters))
             {
-                var otherParams = DatabaseHelper.ParseParameters(otherParameters);
+                var otherParams = _databaseHelper.ParseParameters(otherParameters);
                 if (otherParams != null)
                 {
                     sugarParams.AddRange(otherParams);
@@ -407,7 +425,7 @@ internal class QueryTools
 
             var result = db.Ado.SqlQuery<dynamic>(sql, sugarParams.ToArray());
 
-            return DatabaseHelper.SerializeResult(new
+            return _databaseHelper.SerializeResult(new
             {
                 success = true,
                 rowCount = result.Count,
@@ -416,7 +434,7 @@ internal class QueryTools
         }
         catch (Exception ex)
         {
-            return DatabaseHelper.SerializeResult(new { success = false, error = ex.Message });
+            return McpExceptionFilter.HandleException(ex, _logger);
         }
     }
 
