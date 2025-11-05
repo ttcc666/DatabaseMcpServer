@@ -127,7 +127,6 @@
 ### 本地开发测试
 
 1. **克隆项目**
-
 ```bash
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
@@ -135,56 +134,14 @@ cd DatabaseMcpServer
 
 2. **配置 MCP 客户端**
 
-在你的 IDE 中创建 MCP 配置文件，并通过 `env` 字段设置数据库连接信息：
+复制 `mcp.json.example` 到你的 IDE 配置目录并修改连接信息：
 
-**VS Code** (`<WORKSPACE>/.vscode/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "DatabaseMcpServer": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "D:/Demo/my-mcp/DatabaseMcpServer"
-      ],
-      "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
-        "DB_TYPE": "MySql"
-      }
-    }
-  }
-}
-```
+**VS Code**: 复制到 `<WORKSPACE>/.vscode/mcp.json`
+**Visual Studio**: 复制到 `<SOLUTION>/.mcp.json`
 
-**Visual Studio** (`<SOLUTION>/.mcp.json`):
-```json
-{
-  "mcpServers": {
-    "DatabaseMcpServer": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "D:\\Demo\\my-mcp\\DatabaseMcpServer"
-      ],
-      "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
-        "DB_TYPE": "MySql"
-      }
-    }
-  }
-}
-```
+详细配置说明请参考 [配置指南](#-配置指南)
 
-3. **环境变量说明**
-
-| 变量名 | 说明 | 必需 | 默认值 | 示例 |
-|--------|------|------|--------|------|
-| `DB_CONNECTION_STRING` | 数据库连接字符串 | ✅ 是 | 无 | `Server=localhost;Database=mydb;User=root;Password=123456;` |
-| `DB_TYPE` | 数据库类型 | ❌ 否 | `MySql` | `MySql`, `SqlServer`, `Sqlite`, `PostgreSQL`, `Oracle` |
-
-4. **测试服务器**
+3. **测试服务器**
 
 在 Copilot Chat 中尝试以下命令（无需提供连接信息）：
 - "测试数据库连接"
@@ -192,51 +149,50 @@ cd DatabaseMcpServer
 - "查询 users 表的所有数据"
 - "获取 products 表的结构信息"
 
+## ⚙️ 配置指南
+
+### 环境变量说明
+
+| 变量名 | 说明 | 必需 | 默认值 | 示例 |
+|--------|------|------|--------|------|
+| `DB_CONNECTION_STRING` | 数据库连接字符串 | ✅ 是 | 无 | `Server=localhost;Database=mydb;User=root;Password=123456;` |
+| `DB_TYPE` | 数据库类型 | ❌ 否 | `MySql` | `MySql`, `SqlServer`, `Sqlite`, `PostgreSQL`, `Oracle` |
+
+### 连接字符串示例
+
+#### MySQL
+```
+Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;
+```
+
+#### SQL Server
+```
+Server=localhost;Database=mydb;User Id=sa;Password=123456;
+```
+
+#### SQLite
+```
+Data Source=mydb.db;
+```
+
+#### PostgreSQL
+```
+Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;
+```
+
+#### Oracle
+```
+Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=orcl)));User Id=system;Password=123456;
+```
+
+### MCP 配置文件
+
+**本地开发**: 修改 `mcp.json.example` 中的连接信息后复制到对应位置
+**NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "0.1.0-beta", "--yes"]`
+
 ## 📦 从 NuGet 安装
 
-1. **在 IDE 中配置**
-
-**VS Code** (`<WORKSPACE>/.vscode/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "DatabaseMcpServer": {
-      "command": "dnx",
-      "args": [
-        "DatabaseMcpServer",
-        "--version",
-        "0.1.0-beta",
-        "--yes"
-      ],
-      "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
-        "DB_TYPE": "MySql"
-      }
-    }
-  }
-}
-```
-
-**Visual Studio** (`<SOLUTION>/.mcp.json`):
-```json
-{
-  "mcpServers": {
-    "DatabaseMcpServer": {
-      "command": "dnx",
-      "args": [
-        "DatabaseMcpServer",
-        "--version",
-        "0.1.0-beta",
-        "--yes"
-      ],
-      "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User=root;Password=123456;",
-        "DB_TYPE": "MySql"
-      }
-    }
-  }
-}
-```
+使用 NuGet 包时，只需修改配置文件中的 `command` 和 `args` 字段，环境变量配置保持不变。
 
 ## 💻 使用示例
 
@@ -452,32 +408,6 @@ internal class YourNewTools
 }
 ```
 
-## 📚 数据库连接字符串示例
-
-### MySQL
-```
-Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;
-```
-
-### SQL Server
-```
-Server=localhost;Database=mydb;User Id=sa;Password=123456;
-```
-
-### SQLite
-```
-Data Source=mydb.db;
-```
-
-### PostgreSQL
-```
-Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;
-```
-
-### Oracle
-```
-Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=orcl)));User Id=system;Password=123456;
-```
 
 ## 🛠️ 技术栈
 
