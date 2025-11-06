@@ -157,6 +157,8 @@ cd DatabaseMcpServer
 |--------|------|------|--------|------|
 | `DB_CONNECTION_STRING` | 数据库连接字符串 | ✅ 是 | 无 | `Server=localhost;Database=mydb;User=root;Password=123456;` |
 | `DB_TYPE` | 数据库类型 | ❌ 否 | `MySql` | `MySql`, `SqlServer`, `Sqlite`, `PostgreSQL`, `Oracle` |
+| `SEQ_SERVER_URL` | Seq 日志服务器地址 | ❌ 否 | 无 | `http://localhost:5341` |
+| `SEQ_API_KEY` | Seq API 密钥 | ❌ 否 | 无 | `your-seq-api-key` |
 
 ### 连接字符串示例
 
@@ -186,6 +188,38 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 ```
 
 ### MCP 配置文件
+
+#### 基础配置
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer.exe",
+      "env": {
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=password;",
+        "DB_TYPE": "MySql"
+      }
+    }
+  }
+}
+```
+
+#### 启用 Seq 日志记录
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer.exe",
+      "env": {
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=password;",
+        "DB_TYPE": "MySql",
+        "SEQ_SERVER_URL": "http://localhost:5341",
+        "SEQ_API_KEY": "your-seq-api-key"
+      }
+    }
+  }
+}
+```
 
 **本地开发**: 修改 `mcp.json.example` 中的连接信息后复制到对应位置
 **NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "0.1.0-beta", "--yes"]`

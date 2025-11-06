@@ -45,6 +45,16 @@
           "name": "DB_TYPE",
           "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle（可选，默认 MySql）",
           "required": false
+        },
+        {
+          "name": "SEQ_SERVER_URL",
+          "description": "Seq 日志服务器地址（可选，如 http://localhost:5341）",
+          "required": false
+        },
+        {
+          "name": "SEQ_API_KEY",
+          "description": "Seq API 密钥（可选，用于认证和高级功能）",
+          "required": false
         }
       ]
     }

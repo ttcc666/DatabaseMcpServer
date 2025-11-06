@@ -82,6 +82,10 @@ dotnet pack -c Release
 - `DB_CONNECTION_STRING`: 数据库连接字符串
 - `DB_TYPE`: 数据库类型 (MySql/SqlServer/Sqlite/PostgreSql/Oracle)
 
+### 可选环境变量（日志记录）
+- `SEQ_SERVER_URL`: Seq 日志服务器地址 (如 http://localhost:5341)
+- `SEQ_API_KEY`: Seq API 密钥（用于认证和高级功能）
+
 ### MCP 配置示例
 ```json
 {
@@ -90,7 +94,9 @@ dotnet pack -c Release
       "command": "DatabaseMcpServer.exe",
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=password;",
-        "DB_TYPE": "MySql"
+        "DB_TYPE": "MySql",
+        "SEQ_SERVER_URL": "http://localhost:5341",
+        "SEQ_API_KEY": "your-seq-api-key"
       }
     }
   }

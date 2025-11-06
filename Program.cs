@@ -7,12 +7,32 @@ using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Configure all logs to go to stderr (stdout is used for the MCP protocol messages).
-builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
+// Configure Serilog
+var loggerConfig = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
+                     standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose);
+
+// Add Seq sink if configured
+var seqServerUrl = Environment.GetEnvironmentVariable("SEQ_SERVER_URL");
+if (!string.IsNullOrWhiteSpace(seqServerUrl))
+{
+    var seqApiKey = Environment.GetEnvironmentVariable("SEQ_API_KEY");
+    if (!string.IsNullOrWhiteSpace(seqApiKey))
+    {
+        loggerConfig.WriteTo.Seq(seqServerUrl, apiKey: seqApiKey);
+    }
+    else
+    {
+        loggerConfig.WriteTo.Seq(seqServerUrl);
+    }
+}
+
+builder.Services.AddSerilog(loggerConfig.CreateLogger());
 
 // Register services for dependency injection
 builder.Services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();

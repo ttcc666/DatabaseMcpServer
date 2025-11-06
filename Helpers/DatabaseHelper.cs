@@ -79,13 +79,24 @@ internal class DatabaseHelper : IDatabaseHelperService
     public SqlSugarClient CreateClient(string connectionString, DbType dbType)
     {
         _logger.LogDebug("创建数据库客户端，类型: {DbType}", dbType);
-        return new SqlSugarClient(new ConnectionConfig
+        var client = new SqlSugarClient(new ConnectionConfig
         {
             ConnectionString = connectionString,
             DbType = dbType,
             IsAutoCloseConnection = true,
             InitKeyType = InitKeyType.Attribute
         });
+
+        // 配置 SQL 执行日志
+        client.Aop.OnLogExecuting = (sql, pars) =>
+        {
+            var parameters = pars?.Length > 0 ?
+                string.Join(", ", pars.Select(p => $"{p.ParameterName}={p.Value}")) :
+                "无参数";
+            _logger.LogInformation("执行SQL: {Sql} | 参数: {Parameters}", sql, parameters);
+        };
+
+        return client;
     }
 
     /// <summary>
