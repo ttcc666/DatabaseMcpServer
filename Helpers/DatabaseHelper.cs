@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Text.Encodings.Web;
 using SqlSugar;
 using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -64,7 +65,8 @@ internal class DatabaseHelper : IDatabaseHelperService
         return JsonSerializer.Serialize(data, new JsonSerializerOptions
         {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
     }
 
