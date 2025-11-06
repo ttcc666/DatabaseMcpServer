@@ -222,7 +222,7 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 ```
 
 **本地开发**: 修改 `mcp.json.example` 中的连接信息后复制到对应位置
-**NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "0.1.0-beta", "--yes"]`
+**NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "1.0.1", "--yes"]`
 
 ## 📦 从 NuGet 安装
 
@@ -230,8 +230,9 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 
 ## 💻 使用示例
 
-### 示例 1：测试连接
+### 示例 1：连接管理
 
+**测试数据库连接**
 ```
 测试数据库连接
 ```
@@ -240,96 +241,252 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 ```json
 {
   "success": true,
-  "message": "连接成功",
-  "connected": true,
-  "databaseType": "MySql"
+  "data": {
+    "connected": true,
+    "databaseType": "MySql",
+    "serverVersion": "8.0.35"
+  },
+  "message": "数据库连接成功"
 }
 ```
 
-### 示例 2：查询数据
-
+**验证配置**
 ```
-查询 users 表中年龄大于 18 岁的用户
-```
-
-AI 会自动使用环境变量中的连接信息执行查询。
-
-### 示例 3：插入数据
-
-```
-向 products 表插入一条新记录：
-{
-  "name": "iPhone 15",
-  "price": 5999,
-  "stock": 100
-}
-```
-
-### 示例 4：获取表结构
-
-```
-获取 users 表的完整结构信息
-```
-
-### 示例 5：事务操作
-
-```
-执行以下事务操作：
-1. 从账户 A 扣除 100 元
-2. 向账户 B 增加 100 元
-```
-
-### 示例 6：验证配置
-
-```
-验证数据库配置是否正确
+验证当前数据库配置
 ```
 
 返回：
 ```json
 {
-  "configured": true,
-  "databaseType": "MySql",
-  "connectionString": "Server=localhost;Database=mydb;User=root;Password=****;",
-  "message": "配置有效"
+  "success": true,
+  "data": {
+    "configured": true,
+    "databaseType": "MySql",
+    "connectionString": "Server=localhost;Database=mydb;User=root;Password=****;",
+    "isValid": true
+  },
+  "message": "配置验证通过"
 }
 ```
 
-### 示例 7：多结果集查询
+### 示例 2：架构查询
 
+**获取所有表**
 ```
-使用 sql_query_multiple 查询用户信息和订单统计
+列出当前数据库的所有表
 ```
 
-AI 会执行类似以下的查询：
+**获取表结构**
+```
+获取 users 表的完整结构信息
+```
+
+返回：
+```json
+{
+  "success": true,
+  "data": {
+    "tableName": "users",
+    "columns": [
+      {
+        "columnName": "id",
+        "dataType": "int",
+        "isNullable": false,
+        "isPrimaryKey": true,
+        "isIdentity": true
+      },
+      {
+        "columnName": "username",
+        "dataType": "varchar(50)",
+        "isNullable": false,
+        "isPrimaryKey": false,
+        "isIdentity": false
+      }
+    ],
+    "indexes": ["PRIMARY", "idx_username"],
+    "primaryKeys": ["id"]
+  }
+}
+```
+
+### 示例 3：数据查询
+
+**基础查询**
+```
+查询 users 表中年龄大于 25 岁的活跃用户
+```
+
+**参数化查询**
+```
+查询指定城市和年龄范围的用户：城市为"北京"，年龄在 20-30 之间
+```
+
+**聚合查询**
+```
+统计每个部门的员工数量和平均薪资
+```
+
+**IN 参数查询**
+```
+查询用户ID在 [1, 5, 10, 15, 20] 中的用户详细信息
+```
+
+### 示例 4：数据操作
+
+**插入数据**
+```
+向 products 表插入新商品：
+{
+  "name": "MacBook Pro M3",
+  "price": 14999,
+  "category": "电脑",
+  "stock": 50,
+  "description": "Apple MacBook Pro 14英寸 M3芯片"
+}
+```
+
+**更新数据**
+```
+将商品ID为5的库存更新为100，价格更新为8999
+```
+
+**删除数据**
+```
+删除状态为"已停用"且创建时间超过1年的用户记录
+```
+
+### 示例 5：高级查询
+
+**多结果集查询**
+```
+同时获取用户统计信息和最近订单数据
+```
+
+AI 会执行：
 ```sql
-SELECT * FROM users WHERE status = 1; 
-SELECT COUNT(*) as order_count, SUM(amount) as total_amount FROM orders WHERE user_id IN (SELECT id FROM users WHERE status = 1)
+-- 第一个结果集：用户统计
+SELECT 
+  COUNT(*) as total_users,
+  COUNT(CASE WHEN status = 'active' THEN 1 END) as active_users,
+  AVG(age) as avg_age
+FROM users;
+
+-- 第二个结果集：最近订单
+SELECT 
+  o.id, o.user_id, u.username, o.amount, o.created_at
+FROM orders o
+JOIN users u ON o.user_id = u.id
+WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+ORDER BY o.created_at DESC
+LIMIT 10;
 ```
 
-### 示例 8：存储过程调用
-
+**复杂关联查询**
 ```
-调用存储过程 sp_get_user_summary，传入用户ID 1，并获取输出参数 total_orders
-```
-
-AI 会使用 `call_stored_procedure_with_output` 工具处理带输出参数的存储过程。
-
-### 示例 9：批量操作
-
-```
-批量更新多个用户的状态为激活状态
+查询最近30天内有订单的用户信息，包括订单总数和总金额
 ```
 
-AI 会使用 `batch_execute_commands` 工具优化批量操作性能。
+### 示例 6：事务操作
 
-### 示例 10：IN 参数查询
-
+**转账事务**
 ```
-查询 ID 在 [1, 2, 3, 5, 8] 中的订单信息
+执行转账操作：从账户A(ID:1001)转账500元到账户B(ID:1002)
 ```
 
-AI 会使用 `sql_query_with_in_parameter` 工具处理数组参数。
+AI 会执行事务：
+```sql
+BEGIN TRANSACTION;
+UPDATE accounts SET balance = balance - 500 WHERE id = 1001 AND balance >= 500;
+UPDATE accounts SET balance = balance + 500 WHERE id = 1002;
+COMMIT;
+```
+
+**批量操作**
+```
+批量更新以下用户的VIP状态：
+- 用户ID 1,3,5,7,9 设置为VIP
+- 用户ID 2,4,6,8,10 设置为普通用户
+```
+
+### 示例 7：存储过程调用
+
+**简单存储过程**
+```
+调用存储过程 sp_monthly_report，传入参数：年份2024，月份11
+```
+
+**带输出参数的存储过程**
+```
+调用存储过程 sp_user_statistics，传入用户ID 1001，获取输出参数：total_orders, total_amount, last_order_date
+```
+
+返回：
+```json
+{
+  "success": true,
+  "data": {
+    "inputParameters": {
+      "user_id": 1001
+    },
+    "outputParameters": {
+      "total_orders": 25,
+      "total_amount": 15680.50,
+      "last_order_date": "2024-11-05"
+    }
+  }
+}
+```
+
+### 示例 8：架构管理
+
+**表操作**
+```
+创建用户日志表的备份表 user_logs_backup
+```
+
+**索引管理**
+```
+为 orders 表的 user_id 字段创建索引 idx_orders_user_id
+```
+
+**列操作**
+```
+为 users 表添加新列：phone varchar(20)，允许为空，默认值为空字符串
+```
+
+### 示例 9：数据分析
+
+**销售报表**
+```
+生成本月销售报表：按产品分类统计销量和销售额
+```
+
+**用户行为分析**
+```
+分析用户登录频率：统计每个用户最近30天的登录次数
+```
+
+**库存预警**
+```
+查询库存不足的商品（库存小于10件）
+```
+
+### 示例 10：实用工具
+
+**数据导出**
+```
+导出所有活跃用户的基本信息到JSON格式
+```
+
+**数据验证**
+```
+检查 orders 表中是否存在无效的用户ID引用
+```
+
+**性能分析**
+```
+分析 users 表的索引使用情况和查询性能
+```
 
 ## 🔒 安全特性
 
@@ -537,7 +694,7 @@ dotnet nuget push bin/Release/*.nupkg --api-key <your-api-key> --source https://
 
 ## ⚠️ 免责声明
 
-- 本项目目前处于早期预览阶段
+- 本项目已发布 1.0.1 正式版本
 - 请在生产环境中谨慎使用
 - 始终备份重要数据
 - 确保正确配置安全设置

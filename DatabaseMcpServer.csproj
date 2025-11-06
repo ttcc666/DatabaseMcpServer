@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFrameworks>net10.0;net9.0</TargetFrameworks>
     <RuntimeIdentifiers>win-x64;win-arm64;osx-arm64;linux-x64;linux-arm64;linux-musl-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
@@ -20,8 +20,9 @@
 
     <!-- Set recommended package metadata -->
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageId>DatabaseMcpServer</PackageId>
-    <PackageVersion>0.1.0-beta</PackageVersion>
+    <PackageVersion>1.0.1</PackageVersion>
     <PackageTags>AI; MCP; server; stdio</PackageTags>
     <Description>一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。</Description>
     <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
@@ -33,6 +34,7 @@
   <ItemGroup>
     <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,6 +1,6 @@
 {
   "capabilities": {
-    "databases": [ "MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle" ],
+    "databases": ["MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle"],
     "features": [
       "环境变量全局配置",
       "数据库连接管理",
@@ -34,7 +34,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "0.1.0-beta",
+      "version": "1.0.1",
       "environmentVariables": [
         {
           "name": "DB_CONNECTION_STRING",
@@ -317,5 +317,5 @@
       "description": "批量执行 SQL 命令（使用长连接优化性能）"
     }
   ],
-  "version": "0.1.0-beta"
+  "version": "1.0.1"
 }
