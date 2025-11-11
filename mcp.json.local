@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "database": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "D:\\Demo\\my-mcp\\DatabaseMcpServer"
+      ],
+      "env": {
+        "DB_CONNECTION_STRING": "Server=192.168.168.28;Database=master;User Id=sa;Password=kgm123!@#;TrustServerCertificate=True;",
+        "DB_TYPE": "SqlServer",
+        "SEQ_SERVER_URL": "http://localhost:5341",
+        "SEQ_API_KEY": ""
+      }
+    }
+  }
+}

@@ -159,35 +159,150 @@ cd DatabaseMcpServer
 | 变量名 | 说明 | 必需 | 默认值 | 示例 |
 |--------|------|------|--------|------|
 | `DB_CONNECTION_STRING` | 数据库连接字符串 | ✅ 是 | 无 | `Server=localhost;Database=mydb;User=root;Password=123456;` |
-| `DB_TYPE` | 数据库类型 | ❌ 否 | `MySql` | `MySql`, `SqlServer`, `Sqlite`, `PostgreSQL`, `Oracle` |
+| `DB_TYPE` | 数据库类型 | ❌ 否 | `MySql` | 主流数据库：MySql, SqlServer, Sqlite, PostgreSQL, Oracle<br/>国产数据库：dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb<br/>分布式数据库：oceanbase, tidb, polardb, doris<br/>时序数据库：tdengine, questdb, clickhouse<br/>其他数据库：duckdb, access, odbc, hana, db2, mongodb, custom, mysqlconnector, opengauss, gaussdb, gaussdbnative, oceanbasefororacle, tsql, tsqlforpgodbc |
 | `SEQ_SERVER_URL` | Seq 日志服务器地址 | ❌ 否 | 无 | `http://localhost:5341` |
 | `SEQ_API_KEY` | Seq API 密钥 | ❌ 否 | 无 | `your-seq-api-key` |
 
 ### 连接字符串示例
 
-#### MySQL
+#### 主流数据库连接字符串示例
+
+**MySQL**
 ```
 Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;
 ```
 
-#### SQL Server
+**SQL Server**
 ```
 Server=localhost;Database=mydb;User Id=sa;Password=123456;
 ```
 
-#### SQLite
+**SQLite**
 ```
 Data Source=mydb.db;
 ```
 
-#### PostgreSQL
+**PostgreSQL**
 ```
 Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;
 ```
 
-#### Oracle
+**Oracle**
 ```
 Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=orcl)));User Id=system;Password=123456;
+```
+
+#### 国产数据库连接字符串示例
+
+**达梦数据库 (dm)**
+```
+Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;
+```
+
+**人大金仓 (kdbndp/kingbase)**
+```
+Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=MANAGER;
+```
+
+**神通数据库 (oscar)**
+```
+Server=localhost;Port=2003;Database=mydb;User=SYSDBA;Password=SYSDBA;
+```
+
+**瀚高数据库 (hg)**
+```
+Server=localhost;Port=5866;Database=mydb;User=postgres;Password=123456;
+```
+
+**南大通用 GBase (gbase)**
+```
+Server=localhost;Port=5258;Database=mydb;User=GBASEDBT;Password=GBASEDBT;
+```
+
+**虚谷数据库 (xugu)**
+```
+Server=localhost:5138/mydb;User=SYSDBA;Password=SYSDBA;
+```
+
+**海量数据库 (vastbase)**
+```
+Host=localhost;Port=5432;Database=mydb;Username=vastbase;Password=123456;
+```
+
+**GoldenDB (goldendb)**
+```
+Server=localhost;Port=3306;Database=mydb;User=golden;Password=golden123;
+```
+
+#### 分布式数据库连接字符串示例
+
+**OceanBase**
+```
+Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;
+```
+
+**TiDB**
+```
+Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;
+```
+
+**PolarDB**
+```
+Server=localhost;Port=3306;Database=mydb;User=polar;Password=123456;
+```
+
+**Doris**
+```
+Server=localhost;Port=9030;Database=mydb;User=root;Password=123456;
+```
+
+#### 时序数据库连接字符串示例
+
+**TDengine**
+```
+Server=localhost;Port=6030;Database=mydb;User=root;Password=taosdata;
+```
+
+**QuestDB**
+```
+Server=localhost:9000;user=admin;password=quest;
+```
+
+**ClickHouse**
+```
+Server=localhost;Port=9000;Database=mydb;User=default;Password=123456;
+```
+
+#### 其他数据库连接字符串示例
+
+**DuckDB**
+```
+Data Source=mydb.duckdb;
+```
+
+**Microsoft Access**
+```
+Provider=Microsoft.ACE.OLEDB.12.0;Data Source=mydb.accdb;
+```
+
+**ODBC**
+```
+Driver={SQL Server};Server=localhost;Database=mydb;User Id=sa;Password=123456;
+```
+
+**SAP HANA**
+```
+Server=localhost:30015;UserName=SYSTEM;Password=123456;
+```
+
+**IBM DB2**
+```
+Server=localhost:50000;Database=mydb;User ID=db2admin;Password=123456;
+```
+
+**MongoDB**
+```
+mongodb://localhost:27017/mydb;
 ```
 
 ### MCP 配置文件
@@ -236,7 +351,7 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 dotnet tool install --global DatabaseMcpServer
 
 # 或指定版本
-dotnet tool install --global DatabaseMcpServer --version 1.0.3
+dotnet tool install --global DatabaseMcpServer --version 1.0.4
 
 # 更新已安装版本
 dotnet tool update --global DatabaseMcpServer
@@ -257,7 +372,7 @@ DatabaseMcpServer --version
     {
       "type": "promptString",
       "id": "DB_TYPE",
-      "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle"
+      "description": "数据库类型：主流数据库(MySql, SqlServer, Sqlite, PostgreSQL, Oracle)、国产数据库(dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb)、分布式数据库(oceanbase, tidb, polardb, doris)、时序数据库(tdengine, questdb, clickhouse)、其他数据库(duckdb, access, odbc, hana, db2, mongodb, custom)等"
     }
   ],
   "servers": {
@@ -276,7 +391,7 @@ DatabaseMcpServer --version
 ### 方式 2: 使用 dnx 命令
 
 ```bash
-dnx DatabaseMcpServer@1.0.3 --yes
+dnx DatabaseMcpServer@1.0.4 --yes
 ```
 
 **MCP 配置示例**：
@@ -291,14 +406,14 @@ dnx DatabaseMcpServer@1.0.3 --yes
     {
       "type": "promptString",
       "id": "DB_TYPE",
-      "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle"
+      "description": "数据库类型：主流数据库(MySql, SqlServer, Sqlite, PostgreSQL, Oracle)、国产数据库(dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb)、分布式数据库(oceanbase, tidb, polardb, doris)、时序数据库(tdengine, questdb, clickhouse)、其他数据库(duckdb, access, odbc, hana, db2, mongodb, custom)等"
     }
   ],
   "servers": {
     "database": {
       "type": "stdio",
       "command": "dnx",
-      "args": ["DatabaseMcpServer@1.0.3", "--yes"],
+      "args": ["DatabaseMcpServer@1.0.4", "--yes"],
       "env": {
         "DB_CONNECTION_STRING": "${input:DB_CONNECTION_STRING}",
         "DB_TYPE": "${input:DB_TYPE}"
@@ -345,7 +460,7 @@ DatabaseMcpServer --version
 
 **问题 1: "找不到包 databasemcpserver.win-x64"**
 - **原因**: 使用了旧版本配置
-- **解决**: 确保使用 v1.0.3 或更高版本
+- **解决**: 确保使用 v1.0.4 或更高版本
 
 **问题 2: 工具安装成功但无法运行**
 ```bash
@@ -373,30 +488,63 @@ dotnet --version
 
 ## 📝 更新日志
 
+### v1.0.4 (2025-11-11)
+
+#### 🎉 多数据库连接支持
+- ✅ **增强多数据库连接管理** - 改进 DatabaseConfigService 支持同时管理多个数据库连接
+- ✅ **优化数据库类型解析** - 扩展 DatabaseHelper 支持 34 种数据库类型的更精确识别
+- 🌟 **连接池优化** - 为不同数据库类型提供独立的连接池配置
+- 🔧 **配置验证增强** - 增加数据库连接配置的详细验证和错误提示
+
+
 ### v1.0.3 (2025-11-11)
 
 #### 🎉 重大改进
 - ✅ **修复 .NET Global Tool 安装问题** - 现在可以正常使用 `dotnet tool install --global DatabaseMcpServer`
 - ✅ **支持 dnx 命令** - `dnx DatabaseMcpServer@1.0.3 --yes` 现在可以正常工作
 - ✅ **优化包结构** - 移除了平台特定配置，支持跨平台安装
+- 🌟 **大幅扩展数据库支持** - 从 5 种数据库类型扩展到 34 种数据库类型
 
 #### 🔧 技术变更
 - **移除**: `RuntimeIdentifiers` 配置（导致平台特定包名问题）
 - **移除**: `SelfContained` 和 `PublishSingleFile` 配置（Global Tool 不需要）
 - **新增**: `ToolCommandName` 属性，指定全局工具命令名称
 - **保留**: `PackAsTool=true` 和 `PackageType=McpServer`
+- **扩展**: `DatabaseHelper.ParseDbType()` 方法支持 34 种数据库类型
+
+#### 🌐 新增数据库支持
+**主流数据库** (保持向后兼容):
+- MySQL, SQL Server, SQLite, PostgreSQL, Oracle
+
+**国产数据库**:
+- 达梦数据库 (dm), 人大金仓 (kdbndp/kingbase), 神通数据库 (oscar)
+- 瀚高数据库 (hg), 南大通用 GBase (gbase), 虚谷数据库 (xugu)
+- 海量数据库 (vastbase), GoldenDB (goldendb)
+
+**分布式数据库**:
+- OceanBase, TiDB, PolarDB, Doris
+
+**时序数据库**:
+- TDengine, QuestDB, ClickHouse
+
+**其他数据库**:
+- DuckDB, Access, ODBC, SAP HANA, IBM DB2, MongoDB, Custom
+- MySQL Connector, OpenGauss, GaussDB, GaussDB Native
+- OceanBase for Oracle, TDSQL, TDSQL for PG ODBC
 
 #### 📦 安装方式
 现在支持三种安装方式：
 1. **.NET Global Tool**（推荐）：`dotnet tool install --global DatabaseMcpServer`
-2. **dnx 命令**：`dnx DatabaseMcpServer@1.0.3 --yes`
+2. **dnx 命令**：`dnx DatabaseMcpServer@1.0.4 --yes`
 3. **可执行文件**：传统的 exe 文件方式
 
 #### ⚠️ 注意事项
 - 如果之前安装了旧版本遇到问题，请先卸载：`dotnet tool uninstall --global DatabaseMcpServer`
 - NuGet 索引可能需要 5-15 分钟更新，请耐心等待
+- 新增的数据库类型支持 SqlSugar 的所有 34 种数据库，包括主流、国产、分布式、时序数据库
+- 所有现有配置保持向后兼容，无需修改现有的 DB_TYPE 配置
 
-### v1.0.2 (2024-XX-XX)
+### v1.0.2 (2025-XX-XX)
 
 #### 🎯 初始发布
 - 支持多种数据库类型（MySQL、SQL Server、SQLite、PostgreSQL、Oracle）
@@ -589,7 +737,7 @@ COMMIT;
 
 **简单存储过程**
 ```
-调用存储过程 sp_monthly_report，传入参数：年份2024，月份11
+调用存储过程 sp_monthly_report，传入参数：年份2025，月份11
 ```
 
 **带输出参数的存储过程**
@@ -608,7 +756,7 @@ COMMIT;
     "outputParameters": {
       "total_orders": 25,
       "total_amount": 15680.50,
-      "last_order_date": "2024-11-05"
+      "last_order_date": "2025-11-05"
     }
   }
 }
@@ -887,7 +1035,7 @@ dotnet nuget push ./nupkg/DatabaseMcpServer.<version>.nupkg --api-key <your-api-
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 1.0.3 正式版本
+- 本项目已发布 1.0.4 正式版本
 - 请在生产环境中谨慎使用
 - 始终备份重要数据
 - 确保正确配置安全设置

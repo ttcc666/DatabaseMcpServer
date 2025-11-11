@@ -1,6 +1,7 @@
 using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
+using System.Text.Encodings.Web;
 
 namespace DatabaseMcpServer.Filters;
 
@@ -56,7 +57,9 @@ public static class McpExceptionFilter
         return System.Text.Json.JsonSerializer.Serialize(errorResult, new System.Text.Json.JsonSerializerOptions
         {
             WriteIndented = true,
-            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            // 设置编码器，使其不转义非ASCII字符和某些特殊符号
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
     }
 }

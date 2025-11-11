@@ -80,7 +80,7 @@ dotnet pack -c Release
 
 ### 必需环境变量
 - `DB_CONNECTION_STRING`: 数据库连接字符串
-- `DB_TYPE`: 数据库类型 (MySql/SqlServer/Sqlite/PostgreSql/Oracle)
+- `DB_TYPE`: 数据库类型 (主流数据库: MySql/SqlServer/Sqlite/PostgreSQL/Oracle, 国产数据库: dm/kdbndp/kingbase/oscar/hg/gbase/xugu/vastbase/goldendb, 分布式数据库: oceanbase/tidb/polardb/doris, 时序数据库: tdengine/questdb/clickhouse, 其他数据库: duckdb/access/odbc/hana/db2/mongodb/custom等)
 
 ### 可选环境变量（日志记录）
 - `SEQ_SERVER_URL`: Seq 日志服务器地址 (如 http://localhost:5341)
@@ -105,12 +105,55 @@ dotnet pack -c Release
 
 ## 📊 数据库支持
 
-**支持的数据库类型**:
+**支持的数据库类型** (共34种):
+
+### 🌐 主流数据库
 - MySQL (默认)
 - SQL Server
 - SQLite
 - PostgreSQL
 - Oracle
+
+### 🇨🇳 国产数据库
+- 达梦数据库 (dm)
+- 人大金仓 (kdbndp/kingbase)
+- 神通数据库 (oscar)
+- 瀚高数据库 (hg)
+- 南大通用 GBase (gbase)
+- 虚谷数据库 (xugu)
+- 海量数据库 (vastbase)
+- GoldenDB (goldendb)
+
+### 🚀 分布式数据库
+- OceanBase (oceanbase)
+- TiDB (tidb)
+- PolarDB (polardb)
+- Doris (doris)
+
+### ⏱️ 时序数据库
+- TDengine (tdengine)
+- QuestDB (questdb)
+- ClickHouse (clickhouse)
+
+### 🔍 分析型数据库
+- DuckDB (duckdb)
+
+### 🛠️ 其他数据库
+- Microsoft Access (access)
+- ODBC (odbc)
+- SAP HANA (hana)
+- IBM DB2 (db2)
+- MongoDB (mongodb)
+- 自定义数据库 (custom)
+
+### 🔧 特定版本和变体
+- MySQL Connector (mysqlconnector)
+- OpenGauss (opengauss)
+- GaussDB (gaussdb)
+- GaussDB Native (gaussdbnative)
+- OceanBase for Oracle (oceanbasefororacle)
+- TDSQL (tdsql)
+- TDSQL for PG ODBC (tdsqlforpgodbc)
 
 **ORM 框架**: SqlSugarCore 5.1.4 - 轻量级 ORM，支持多数据库和复杂查询。
 

@@ -15,9 +15,9 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageId>DatabaseMcpServer</PackageId>
-    <PackageVersion>1.0.3</PackageVersion>
-    <PackageTags>AI; MCP; server; stdio</PackageTags>
-    <Description>一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。</Description>
+    <PackageVersion>1.0.4</PackageVersion>
+    <PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
+    <Description>一个功能强大的数据库操作 MCP 服务器，支持 34 种数据库类型，包括主流数据库、国产数据库、分布式数据库和时序数据库。</Description>
     <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/ttcc666/DatabaseMcpServer</PackageProjectUrl>

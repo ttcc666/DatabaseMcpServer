@@ -15,7 +15,7 @@
     "database-nuget": {
       "// NuGet 包部署": "",
       "command": "dnx",
-      "args": ["DatabaseMcpServer", "--version", "1.0.3", "--yes"],
+      "args": ["DatabaseMcpServer", "--version", "1.0.4", "--yes"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=prod;Uid=root;Pwd=prod_password;",
         "DB_TYPE": "MySql"
@@ -33,6 +33,7 @@
   },
 
   "// 数据库配置示例": {
+    "// 主流数据库": "",
     "MySQL": {
       "DB_CONNECTION_STRING": "Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;",
       "DB_TYPE": "MySql"
@@ -56,12 +57,66 @@
     "Oracle": {
       "DB_CONNECTION_STRING": "Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=orcl)));User Id=system;Password=123456;",
       "DB_TYPE": "Oracle"
+    },
+
+    "// 国产数据库": "",
+    "达梦数据库": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;",
+      "DB_TYPE": "dm"
+    },
+
+    "人大金仓": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=MANAGER;",
+      "DB_TYPE": "kdbndp"
+    },
+
+    "神通数据库": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=2003;Database=mydb;User=SYSDBA;Password=SYSDBA;",
+      "DB_TYPE": "oscar"
+    },
+
+    "瀚高数据库": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=5866;Database=mydb;User=postgres;Password=123456;",
+      "DB_TYPE": "hg"
+    },
+
+    "// 分布式数据库": "",
+    "OceanBase": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;",
+      "DB_TYPE": "oceanbase"
+    },
+
+    "TiDB": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;",
+      "DB_TYPE": "tidb"
+    },
+
+    "// 时序数据库": "",
+    "TDengine": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=6030;Database=mydb;User=root;Password=taosdata;",
+      "DB_TYPE": "tdengine"
+    },
+
+    "ClickHouse": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=9000;Database=mydb;User=default;Password=123456;",
+      "DB_TYPE": "clickhouse"
+    },
+
+    "// 分析型数据库": "",
+    "DuckDB": {
+      "DB_CONNECTION_STRING": "Data Source=mydb.duckdb;",
+      "DB_TYPE": "duckdb"
+    },
+
+    "Doris": {
+      "DB_CONNECTION_STRING": "Server=localhost;Port=9030;Database=mydb;User=root;Password=123456;",
+      "DB_TYPE": "doris"
     }
   },
 
   "// 环境变量说明": {
     "DB_CONNECTION_STRING": "数据库连接字符串（必需）",
-    "DB_TYPE": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle（可选，默认MySql）",
+    "DB_TYPE": "数据库类型：主流数据库(MySql, SqlServer, Sqlite, PostgreSQL, Oracle)、国产数据库(dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb)、分布式数据库(oceanbase, tidb, polardb, doris)、时序数据库(tdengine, questdb, clickhouse)、其他数据库(duckdb, access, odbc, hana, db2, mongodb, custom)等（可选，默认MySql）",
     "SEQ_SERVER_URL": "Seq日志服务器地址（可选）",
     "SEQ_API_KEY": "Seq API密钥（可选）"
   },

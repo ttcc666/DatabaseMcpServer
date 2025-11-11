@@ -1,6 +1,35 @@
 {
   "capabilities": {
-    "databases": ["MySQL", "SQL Server", "SQLite", "PostgreSQL", "Oracle"],
+    "databases": [
+      "MySQL",
+      "SQL Server",
+      "SQLite",
+      "PostgreSQL",
+      "Oracle",
+      "达梦数据库",
+      "人大金仓",
+      "神通数据库",
+      "瀚高数据库",
+      "南大通用GBase",
+      "虚谷数据库",
+      "海量数据库",
+      "GoldenDB",
+      "OceanBase",
+      "TiDB",
+      "PolarDB",
+      "Doris",
+      "TDengine",
+      "QuestDB",
+      "ClickHouse",
+      "DuckDB",
+      "Microsoft Access",
+      "ODBC",
+      "SAP HANA",
+      "IBM DB2",
+      "MongoDB",
+      "OpenGauss",
+      "GaussDB"
+    ],
     "features": [
       "环境变量全局配置",
       "数据库连接管理",
@@ -25,7 +54,7 @@
   },
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.ttcc666/database-mcp-server",
-  "description": "一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。通过环境变量配置连接信息，提供数据库连接管理、架构查询与操作、高级查询、数据操作、存储过程调用和事务处理等功能。",
+  "description": "一个功能强大的数据库操作 MCP 服务器，支持 34 种数据库类型，包括主流数据库、国产数据库、分布式数据库、时序数据库等。通过环境变量配置连接信息，提供数据库连接管理、架构查询与操作、高级查询、数据操作、存储过程调用和事务处理等功能。",
   "packages": [
     {
       "packageArguments": [],
@@ -34,7 +63,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "1.0.3",
+      "version": "1.0.4",
       "environmentVariables": [
         {
           "name": "DB_CONNECTION_STRING",
@@ -43,7 +72,7 @@
         },
         {
           "name": "DB_TYPE",
-          "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle（可选，默认 MySql）",
+          "description": "数据库类型：主流数据库(MySql, SqlServer, Sqlite, PostgreSQL, Oracle)、国产数据库(dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb)、分布式数据库(oceanbase, tidb, polardb, doris)、时序数据库(tdengine, questdb, clickhouse)、其他数据库(duckdb, access, odbc, hana, db2, mongodb, custom)等（可选，默认 MySql）",
           "required": false
         },
         {
@@ -317,5 +346,5 @@
       "description": "批量执行 SQL 命令（使用长连接优化性能）"
     }
   ],
-  "version": "1.0.3"
+  "version": "1.0.4"
 }
