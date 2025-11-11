@@ -34,7 +34,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "1.0.2",
+      "version": "1.0.3",
       "environmentVariables": [
         {
           "name": "DB_CONNECTION_STRING",
@@ -317,5 +317,5 @@
       "description": "批量执行 SQL 命令（使用长连接优化性能）"
     }
   ],
-  "version": "1.0.2"
+  "version": "1.0.3"
 }

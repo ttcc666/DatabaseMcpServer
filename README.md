@@ -1,9 +1,12 @@
 # 数据库操作 MCP 服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.3-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，支持多种主流数据库。通过环境变量配置连接信息，让 AI 助手能够安全、便捷地执行数据库操作。
+
+**🎉 v1.0.3 已发布！** 修复了 .NET Global Tool 安装问题，现在支持多种安装方式。
 
 ## ✨ 特性
 
@@ -222,11 +225,185 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 ```
 
 **本地开发**: 修改 `mcp.json.example` 中的连接信息后复制到对应位置
-**NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "1.0.2", "--yes"]`
+**NuGet 包**: 参考上方 [从 NuGet 安装](#-从-nuget-安装) 部分的配置示例
 
 ## 📦 从 NuGet 安装
 
-使用 NuGet 包时，只需修改配置文件中的 `command` 和 `args` 字段，环境变量配置保持不变。
+### 方式 1: 使用 .NET Global Tool（推荐）
+
+```bash
+# 安装最新版本
+dotnet tool install --global DatabaseMcpServer
+
+# 或指定版本
+dotnet tool install --global DatabaseMcpServer --version 1.0.3
+
+# 更新已安装版本
+dotnet tool update --global DatabaseMcpServer
+
+# 验证安装
+DatabaseMcpServer --version
+```
+
+**MCP 配置示例**：
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "DB_CONNECTION_STRING",
+      "description": "数据库连接字符串（必需）"
+    },
+    {
+      "type": "promptString",
+      "id": "DB_TYPE",
+      "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle"
+    }
+  ],
+  "servers": {
+    "database": {
+      "type": "stdio",
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONNECTION_STRING": "${input:DB_CONNECTION_STRING}",
+        "DB_TYPE": "${input:DB_TYPE}"
+      }
+    }
+  }
+}
+```
+
+### 方式 2: 使用 dnx 命令
+
+```bash
+dnx DatabaseMcpServer@1.0.3 --yes
+```
+
+**MCP 配置示例**：
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "DB_CONNECTION_STRING",
+      "description": "数据库连接字符串（必需）"
+    },
+    {
+      "type": "promptString",
+      "id": "DB_TYPE",
+      "description": "数据库类型：MySql, SqlServer, Sqlite, PostgreSQL, Oracle"
+    }
+  ],
+  "servers": {
+    "database": {
+      "type": "stdio",
+      "command": "dnx",
+      "args": ["DatabaseMcpServer@1.0.3", "--yes"],
+      "env": {
+        "DB_CONNECTION_STRING": "${input:DB_CONNECTION_STRING}",
+        "DB_TYPE": "${input:DB_TYPE}"
+      }
+    }
+  }
+}
+```
+
+### 方式 3: 使用可执行文件（传统方式）
+
+下载可执行文件后，在配置中指定完整路径：
+
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer.exe",
+      "env": {
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=password;",
+        "DB_TYPE": "MySql"
+      }
+    }
+  }
+}
+```
+
+### 🔍 验证安装
+
+安装完成后，请验证以下内容：
+
+```bash
+# 1. 检查工具是否已安装
+dotnet tool list --global | grep DatabaseMcpServer
+
+# 2. 验证可以执行命令
+DatabaseMcpServer --version
+
+# 3. 在 MCP 配置中测试连接
+# 使用上面的配置模板创建 MCP 配置文件
+```
+
+### ⚠️ 故障排除
+
+**问题 1: "找不到包 databasemcpserver.win-x64"**
+- **原因**: 使用了旧版本配置
+- **解决**: 确保使用 v1.0.3 或更高版本
+
+**问题 2: 工具安装成功但无法运行**
+```bash
+# 检查 PATH 环境变量
+echo $PATH  # Linux/macOS
+echo %PATH%  # Windows
+
+# 重新安装
+dotnet tool uninstall --global DatabaseMcpServer
+dotnet tool install --global DatabaseMcpServer
+```
+
+**问题 3: NuGet 包暂时不可见**
+- **解决**: NuGet.org 索引需要 5-15 分钟更新，请耐心等待
+- **替代**: 清除 NuGet 缓存：`dotnet nuget locals all --clear`
+
+**问题 4: .NET 版本不兼容**
+```bash
+# 检查 .NET 版本（需要 9.0+）
+dotnet --version
+
+# 安装 .NET 9.0
+# 访问 https://dotnet.microsoft.com/download
+```
+
+## 📝 更新日志
+
+### v1.0.3 (2025-11-11)
+
+#### 🎉 重大改进
+- ✅ **修复 .NET Global Tool 安装问题** - 现在可以正常使用 `dotnet tool install --global DatabaseMcpServer`
+- ✅ **支持 dnx 命令** - `dnx DatabaseMcpServer@1.0.3 --yes` 现在可以正常工作
+- ✅ **优化包结构** - 移除了平台特定配置，支持跨平台安装
+
+#### 🔧 技术变更
+- **移除**: `RuntimeIdentifiers` 配置（导致平台特定包名问题）
+- **移除**: `SelfContained` 和 `PublishSingleFile` 配置（Global Tool 不需要）
+- **新增**: `ToolCommandName` 属性，指定全局工具命令名称
+- **保留**: `PackAsTool=true` 和 `PackageType=McpServer`
+
+#### 📦 安装方式
+现在支持三种安装方式：
+1. **.NET Global Tool**（推荐）：`dotnet tool install --global DatabaseMcpServer`
+2. **dnx 命令**：`dnx DatabaseMcpServer@1.0.3 --yes`
+3. **可执行文件**：传统的 exe 文件方式
+
+#### ⚠️ 注意事项
+- 如果之前安装了旧版本遇到问题，请先卸载：`dotnet tool uninstall --global DatabaseMcpServer`
+- NuGet 索引可能需要 5-15 分钟更新，请耐心等待
+
+### v1.0.2 (2024-XX-XX)
+
+#### 🎯 初始发布
+- 支持多种数据库类型（MySQL、SQL Server、SQLite、PostgreSQL、Oracle）
+- 完整的 MCP 工具集（60+ 数据库操作工具）
+- 环境变量配置机制
+- 安全防护和参数化查询
+- 自包含部署支持
 
 ## 💻 使用示例
 
@@ -613,23 +790,44 @@ internal class YourNewTools
   - `<Description>`
   - `<Authors>`
 - [ ] 更新 `.mcp/server.json`
-- [ ] 更新 README.md
+- [ ] 更新 README.md 和版本号
+- [ ] 确保没有平台特定的 RuntimeIdentifier 配置
 - [ ] 添加许可证文件
 
 ### 发布步骤
 
-1. **打包项目**
+1. **清理和构建**
 ```bash
-dotnet pack -c Release
+dotnet clean
+dotnet build -c Release
 ```
 
-2. **发布到 NuGet.org**
+2. **打包项目**
 ```bash
-dotnet nuget push bin/Release/*.nupkg --api-key <your-api-key> --source https://api.nuget.org/v3/index.json
+dotnet pack -c Release -o ./nupkg
 ```
 
-3. **验证发布**
+3. **发布到 NuGet.org**
+```bash
+dotnet nuget push ./nupkg/DatabaseMcpServer.<version>.nupkg --api-key <your-api-key> --source https://api.nuget.org/v3/index.json
+```
+
+4. **验证发布**
 访问 [NuGet.org](https://www.nuget.org/packages/DatabaseMcpServer) 确认包已成功发布。
+
+### 重要配置说明
+
+对于 .NET Global Tool 支持，确保 `.csproj` 中包含：
+
+```xml
+<PropertyGroup>
+  <PackAsTool>true</PackAsTool>
+  <PackageType>McpServer</PackageType>
+  <ToolCommandName>DatabaseMcpServer</ToolCommandName>
+  <!-- 不要设置 RuntimeIdentifiers，这会导致平台特定的包名 -->
+  <!-- 不要设置 SelfContained，Global Tool 不需要自包含 -->
+</PropertyGroup>
+```
 
 ## 📖 相关资源
 
@@ -689,7 +887,7 @@ dotnet nuget push bin/Release/*.nupkg --api-key <your-api-key> --source https://
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 1.0.2 正式版本
+- 本项目已发布 1.0.3 正式版本
 - 请在生产环境中谨慎使用
 - 始终备份重要数据
 - 确保正确配置安全设置

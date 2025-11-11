@@ -2,27 +2,20 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Set up the NuGet package to be an MCP server -->
+    <!-- Set up the NuGet package to be an MCP server and .NET Global Tool -->
     <PackAsTool>true</PackAsTool>
     <PackageType>McpServer</PackageType>
-
-    <!-- Set up the MCP server to be a self-contained application that does not rely on a shared framework -->
-    <SelfContained>true</SelfContained>
-    <PublishSelfContained>true</PublishSelfContained>
-
-    <!-- Set up the MCP server to be a single file executable -->
-    <PublishSingleFile>true</PublishSingleFile>
+    <ToolCommandName>DatabaseMcpServer</ToolCommandName>
 
     <!-- Set recommended package metadata -->
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageId>DatabaseMcpServer</PackageId>
-    <PackageVersion>1.0.2</PackageVersion>
+    <PackageVersion>1.0.3</PackageVersion>
     <PackageTags>AI; MCP; server; stdio</PackageTags>
     <Description>一个功能强大的数据库操作 MCP 服务器，支持 MySQL、SQL Server、SQLite、PostgreSQL 和 Oracle 数据库。</Description>
     <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>

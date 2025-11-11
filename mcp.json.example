@@ -15,7 +15,7 @@
     "database-nuget": {
       "// NuGet 包部署": "",
       "command": "dnx",
-      "args": ["DatabaseMcpServer", "--version", "1.0.2", "--yes"],
+      "args": ["DatabaseMcpServer", "--version", "1.0.3", "--yes"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=prod;Uid=root;Pwd=prod_password;",
         "DB_TYPE": "MySql"
