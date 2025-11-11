@@ -222,7 +222,7 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 ```
 
 **本地开发**: 修改 `mcp.json.example` 中的连接信息后复制到对应位置
-**NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "1.0.1", "--yes"]`
+**NuGet 包**: 将 `command` 改为 `"dnx"` 并设置 `args` 为 `["DatabaseMcpServer", "--version", "1.0.2", "--yes"]`
 
 ## 📦 从 NuGet 安装
 
@@ -365,14 +365,14 @@ Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CON
 AI 会执行：
 ```sql
 -- 第一个结果集：用户统计
-SELECT 
+SELECT
   COUNT(*) as total_users,
   COUNT(CASE WHEN status = 'active' THEN 1 END) as active_users,
   AVG(age) as avg_age
 FROM users;
 
 -- 第二个结果集：最近订单
-SELECT 
+SELECT
   o.id, o.user_id, u.username, o.amount, o.created_at
 FROM orders o
 JOIN users u ON o.user_id = u.id
@@ -544,11 +544,6 @@ dotnet pack -c Release
 
 默认支持以下平台：
 - `win-x64` - Windows 64位
-- `win-arm64` - Windows ARM64
-- `osx-arm64` - macOS ARM64 (Apple Silicon)
-- `linux-x64` - Linux 64位
-- `linux-arm64` - Linux ARM64
-- `linux-musl-x64` - Alpine Linux 64位
 
 如需添加更多平台，请在 `.csproj` 文件中修改 `<RuntimeIdentifiers>` 元素。
 
@@ -589,10 +584,10 @@ internal class YourNewTools
     {
         // 使用全局配置创建数据库客户端
         using var db = DatabaseConfigService.CreateGlobalClient();
-        
+
         // 执行数据库操作
         var result = db.Queryable<YourEntity>().ToList();
-        
+
         // 返回 JSON 结果
         return DatabaseHelper.SerializeResult(new { success = true, data = result });
     }
@@ -694,7 +689,7 @@ dotnet nuget push bin/Release/*.nupkg --api-key <your-api-key> --source https://
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 1.0.1 正式版本
+- 本项目已发布 1.0.2 正式版本
 - 请在生产环境中谨慎使用
 - 始终备份重要数据
 - 确保正确配置安全设置
