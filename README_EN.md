@@ -4,7 +4,7 @@
 [![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md)
+[🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
 
 A powerful database operation MCP (Model Context Protocol) server that supports **34 database types**, configured through environment variables, enabling AI assistants to safely and conveniently execute database operations.
 
