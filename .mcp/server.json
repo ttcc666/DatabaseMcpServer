@@ -84,6 +84,11 @@
           "name": "SEQ_API_KEY",
           "description": "Seq API 密钥（可选，用于认证和高级功能）",
           "required": false
+        },
+        {
+          "name": "DB_DDL_WHITELIST",
+          "description": "DDL 白名单（可选，用于限制 DDL 操作）",
+          "required": false
         }
       ]
     }

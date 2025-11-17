@@ -1,8 +1,8 @@
-using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
-using ModelContextProtocol.Server;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Server;
 using System.ComponentModel;
 
 namespace DatabaseMcpServer.Tools.Management;
@@ -24,7 +24,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("测试数据库连接")]
+    [Description("Test database connection")]
     public string TestConnection()
     {
         _logger.LogInformation("开始测试数据库连接");
@@ -55,16 +55,23 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("从环境变量中获取当前数据库配置")]
+    [Description("Get current database configuration from environment variables")]
     public string GetDatabaseConfig()
     {
         return _databaseConfig.GetConfigurationSummary();
     }
 
     [McpServerTool]
-    [Description("验证数据库配置是否正确")]
+    [Description("Validate if database configuration is correct")]
     public string ValidateConfiguration()
     {
-        return _databaseConfig.GetConfigurationSummary();
+        var isValid = _databaseConfig.ValidateConfiguration();
+        return _databaseHelper.SerializeResult(new
+        {
+            success = isValid,
+            configured = isValid,
+            databaseType = _databaseConfig.GetDatabaseType(),
+            message = isValid ? "配置有效" : "配置无效,请检查 MCP 配置文件中的环境变量",
+        });
     }
 }

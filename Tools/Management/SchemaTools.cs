@@ -1,7 +1,7 @@
-using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Filters;
-using ModelContextProtocol.Server;
+using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Server;
 using SqlSugar;
 using System.ComponentModel;
 using System.Text.Json;
@@ -27,7 +27,7 @@ internal class SchemaTools
     #region 数据库信息查询
 
     [McpServerTool]
-    [Description("获取所有数据库名称")]
+    [Description("Get all database names")]
     public string GetDataBaseList()
     {
         try
@@ -43,7 +43,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("查询所有视图")]
+    [Description("Query all views")]
     public string GetViewInfoList()
     {
         try
@@ -59,7 +59,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("获取所有表名")]
+    [Description("Get all table names")]
     public string GetTableInfoList()
     {
         try
@@ -75,9 +75,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("根据表名获取字段信息")]
+    [Description("Get column information by table name")]
     public string GetColumnInfosByTableName(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -92,9 +92,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("获取自增列")]
+    [Description("Get identity columns")]
     public string GetIsIdentities(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -109,9 +109,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("获取主键")]
+    [Description("Get primary keys")]
     public string GetPrimaries(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -130,9 +130,9 @@ internal class SchemaTools
     #region 存在性检查
 
     [McpServerTool]
-    [Description("判断表是否存在")]
+    [Description("Check if table exists")]
     public string IsAnyTable(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -147,10 +147,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("判断列是否存在")]
+    [Description("Check if column exists")]
     public string IsAnyColumn(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName)
     {
         try
         {
@@ -165,10 +165,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("判断主键是否存在")]
+    [Description("Check if primary key exists")]
     public string IsPrimaryKey(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName)
     {
         try
         {
@@ -183,10 +183,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("判断自增是否存在")]
+    [Description("Check if identity exists")]
     public string IsIdentity(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName)
     {
         try
         {
@@ -201,9 +201,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("判断约束是否存在")]
+    [Description("Check if constraint exists")]
     public string IsAnyConstraint(
-        [Description("约束名")] string constraintName)
+        [Description("Constraint name")] string constraintName)
     {
         try
         {
@@ -222,9 +222,9 @@ internal class SchemaTools
     #region 表操作
 
     [McpServerTool]
-    [Description("删除表")]
+    [Description("Drop table")]
     public string DropTable(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -239,9 +239,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("清空表")]
+    [Description("Truncate table")]
     public string TruncateTable(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -256,10 +256,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("备份表")]
+    [Description("Backup table")]
     public string BackupTable(
-        [Description("原表名")] string oldTableName,
-        [Description("新表名")] string newTableName)
+        [Description("Original table name")] string oldTableName,
+        [Description("New table name")] string newTableName)
     {
         try
         {
@@ -274,10 +274,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("重命名表")]
+    [Description("Rename table")]
     public string RenameTable(
-        [Description("原表名")] string oldTableName,
-        [Description("新表名")] string newTableName)
+        [Description("Original table name")] string oldTableName,
+        [Description("New table name")] string newTableName)
     {
         try
         {
@@ -296,10 +296,10 @@ internal class SchemaTools
     #region 列操作
 
     [McpServerTool]
-    [Description("添加列")]
+    [Description("Add column")]
     public string AddColumn(
-        [Description("表名")] string tableName,
-        [Description("列信息 JSON，包含 DbColumnName, DataType, Length, IsNullable 等属性")] string columnInfo)
+        [Description("Table name")] string tableName,
+        [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable")] string columnInfo)
     {
         try
         {
@@ -326,10 +326,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("更新列")]
+    [Description("Update column")]
     public string UpdateColumn(
-        [Description("表名")] string tableName,
-        [Description("列信息 JSON，包含 DbColumnName, DataType, Length, IsNullable 等属性")] string columnInfo)
+        [Description("Table name")] string tableName,
+        [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable")] string columnInfo)
     {
         try
         {
@@ -356,10 +356,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除列")]
+    [Description("Drop column")]
     public string DropColumn(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName)
     {
         try
         {
@@ -374,11 +374,11 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("重命名列")]
+    [Description("Rename column")]
     public string RenameColumn(
-        [Description("表名")] string tableName,
-        [Description("原列名")] string oldColumnName,
-        [Description("新列名")] string newColumnName)
+        [Description("Table name")] string tableName,
+        [Description("Original column name")] string oldColumnName,
+        [Description("New column name")] string newColumnName)
     {
         try
         {
@@ -397,10 +397,10 @@ internal class SchemaTools
     #region 约束和索引操作
 
     [McpServerTool]
-    [Description("添加主键")]
+    [Description("Add primary key")]
     public string AddPrimaryKey(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName)
     {
         try
         {
@@ -415,10 +415,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除约束")]
+    [Description("Drop constraint")]
     public string DropConstraint(
-        [Description("表名")] string tableName,
-        [Description("约束名")] string constraintName)
+        [Description("Table name")] string tableName,
+        [Description("Constraint name")] string constraintName)
     {
         try
         {
@@ -433,12 +433,12 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("创建索引或唯一约束")]
+    [Description("Create index or unique constraint")]
     public string CreateIndex(
-        [Description("表名")] string tableName,
-        [Description("索引名")] string indexName,
-        [Description("列名")] string columnName,
-        [Description("是否唯一索引")] bool isUnique = false)
+        [Description("Table name")] string tableName,
+        [Description("Index name")] string indexName,
+        [Description("Column name")] string columnName,
+        [Description("Whether it's a unique index")] bool isUnique = false)
     {
         try
         {
@@ -453,9 +453,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("判断索引是否存在")]
+    [Description("Check if index exists")]
     public string IsAnyIndex(
-        [Description("索引名")] string indexName)
+        [Description("Index name")] string indexName)
     {
         try
         {
@@ -470,9 +470,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("获取所有索引名字集合")]
+    [Description("Get all index names")]
     public string GetIndexList(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -491,11 +491,11 @@ internal class SchemaTools
     #region 默认值和注释
 
     [McpServerTool]
-    [Description("添加默认值")]
+    [Description("Add default value")]
     public string AddDefaultValue(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName,
-        [Description("默认值")] string defaultValue)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName,
+        [Description("Default value")] string defaultValue)
     {
         try
         {
@@ -510,10 +510,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("添加表描述")]
+    [Description("Add table description")]
     public string AddTableRemark(
-        [Description("表名")] string tableName,
-        [Description("表描述")] string description)
+        [Description("Table name")] string tableName,
+        [Description("Table description")] string description)
     {
         try
         {
@@ -528,9 +528,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("判断是否存在表描述")]
+    [Description("Check if table description exists")]
     public string IsAnyTableRemark(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -545,9 +545,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除表描述")]
+    [Description("Delete table description")]
     public string DeleteTableRemark(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -562,11 +562,11 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("添加列描述")]
+    [Description("Add column description")]
     public string AddColumnRemark(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName,
-        [Description("列描述")] string description)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName,
+        [Description("Column description")] string description)
     {
         try
         {
@@ -581,10 +581,10 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除列描述")]
+    [Description("Delete column description")]
     public string DeleteColumnRemark(
-        [Description("表名")] string tableName,
-        [Description("列名")] string columnName)
+        [Description("Table name")] string tableName,
+        [Description("Column name")] string columnName)
     {
         try
         {
@@ -603,7 +603,7 @@ internal class SchemaTools
     #region 存储过程、函数、视图操作
 
     [McpServerTool]
-    [Description("获取存储过程名字集合")]
+    [Description("Get stored procedure names")]
     public string GetProcList()
     {
         try
@@ -619,7 +619,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("获取函数集合")]
+    [Description("Get function names")]
     public string GetFuncList()
     {
         try
@@ -635,9 +635,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除视图")]
+    [Description("Drop view")]
     public string DropView(
-        [Description("视图名")] string viewName)
+        [Description("View name")] string viewName)
     {
         try
         {
@@ -652,9 +652,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除函数")]
+    [Description("Drop function")]
     public string DropFunc(
-        [Description("函数名")] string functionName)
+        [Description("Function name")] string functionName)
     {
         try
         {
@@ -669,9 +669,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("删除存储过程")]
+    [Description("Drop stored procedure")]
     public string DropProc(
-        [Description("存储过程名")] string procedureName)
+        [Description("Stored procedure name")] string procedureName)
     {
         try
         {
@@ -690,7 +690,7 @@ internal class SchemaTools
     #region 其他工具
 
     [McpServerTool]
-    [Description("获取数据库类型集合")]
+    [Description("Get database types")]
     public string GetDbTypes()
     {
         try
@@ -706,9 +706,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("根据表名获取触发器集合")]
+    [Description("Get trigger names by table name")]
     public string GetTriggerNames(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {
@@ -723,9 +723,9 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("获取表结构信息")]
+    [Description("Get table schema information")]
     public string GetTableSchema(
-        [Description("表名")] string tableName)
+        [Description("Table name")] string tableName)
     {
         try
         {

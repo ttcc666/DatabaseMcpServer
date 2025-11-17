@@ -1,4 +1,6 @@
 using SqlSugar;
+using System.Data;
+using DbType = SqlSugar.DbType;
 
 namespace DatabaseMcpServer.Interfaces;
 
@@ -42,4 +44,11 @@ public interface IDatabaseHelperService
     /// <param name="sql">要检测的 SQL 语句</param>
     /// <returns>如果包含危险操作返回 true</returns>
     bool DetectDangerousOperation(string sql);
+
+    /// <summary>
+    /// 将 DataTable 转换为字典集合，便于返回 JSON
+    /// </summary>
+    /// <param name="dataTable">要转换的数据表</param>
+    /// <returns>字典集合</returns>
+    List<Dictionary<string, object?>> ConvertDataTableToList(DataTable dataTable);
 }

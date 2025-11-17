@@ -1,9 +1,11 @@
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Text.Encodings.Web;
-using SqlSugar;
 using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Logging;
+using SqlSugar;
+using System.Data;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using DbType = SqlSugar.DbType;
 
 namespace DatabaseMcpServer.Helpers;
 
@@ -12,11 +14,26 @@ namespace DatabaseMcpServer.Helpers;
 /// </summary>
 internal class DatabaseHelper : IDatabaseHelperService
 {
+    private static readonly string[] DangerousSqlPatternStrings = new[]
+    {
+        @"\bDROP\s+TABLE\b",
+        @"\bDROP\s+DATABASE\b",
+        @"\bTRUNCATE\s+TABLE\b",
+        @"\bALTER\s+TABLE\b",
+        @"\bCREATE\s+TABLE\b"
+    };
+
     private readonly ILogger<DatabaseHelper> _logger;
+    private readonly Regex[] _dangerousSqlPatterns;
+    private readonly Regex[] _ddlWhitelistPatterns;
 
     public DatabaseHelper(ILogger<DatabaseHelper> logger)
     {
         _logger = logger;
+        _dangerousSqlPatterns = DangerousSqlPatternStrings
+            .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled))
+            .ToArray();
+        _ddlWhitelistPatterns = LoadWhitelistPatterns();
     }
 
     /// <summary>
@@ -165,19 +182,75 @@ internal class DatabaseHelper : IDatabaseHelperService
     /// - TRUNCATE TABLE (截断表)
     /// - ALTER TABLE (修改表结构)
     /// - CREATE TABLE (创建表)
+    /// 可通过设置环境变量 <c>DB_DDL_WHITELIST</c> (分号分隔的正则表达式) 来放行特定 DDL。
     /// </remarks>
     public bool DetectDangerousOperation(string sql)
     {
-        var dangerousPatterns = new[]
-        {
-            @"\bDROP\s+TABLE\b",
-            @"\bDROP\s+DATABASE\b",
-            @"\bTRUNCATE\s+TABLE\b",
-            @"\bALTER\s+TABLE\b",
-            @"\bCREATE\s+TABLE\b"
-        };
+        if (string.IsNullOrWhiteSpace(sql))
+            return false;
 
-        return dangerousPatterns.Any(pattern =>
-            Regex.IsMatch(sql, pattern, RegexOptions.IgnoreCase));
+        if (IsSqlWhitelisted(sql))
+        {
+            _logger.LogDebug("SQL 命中白名单，跳过危险检测: {SqlSample}", TruncateForLog(sql));
+            return false;
+        }
+
+        foreach (var regex in _dangerousSqlPatterns)
+        {
+            if (regex.IsMatch(sql))
+            {
+                _logger.LogWarning("检测到危险 SQL: Pattern={Pattern} | SqlSample={SqlSample}", regex.ToString(), TruncateForLog(sql));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 将 DataTable 转换为字典集合，方便统一序列化输出。
+    /// </summary>
+    public List<Dictionary<string, object?>> ConvertDataTableToList(DataTable dataTable)
+    {
+        var rows = new List<Dictionary<string, object?>>();
+        foreach (DataRow row in dataTable.Rows)
+        {
+            var dict = new Dictionary<string, object?>();
+            foreach (DataColumn col in dataTable.Columns)
+            {
+                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+            }
+            rows.Add(dict);
+        }
+
+        return rows;
+    }
+
+    private static Regex[] LoadWhitelistPatterns()
+    {
+        var config = Environment.GetEnvironmentVariable("DB_DDL_WHITELIST");
+        if (string.IsNullOrWhiteSpace(config))
+        {
+            return Array.Empty<Regex>();
+        }
+
+        return config
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled))
+            .ToArray();
+    }
+
+    private bool IsSqlWhitelisted(string sql)
+    {
+        if (_ddlWhitelistPatterns.Length == 0)
+            return false;
+
+        return _ddlWhitelistPatterns.Any(regex => regex.IsMatch(sql));
+    }
+
+    private static string TruncateForLog(string sql)
+    {
+        const int maxLength = 200;
+        return sql.Length > maxLength ? $"{sql[..maxLength]}..." : sql;
     }
 }

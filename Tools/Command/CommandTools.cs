@@ -1,8 +1,8 @@
-using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
-using ModelContextProtocol.Server;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Server;
 using SqlSugar;
 using System.ComponentModel;
 using System.Data;
@@ -27,18 +27,14 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("执行 SQL 命令 (INSERT, UPDATE, DELETE)")]
+    [Description("Execute SQL commands (INSERT, UPDATE, DELETE)")]
     public string ExecuteCommand(
-        [Description("要执行的 SQL 命令")] string sql,
-        [Description("可选的 JSON 参数")] string? parameters = null)
+        [Description("SQL command to execute")] string sql,
+        [Description("Optional JSON parameters")] string? parameters = null)
     {
         try
         {
-            if (_databaseHelper.DetectDangerousOperation(sql))
-            {
-                throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
-                    "检测到危险操作。请使用特定工具进行架构操作。");
-            }
+            EnsureSafeSql(sql);
 
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
@@ -55,10 +51,10 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("将数据插入到表中")]
+    [Description("Insert data into table")]
     public string InsertData(
-        [Description("表名")] string tableName,
-        [Description("要插入的 JSON 数据")] string data)
+        [Description("Table name")] string tableName,
+        [Description("JSON data to insert")] string data)
     {
         try
         {
@@ -77,11 +73,11 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("更新表中的数据")]
+    [Description("Update data in table")]
     public string UpdateData(
-        [Description("表名")] string tableName,
-        [Description("要更新的 JSON 数据")] string data,
-        [Description("WHERE 条件")] string whereClause)
+        [Description("Table name")] string tableName,
+        [Description("JSON data to update")] string data,
+        [Description("WHERE condition")] string whereClause)
     {
         try
         {
@@ -100,10 +96,10 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("从表中删除数据")]
+    [Description("Delete data from table")]
     public string DeleteData(
-        [Description("表名")] string tableName,
-        [Description("WHERE 条件")] string whereClause)
+        [Description("Table name")] string tableName,
+        [Description("WHERE condition")] string whereClause)
     {
         try
         {
@@ -118,9 +114,9 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("执行包含多条 SQL 命令的事务")]
+    [Description("Execute transaction containing multiple SQL commands")]
     public string ExecuteTransaction(
-        [Description("SQL 命令的 JSON 数组")] string commands)
+        [Description("JSON array of SQL commands")] string commands)
     {
         try
         {
@@ -133,8 +129,7 @@ internal class CommandTools
             {
                 foreach (var cmd in commandList)
                 {
-                    if (_databaseHelper.DetectDangerousOperation(cmd))
-                        throw new InvalidOperationException("在事务中检测到危险操作");
+                    EnsureSafeSql(cmd);
                     db.Ado.ExecuteCommand(cmd);
                 }
             });
@@ -148,10 +143,10 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("调用存储过程（简单用法）")]
+    [Description("Call stored procedure (simple usage)")]
     public string CallStoredProcedure(
-        [Description("存储过程名称")] string procedureName,
-        [Description("存储过程参数的 JSON 对象")] string? parameters = null)
+        [Description("Stored procedure name")] string procedureName,
+        [Description("JSON object of stored procedure parameters")] string? parameters = null)
     {
         try
         {
@@ -160,7 +155,7 @@ internal class CommandTools
             if (string.IsNullOrWhiteSpace(parameters))
             {
                 var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName);
-                var rows = ConvertDataTableToList(result);
+                var rows = _databaseHelper.ConvertDataTableToList(result);
                 return _databaseHelper.SerializeResult(new
                 {
                     success = true,
@@ -175,7 +170,7 @@ internal class CommandTools
                     throw new ArgumentException("无效的参数 JSON");
 
                 var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, paramsDict);
-                var rows = ConvertDataTableToList(result);
+                var rows = _databaseHelper.ConvertDataTableToList(result);
                 return _databaseHelper.SerializeResult(new
                 {
                     success = true,
@@ -191,11 +186,11 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("调用带有输出参数的存储过程")]
+    [Description("Call stored procedure with output parameters")]
     public string CallStoredProcedureWithOutput(
-        [Description("存储过程名称")] string procedureName,
-        [Description("输入参数的 JSON 对象")] string? inputParameters = null,
-        [Description("输出参数名称数组的 JSON")] string? outputParameters = null)
+        [Description("Stored procedure name")] string procedureName,
+        [Description("JSON object of input parameters")] string? inputParameters = null,
+        [Description("JSON array of output parameter names")] string? outputParameters = null)
     {
         try
         {
@@ -225,7 +220,7 @@ internal class CommandTools
             }
 
             var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, sugarParams.ToArray());
-            var rows = ConvertDataTableToList(result);
+            var rows = _databaseHelper.ConvertDataTableToList(result);
 
             var outputValues = new Dictionary<string, object?>();
             foreach (var param in sugarParams.Where(p => p.Direction == System.Data.ParameterDirection.Output))
@@ -248,12 +243,13 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("执行包含 GO 语句的 SQL Server 脚本")]
+    [Description("Execute SQL Server script containing GO statements")]
     public string ExecuteCommandWithGo(
-        [Description("包含 GO 语句的 SQL 脚本")] string sql)
+        [Description("SQL script containing GO statements")] string sql)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var result = db.Ado.ExecuteCommandWithGo(sql);
 
@@ -270,10 +266,10 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("批量执行 SQL 命令（使用长连接优化性能）")]
+    [Description("Batch execute SQL commands (optimized with long connection)")]
     public string BatchExecuteCommands(
-        [Description("SQL 命令数组的 JSON")] string commands,
-        [Description("每个命令对应的参数对象的 JSON 数组（可选）")] string? parametersArray = null)
+        [Description("JSON array of SQL commands")] string commands,
+        [Description("JSON array of parameter objects for each command (optional)")] string? parametersArray = null)
     {
         try
         {
@@ -336,18 +332,12 @@ internal class CommandTools
         }
     }
 
-    private static List<Dictionary<string, object?>> ConvertDataTableToList(DataTable dataTable)
+    private void EnsureSafeSql(string sql)
     {
-        var rows = new List<Dictionary<string, object?>>();
-        foreach (DataRow row in dataTable.Rows)
+        if (_databaseHelper.DetectDangerousOperation(sql))
         {
-            var dict = new Dictionary<string, object?>();
-            foreach (DataColumn col in dataTable.Columns)
-            {
-                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
-            }
-            rows.Add(dict);
+            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
+                "检测到危险操作。请使用特定工具进行架构操作。");
         }
-        return rows;
     }
 }

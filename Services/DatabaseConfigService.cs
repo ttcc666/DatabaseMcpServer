@@ -1,7 +1,7 @@
-using SqlSugar;
 using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SqlSugar;
 
 namespace DatabaseMcpServer.Services;
 
@@ -130,18 +130,18 @@ internal class DatabaseConfigService : IDatabaseConfigService
     /// </summary>
     /// <param name="connectionString">原始连接字符串</param>
     /// <returns>隐藏敏感信息后的连接字符串</returns>
+    private static readonly System.Text.RegularExpressions.Regex SensitiveInfoPattern =
+        new(@"(?i)(password|pwd)=([^;]*)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private static string MaskSensitiveInfo(string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             return string.Empty;
 
-        // 隐藏密码
-        var result = System.Text.RegularExpressions.Regex.Replace(
-            connectionString,
-            @"(Password|pwd)=([^;])",
-            "Password=****",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-        return result;
+        return SensitiveInfoPattern.Replace(connectionString, match =>
+        {
+            var key = match.Groups[1].Value;
+            return $"{key}=****";
+        });
     }
 }

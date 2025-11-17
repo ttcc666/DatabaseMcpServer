@@ -1,8 +1,8 @@
-using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
-using ModelContextProtocol.Server;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Server;
 using SqlSugar;
 using System.ComponentModel;
 using System.Data;
@@ -28,10 +28,10 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("执行 SQL 查询并返回强类型实体集合，支持复杂 SQL")]
+    [Description("Execute SQL query and return strongly typed entity collection, supports complex SQL")]
     public string SqlQuery(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
@@ -39,6 +39,7 @@ internal class QueryTools
             {
                 throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 查询不能为空");
             }
+            EnsureSafeSql(sql);
 
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
@@ -61,13 +62,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("执行 SQL 查询并返回单条记录")]
+    [Description("Execute SQL query and return single record")]
     public string SqlQuerySingle(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -88,13 +90,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取 DataReader 数据（自动处理释放）")]
+    [Description("Get DataReader data (automatically handles disposal)")]
     public string GetDataReader(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -128,13 +131,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取多个结果集，支持一次执行多个查询")]
+    [Description("Get multiple result sets, supports executing multiple queries at once")]
     public string GetDataSetAll(
-        [Description("要执行的 SQL 查询（可包含多个查询语句，用分号分隔）")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute (can contain multiple query statements separated by semicolons)")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -146,7 +150,7 @@ internal class QueryTools
 
             foreach (DataTable table in dataSet.Tables)
             {
-                var rows = ConvertDataTableToList(table);
+                var rows = _databaseHelper.ConvertDataTableToList(table);
                 resultSets.Add(new { rowCount = rows.Count, data = rows });
             }
 
@@ -164,13 +168,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的值（标量值）")]
+    [Description("Get first row first column value (scalar value)")]
     public string GetScalar(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -191,13 +196,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的字符串值")]
+    [Description("Get first row first column string value")]
     public string GetString(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -218,13 +224,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的整数值")]
+    [Description("Get first row first column integer value")]
     public string GetInt(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -245,13 +252,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的长整数值")]
+    [Description("Get first row first column long integer value")]
     public string GetLong(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -272,13 +280,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的双精度浮点数值")]
+    [Description("Get first row first column double precision floating point value")]
     public string GetDouble(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -299,13 +308,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的十进制数值")]
+    [Description("Get first row first column decimal value")]
     public string GetDecimal(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -326,13 +336,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("获取首行首列的日期时间值")]
+    [Description("Get first row first column datetime value")]
     public string GetDateTime(
-        [Description("要执行的 SQL 查询")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL query to execute")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -353,13 +364,14 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("执行查询并返回两个结果集")]
+    [Description("Execute query and return two result sets")]
     public string SqlQueryMultiple(
-        [Description("包含两个查询的 SQL 语句（用分号分隔）")] string sql,
-        [Description("用于参数化查询的可选 JSON 参数")] string? parameters = null)
+        [Description("SQL statement containing two queries (separated by semicolon)")] string sql,
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -377,8 +389,8 @@ internal class QueryTools
                 throw new InvalidOperationException("SQL 语句必须返回至少两个结果集");
             }
 
-            var firstResultSet = ConvertDataTableToList(dataSet.Tables[0]);
-            var secondResultSet = ConvertDataTableToList(dataSet.Tables[1]);
+            var firstResultSet = _databaseHelper.ConvertDataTableToList(dataSet.Tables[0]);
+            var secondResultSet = _databaseHelper.ConvertDataTableToList(dataSet.Tables[1]);
 
             return _databaseHelper.SerializeResult(new
             {
@@ -394,15 +406,16 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("处理 IN 参数查询，支持数组参数")]
+    [Description("Handle IN parameter queries, supports array parameters")]
     public string SqlQueryWithInParameter(
-        [Description("包含 IN 参数的 SQL 查询（如：select * from [order] where id in (@ids)）")] string sql,
-        [Description("IN 参数名称（如 \"ids\"）")] string inParameterName,
-        [Description("IN 参数值数组的 JSON（如：[1,2,3]）")] string inValues,
-        [Description("其他参数的 JSON（可选）")] string? otherParameters = null)
+        [Description("SQL query containing IN parameter (e.g.: select * from [order] where id in (@ids))")] string sql,
+        [Description("IN parameter name (e.g. \"ids\")")] string inParameterName,
+        [Description("JSON array of IN parameter values (e.g.: [1,2,3])")] string inValues,
+        [Description("JSON of other parameters (optional)")] string? otherParameters = null)
     {
         try
         {
+            EnsureSafeSql(sql);
             using var db = _databaseConfig.CreateClient();
 
             var inArray = JsonSerializer.Deserialize<object[]>(inValues);
@@ -438,18 +451,11 @@ internal class QueryTools
         }
     }
 
-    private static List<Dictionary<string, object?>> ConvertDataTableToList(DataTable dataTable)
+    private void EnsureSafeSql(string sql)
     {
-        var rows = new List<Dictionary<string, object?>>();
-        foreach (DataRow row in dataTable.Rows)
+        if (_databaseHelper.DetectDangerousOperation(sql))
         {
-            var dict = new Dictionary<string, object?>();
-            foreach (DataColumn col in dataTable.Columns)
-            {
-                dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
-            }
-            rows.Add(dict);
+            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到潜在危险操作，请使用 Schema 工具执行结构变更。");
         }
-        return rows;
     }
 }

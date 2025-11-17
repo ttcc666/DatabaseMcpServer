@@ -4,6 +4,8 @@
 [![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.4-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+[🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md)
+
 一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，支持 **34 种数据库类型**，通过环境变量配置连接信息，让 AI 助手能够安全、便捷地执行数据库操作。
 
 ## ✨ 核心特性
@@ -189,6 +191,7 @@ dotnet run
 | `DB_TYPE` | 数据库类型 | `MySql` | `SqlServer`、`PostgreSQL`、`Oracle` 等 |
 | `SEQ_SERVER_URL` | Seq 日志服务器地址 | - | `http://localhost:5341` |
 | `SEQ_API_KEY` | Seq API 密钥 | - | `your-seq-api-key` |
+| `DB_DDL_WHITELIST` | 允许跳过危险 SQL 检测的 DDL 正则白名单（分号分隔） | - | `(?i)^CREATE\\s+TABLE\\s+temp_.*$;ALTER\\s+TABLE\\s+staging\\.` |
 
 ### 常用数据库连接字符串示例
 
@@ -533,26 +536,6 @@ Data Access Layer (SqlSugar ORM)
 - `DatabaseHelper` - 数据库类型解析和安全检查
 - `McpExceptionFilter` - 统一异常处理
 - `ApiResult<T>` - 标准化返回格式
-
-## 📝 更新日志
-
-### v1.0.4 (2025-11-11)
-- ✅ 增强多数据库连接管理
-- ✅ 优化数据库类型解析（支持 34 种数据库）
-- ✅ 连接池优化和配置验证增强
-- ✅ 完善 .NET Global Tool 支持
-- ✅ 添加 Seq 日志集成
-
-### v1.0.3 (2025-11-11)
-- ✅ 修复 .NET Global Tool 安装问题
-- ✅ 支持 dnx 命令安装
-- ✅ 扩展数据库支持到 34 种
-- ✅ 优化包结构和跨平台支持
-
-### v1.0.2 - v1.0.0
-- ✅ 初始发布
-- ✅ 基础数据库操作功能
-- ✅ MCP 协议支持
 
 ## 🛠️ 技术栈
 
