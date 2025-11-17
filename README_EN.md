@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.4-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md)
@@ -141,7 +141,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@1.0.4 --yes
+dnx DatabaseMcpServer@1.0.5 --yes
 ```
 
 **MCP Configuration**:
@@ -151,7 +151,7 @@ dnx DatabaseMcpServer@1.0.4 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@1.0.4", "--yes"],
+      "args": ["DatabaseMcpServer@1.0.5", "--yes"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
         "DB_TYPE": "MySql"
@@ -618,7 +618,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 1.0.4
+- This project has released version 1.0.5
 - Please test thoroughly before using in production environment
 - Regularly backup important data
 - Pay attention to sensitive information protection in configuration
