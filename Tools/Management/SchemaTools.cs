@@ -296,25 +296,37 @@ internal class SchemaTools
     #region 列操作
 
     [McpServerTool]
-    [Description("Add a column on tableName using columnInfo JSON (DbColumnName, DataType, Length, IsNullable, etc.) to describe the new definition.")]
+    [Description("Add a column on tableName using columnInfo JSON (DbColumnName, DataType, Length, IsNullable, DecimalDigits, etc.) to describe the new definition.")]
     public string AddColumn(
         [Description("Table name")] string tableName,
-        [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable")] string columnInfo)
+        [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable, DecimalDigits")] string columnInfo)
     {
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var columnData = JsonSerializer.Deserialize<Dictionary<string, object>>(columnInfo);
+            var columnData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(columnInfo);
             if (columnData == null)
                 throw new ArgumentException("无效的列信息 JSON");
 
+            var dataType = GetStringValue(columnData, "DataType") ?? "varchar";
             var column = new DbColumnInfo
             {
-                DbColumnName = columnData.GetValueOrDefault("DbColumnName")?.ToString() ?? "",
-                DataType = columnData.GetValueOrDefault("DataType")?.ToString() ?? "varchar",
-                Length = Convert.ToInt32(columnData.GetValueOrDefault("Length") ?? 255),
-                IsNullable = Convert.ToBoolean(columnData.GetValueOrDefault("IsNullable") ?? true)
+                DbColumnName = GetStringValue(columnData, "DbColumnName") ?? "",
+                DataType = dataType,
+                IsNullable = GetBoolValue(columnData, "IsNullable", true)
             };
+
+            // 根据数据类型智能处理 Length 和 DecimalDigits
+            if (RequiresLength(dataType))
+            {
+                column.Length = GetIntValue(columnData, "Length", GetDefaultLength(dataType));
+            }
+
+            if (RequiresDecimalDigits(dataType))
+            {
+                column.Length = GetIntValue(columnData, "Length", 18); // Precision
+                column.DecimalDigits = GetIntValue(columnData, "DecimalDigits", 2); // Scale
+            }
 
             var result = db.DbMaintenance.AddColumn(tableName, column);
             return _databaseHelper.SerializeResult(new { success = result });
@@ -326,25 +338,37 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Modify an existing column on tableName using the supplied columnInfo JSON to specify DbColumnName, DataType, Length, IsNullable, and other properties.")]
+    [Description("Modify an existing column on tableName using the supplied columnInfo JSON to specify DbColumnName, DataType, Length, IsNullable, DecimalDigits, and other properties.")]
     public string UpdateColumn(
         [Description("Table name")] string tableName,
-        [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable")] string columnInfo)
+        [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable, DecimalDigits")] string columnInfo)
     {
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var columnData = JsonSerializer.Deserialize<Dictionary<string, object>>(columnInfo);
+            var columnData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(columnInfo);
             if (columnData == null)
                 throw new ArgumentException("无效的列信息 JSON");
 
+            var dataType = GetStringValue(columnData, "DataType") ?? "varchar";
             var column = new DbColumnInfo
             {
-                DbColumnName = columnData.GetValueOrDefault("DbColumnName")?.ToString() ?? "",
-                DataType = columnData.GetValueOrDefault("DataType")?.ToString() ?? "varchar",
-                Length = Convert.ToInt32(columnData.GetValueOrDefault("Length") ?? 255),
-                IsNullable = Convert.ToBoolean(columnData.GetValueOrDefault("IsNullable") ?? true)
+                DbColumnName = GetStringValue(columnData, "DbColumnName") ?? "",
+                DataType = dataType,
+                IsNullable = GetBoolValue(columnData, "IsNullable", true)
             };
+
+            // 根据数据类型智能处理 Length 和 DecimalDigits
+            if (RequiresLength(dataType))
+            {
+                column.Length = GetIntValue(columnData, "Length", GetDefaultLength(dataType));
+            }
+
+            if (RequiresDecimalDigits(dataType))
+            {
+                column.Length = GetIntValue(columnData, "Length", 18); // Precision
+                column.DecimalDigits = GetIntValue(columnData, "DecimalDigits", 2); // Scale
+            }
 
             var result = db.DbMaintenance.UpdateColumn(tableName, column);
             return _databaseHelper.SerializeResult(new { success = result });
@@ -571,8 +595,51 @@ internal class SchemaTools
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var result = db.DbMaintenance.AddColumnRemark(tableName, columnName, description);
-            return _databaseHelper.SerializeResult(new { success = result });
+
+            // 针对 SQL Server，使用 sp_addextendedproperty 存储过程
+            if (db.CurrentConnectionConfig.DbType == DbType.SqlServer)
+            {
+                // 先检查是否已存在描述
+                var existsSql = @"SELECT COUNT(*)
+                    FROM sys.extended_properties ep
+                    INNER JOIN sys.tables t ON ep.major_id = t.object_id
+                    INNER JOIN sys.columns c ON ep.major_id = c.object_id AND ep.minor_id = c.column_id
+                    WHERE t.name = @TableName AND c.name = @ColumnName AND ep.name = 'MS_Description'";
+
+                var exists = db.Ado.GetInt(existsSql, new SugarParameter("@TableName", tableName), new SugarParameter("@ColumnName", columnName)) > 0;
+
+                if (exists)
+                {
+                    // 如果已存在，先删除
+                    var dropSql = @"EXEC sys.sp_dropextendedproperty
+                        @name=N'MS_Description',
+                        @level0type=N'SCHEMA', @level0name=N'dbo',
+                        @level1type=N'TABLE',  @level1name=@TableName,
+                        @level2type=N'COLUMN', @level2name=@ColumnName";
+                    db.Ado.ExecuteCommand(dropSql, new SugarParameter("@TableName", tableName), new SugarParameter("@ColumnName", columnName));
+                }
+
+                // 添加新的描述
+                var addSql = @"EXEC sys.sp_addextendedproperty
+                    @name=N'MS_Description',
+                    @value=@Description,
+                    @level0type=N'SCHEMA', @level0name=N'dbo',
+                    @level1type=N'TABLE',  @level1name=@TableName,
+                    @level2type=N'COLUMN', @level2name=@ColumnName";
+
+                db.Ado.ExecuteCommand(addSql,
+                    new SugarParameter("@TableName", tableName),
+                    new SugarParameter("@ColumnName", columnName),
+                    new SugarParameter("@Description", description));
+
+                return _databaseHelper.SerializeResult(new { success = true });
+            }
+            else
+            {
+                // 其他数据库使用 SqlSugar 的方法
+                var result = db.DbMaintenance.AddColumnRemark(columnName, tableName, description);
+                return _databaseHelper.SerializeResult(new { success = result });
+            }
         }
         catch (Exception ex)
         {
@@ -589,8 +656,28 @@ internal class SchemaTools
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var result = db.DbMaintenance.DeleteColumnRemark(tableName, columnName);
-            return _databaseHelper.SerializeResult(new { success = result });
+
+            // 针对 SQL Server，使用 sp_dropextendedproperty 存储过程
+            if (db.CurrentConnectionConfig.DbType == DbType.SqlServer)
+            {
+                var dropSql = @"EXEC sys.sp_dropextendedproperty
+                    @name=N'MS_Description',
+                    @level0type=N'SCHEMA', @level0name=N'dbo',
+                    @level1type=N'TABLE',  @level1name=@TableName,
+                    @level2type=N'COLUMN', @level2name=@ColumnName";
+
+                db.Ado.ExecuteCommand(dropSql,
+                    new SugarParameter("@TableName", tableName),
+                    new SugarParameter("@ColumnName", columnName));
+
+                return _databaseHelper.SerializeResult(new { success = true });
+            }
+            else
+            {
+                // 其他数据库使用 SqlSugar 的方法
+                var result = db.DbMaintenance.DeleteColumnRemark(columnName, tableName);
+                return _databaseHelper.SerializeResult(new { success = result });
+            }
         }
         catch (Exception ex)
         {
@@ -753,4 +840,106 @@ internal class SchemaTools
     }
 
     #endregion 其他工具
+
+    #region 辅助方法
+
+    /// <summary>
+    /// 从 JsonElement 字典中安全地获取字符串值
+    /// </summary>
+    private static string? GetStringValue(Dictionary<string, JsonElement> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var element))
+            return null;
+
+        return element.ValueKind == JsonValueKind.String ? element.GetString() : element.ToString();
+    }
+
+    /// <summary>
+    /// 从 JsonElement 字典中安全地获取整数值
+    /// </summary>
+    private static int GetIntValue(Dictionary<string, JsonElement> dict, string key, int defaultValue)
+    {
+        if (!dict.TryGetValue(key, out var element))
+            return defaultValue;
+
+        if (element.ValueKind == JsonValueKind.Number)
+            return element.GetInt32();
+
+        if (element.ValueKind == JsonValueKind.String && int.TryParse(element.GetString(), out var intValue))
+            return intValue;
+
+        return defaultValue;
+    }
+
+    /// <summary>
+    /// 从 JsonElement 字典中安全地获取布尔值
+    /// </summary>
+    private static bool GetBoolValue(Dictionary<string, JsonElement> dict, string key, bool defaultValue)
+    {
+        if (!dict.TryGetValue(key, out var element))
+            return defaultValue;
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(element.GetString(), out var boolValue) => boolValue,
+            _ => defaultValue
+        };
+    }
+
+    #endregion 辅助方法
+
+    #region 数据类型处理辅助方法
+
+    /// <summary>
+    /// 判断数据类型是否需要 Length 参数
+    /// </summary>
+    private static bool RequiresLength(string dataType)
+    {
+        var type = dataType.ToLowerInvariant();
+
+        // 字符串类型需要 Length
+        string[] stringTypes = { "char", "varchar", "nchar", "nvarchar", "binary", "varbinary" };
+        return stringTypes.Any(t => type.Contains(t));
+    }
+
+    /// <summary>
+    /// 判断数据类型是否需要 DecimalDigits (精度和小数位数)
+    /// </summary>
+    private static bool RequiresDecimalDigits(string dataType)
+    {
+        var type = dataType.ToLowerInvariant();
+
+        // decimal 和 numeric 类型需要精度和小数位数
+        return type.Contains("decimal") || type.Contains("numeric");
+    }
+
+    /// <summary>
+    /// 获取数据类型的默认长度
+    /// </summary>
+    private static int GetDefaultLength(string dataType)
+    {
+        var type = dataType.ToLowerInvariant();
+
+        return type switch
+        {
+            // 固定长度字符类型
+            var t when t.Contains("nchar") && !t.Contains("nvarchar") => 10,
+            var t when t.Contains("char") && !t.Contains("varchar") && !t.Contains("nchar") => 10,
+
+            // 可变长度字符类型
+            var t when t.Contains("nvarchar") => 50,
+            var t when t.Contains("varchar") => 50,
+
+            // 二进制类型
+            var t when t.Contains("varbinary") => 50,
+            var t when t.Contains("binary") && !t.Contains("varbinary") => 8,
+
+            // 默认
+            _ => 255
+        };
+    }
+
+    #endregion 数据类型处理辅助方法
 }

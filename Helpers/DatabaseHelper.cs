@@ -119,11 +119,29 @@ internal class DatabaseHelper : IDatabaseHelperService
         if (string.IsNullOrWhiteSpace(parametersJson))
             return null;
 
-        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, object>>(parametersJson);
+        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parametersJson);
         if (paramsDict == null)
             return null;
 
-        return paramsDict.Select(kvp => new SugarParameter(kvp.Key, kvp.Value)).ToArray();
+        return paramsDict.Select(kvp => new SugarParameter(kvp.Key, ConvertJsonElementToValue(kvp.Value))).ToArray();
+    }
+
+    /// <summary>
+    /// 将 JsonElement 转换为实际的值类型。
+    /// </summary>
+    private static object? ConvertJsonElementToValue(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElementToValue).ToArray(),
+            JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(element.GetRawText()),
+            _ => element.GetRawText()
+        };
     }
 
     /// <summary>

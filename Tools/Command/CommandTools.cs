@@ -59,11 +59,17 @@ internal class CommandTools
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
+            var dataDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(data);
             if (dataDict == null)
                 throw new ArgumentException("无效的 JSON 数据");
 
-            var result = db.Insertable(dataDict).AS(tableName).ExecuteCommand();
+            // 转换 JsonElement 为实际值
+            var convertedDict = dataDict.ToDictionary(
+                kvp => kvp.Key,
+                kvp => ConvertJsonElementToValue(kvp.Value)
+            );
+
+            var result = db.Insertable(convertedDict).AS(tableName).ExecuteCommand();
             return _databaseHelper.SerializeResult(new { success = true, affectedRows = result });
         }
         catch (Exception ex)
@@ -82,11 +88,17 @@ internal class CommandTools
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var dataDict = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
+            var dataDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(data);
             if (dataDict == null)
                 throw new ArgumentException("无效的 JSON 数据");
 
-            var result = db.Updateable(dataDict).AS(tableName).Where(whereClause).ExecuteCommand();
+            // 转换 JsonElement 为实际值
+            var convertedDict = dataDict.ToDictionary(
+                kvp => kvp.Key,
+                kvp => ConvertJsonElementToValue(kvp.Value)
+            );
+
+            var result = db.Updateable(convertedDict).AS(tableName).Where(whereClause).ExecuteCommand();
             return _databaseHelper.SerializeResult(new { success = true, affectedRows = result });
         }
         catch (Exception ex)
@@ -165,11 +177,17 @@ internal class CommandTools
             }
             else
             {
-                var paramsDict = JsonSerializer.Deserialize<Dictionary<string, object>>(parameters);
+                var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters);
                 if (paramsDict == null)
                     throw new ArgumentException("无效的参数 JSON");
 
-                var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, paramsDict);
+                // 转换 JsonElement 为实际值
+                var convertedDict = paramsDict.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => ConvertJsonElementToValue(kvp.Value)
+                );
+
+                var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, convertedDict);
                 var rows = _databaseHelper.ConvertDataTableToList(result);
                 return _databaseHelper.SerializeResult(new
                 {
@@ -199,12 +217,12 @@ internal class CommandTools
 
             if (!string.IsNullOrWhiteSpace(inputParameters))
             {
-                var inputDict = JsonSerializer.Deserialize<Dictionary<string, object>>(inputParameters);
+                var inputDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(inputParameters);
                 if (inputDict != null)
                 {
                     foreach (var kvp in inputDict)
                     {
-                        sugarParams.Add(new SugarParameter(kvp.Key, kvp.Value));
+                        sugarParams.Add(new SugarParameter(kvp.Key, ConvertJsonElementToValue(kvp.Value)));
                     }
                 }
             }
@@ -278,10 +296,10 @@ internal class CommandTools
             if (commandList == null || commandList.Length == 0)
                 throw new ArgumentException("无效的命令数组");
 
-            List<Dictionary<string, object>>? paramsList = null;
+            List<Dictionary<string, JsonElement>>? paramsList = null;
             if (!string.IsNullOrWhiteSpace(parametersArray))
             {
-                paramsList = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(parametersArray);
+                paramsList = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(parametersArray);
             }
 
             var results = new List<object>();
@@ -302,7 +320,8 @@ internal class CommandTools
                         int affectedRows;
                         if (paramsList != null && i < paramsList.Count && paramsList[i] != null)
                         {
-                            var sugarParams = paramsList[i].Select(p => new SugarParameter(p.Key, p.Value)).ToArray();
+                            var sugarParams = paramsList[i].Select(p =>
+                                new SugarParameter(p.Key, ConvertJsonElementToValue(p.Value))).ToArray();
                             affectedRows = db.Ado.ExecuteCommand(cmd, sugarParams);
                         }
                         else
@@ -339,5 +358,23 @@ internal class CommandTools
             throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
                 "检测到危险操作。请使用特定工具进行架构操作。");
         }
+    }
+
+    /// <summary>
+    /// 将 JsonElement 转换为实际的值类型。
+    /// </summary>
+    private static object? ConvertJsonElementToValue(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElementToValue).ToArray(),
+            JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(element.GetRawText()),
+            _ => element.GetRawText()
+        };
     }
 }
