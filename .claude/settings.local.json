@@ -9,7 +9,12 @@
       "Bash(Pwd=test:*)",
       "Bash(dotnet run --no-build)",
       "Bash(DB_CONNECTION_STRING=\"Server=localhost;Database=test;Uid=test;Pwd=test;\" DB_TYPE=\"MySql\" dotnet run:*)",
-      "Bash(DB_CONNECTION_STRING=\"Server=localhost;Database=test;Uid=test;Pwd=test;\" DB_TYPE=\"MySql\" SEQ_SERVER_URL=\"http://localhost:5341\" SEQ_API_KEY=\"test-api-key\" dotnet run:*)"
+      "Bash(DB_CONNECTION_STRING=\"Server=localhost;Database=test;Uid=test;Pwd=test;\" DB_TYPE=\"MySql\" SEQ_SERVER_URL=\"http://localhost:5341\" SEQ_API_KEY=\"test-api-key\" dotnet run:*)",
+      "Bash(Stop-Process -Name \"DatabaseMcpServer\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash($env:DB_CONFIG_PATH=\"D:\\Demo\\my-mcp\\DatabaseMcpServer\\databases.json\")",
+      "Bash(dotnet run:*)",
+      "Bash(Start-Sleep -Seconds 3)"
     ],
     "deny": [],
     "ask": []

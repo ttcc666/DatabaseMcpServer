@@ -63,12 +63,17 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "1.0.5",
+      "version": "1.0.6",
       "environmentVariables": [
         {
+          "name": "DB_CONFIG_PATH",
+          "description": "数据库配置文件绝对路径（二选一，推荐多数据库场景），如 D:\\config\\databases.json",
+          "required": false
+        },
+        {
           "name": "DB_CONNECTION_STRING",
-          "description": "数据库连接字符串（必需）",
-          "required": true
+          "description": "数据库连接字符串（二选一，单数据库模式）",
+          "required": false
         },
         {
           "name": "DB_TYPE",
@@ -351,5 +356,5 @@
       "description": "批量执行 SQL 命令（使用长连接优化性能）"
     }
   ],
-  "version": "1.0.5"
+  "version": "1.0.6"
 }

@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -141,7 +141,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@1.0.5 --yes
+dnx DatabaseMcpServer@1.0.6 --yes
 ```
 
 **MCP Configuration**:
@@ -151,7 +151,7 @@ dnx DatabaseMcpServer@1.0.5 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@1.0.5", "--yes"],
+      "args": ["DatabaseMcpServer@1.0.6", "--yes"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
         "DB_TYPE": "MySql"
@@ -190,13 +190,102 @@ dotnet run
 
 ## ⚙️ Configuration Guide
 
-### Required Environment Variables
+DatabaseMcpServer supports two configuration methods, **one must be configured, otherwise an error will occur**:
+
+### Method 1: Configuration File (Recommended - Multi-Database)
+
+Specify the **absolute path** of the configuration file through the environment variable `DB_CONFIG_PATH`:
+
+**MCP Configuration Example:**
+
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
+      }
+    }
+  }
+}
+```
+
+**Configuration File Format (databases.json):**
+
+```json
+{
+  "databases": [
+    {
+      "name": "mysql-main",
+      "connectionString": "Server=localhost;Database=myapp;User=root;Password=123456;",
+      "dbType": "MySql",
+      "description": "MySQL Main Database",
+      "isDefault": true
+    },
+    {
+      "name": "postgres-analytics",
+      "connectionString": "Host=localhost;Database=analytics;Username=postgres;Password=123456;",
+      "dbType": "PostgreSQL",
+      "description": "PostgreSQL Analytics Database"
+    }
+  ]
+}
+```
+
+**New MCP Tools:**
+- `list_databases` - List all available database connections
+- `switch_database` - Switch to a specified database
+- `get_current_database` - Get current active database
+- `test_connection_by_name` - Test connection for a specific database
+
+---
+
+### Method 2: Environment Variables (Single Database Mode)
+
+Configure a single database connection through environment variables:
+
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
+        "DB_TYPE": "MySql"
+      }
+    }
+  }
+}
+```
+
+This mode creates a database connection named `default`.
+
+---
+
+### ⚠️ Configuration Priority
+
+1. **`DB_CONFIG_PATH` Takes Priority**
+   - If both `DB_CONFIG_PATH` and `DB_CONNECTION_STRING` are configured
+   - The system will **prioritize** the configuration file specified by `DB_CONFIG_PATH`
+   - `DB_CONNECTION_STRING` and `DB_TYPE` will be ignored
+
+2. **One Must Be Configured**
+   - If neither is configured, an exception will be thrown at startup
+   - Error message: `Database connection not configured. Please configure one of the following methods...`
+
+---
+
+### Environment Variable Description
+
+#### Required Environment Variables (Choose One)
 
 | Variable Name | Description | Example |
 |---------------|-------------|---------|
-| `DB_CONNECTION_STRING` | Database connection string (required) | `Server=localhost;Database=mydb;User=root;Password=123456;` |
+| `DB_CONFIG_PATH` | Absolute path to configuration file (multi-database) | `D:\\config\\databases.json` |
+| `DB_CONNECTION_STRING` | Database connection string (single database) | `Server=localhost;Database=test;...` |
 
-### Optional Environment Variables
+#### Optional Environment Variables
 
 | Variable Name | Description | Default Value | Example |
 |---------------|-------------|---------------|---------|
@@ -618,7 +707,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 1.0.5
+- This project has released version 1.0.6
 - Please test thoroughly before using in production environment
 - Regularly backup important data
 - Pay attention to sensitive information protection in configuration

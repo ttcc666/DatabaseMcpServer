@@ -24,7 +24,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Test database connection")]
+    [Description("Test database connection (current active connection)")]
     public string TestConnection()
     {
         _logger.LogInformation("开始测试数据库连接");
@@ -45,6 +45,7 @@ internal class ConnectionTools
                 success = true,
                 message = "连接成功",
                 connected = isConnected,
+                currentDatabase = _databaseConfig.GetCurrentDatabaseName(),
                 databaseType = _databaseConfig.GetDatabaseType()
             });
         }
@@ -55,7 +56,38 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Get current database configuration from environment variables")]
+    [Description("Test connection for a specific database")]
+    public string TestConnectionByName([Description("Database connection name")] string databaseName)
+    {
+        _logger.LogInformation("开始测试指定数据库连接: {Name}", databaseName);
+        try
+        {
+            using var db = _databaseConfig.CreateClient(databaseName);
+            var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
+
+            if (!isConnected)
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.ConnectionFailed, $"数据库 '{databaseName}' 连接测试失败");
+            }
+
+            _logger.LogInformation("数据库 '{Name}' 连接测试完成", databaseName);
+
+            return _databaseHelper.SerializeResult(new
+            {
+                success = true,
+                message = $"数据库 '{databaseName}' 连接成功",
+                connected = isConnected,
+                databaseName
+            });
+        }
+        catch (Exception ex)
+        {
+            return McpExceptionFilter.HandleException(ex, _logger);
+        }
+    }
+
+    [McpServerTool]
+    [Description("Get current database configuration from environment variables or config file")]
     public string GetDatabaseConfig()
     {
         return _databaseConfig.GetConfigurationSummary();
@@ -70,8 +102,93 @@ internal class ConnectionTools
         {
             success = isValid,
             configured = isValid,
+            currentDatabase = _databaseConfig.GetCurrentDatabaseName(),
             databaseType = _databaseConfig.GetDatabaseType(),
             message = isValid ? "配置有效" : "配置无效,请检查 MCP 配置文件中的环境变量",
         });
+    }
+
+    [McpServerTool]
+    [Description("List all available database connections")]
+    public string ListDatabases()
+    {
+        try
+        {
+            var connections = _databaseConfig.GetAllConnections();
+            var currentDb = _databaseConfig.GetCurrentDatabaseName();
+
+            var result = connections.Select(conn => new
+            {
+                name = conn.Name,
+                dbType = conn.DbType,
+                description = conn.Description,
+                isDefault = conn.IsDefault,
+                isCurrent = conn.Name == currentDb
+            }).ToList();
+
+            return _databaseHelper.SerializeResult(new
+            {
+                success = true,
+                totalDatabases = result.Count,
+                currentDatabase = currentDb,
+                databases = result
+            });
+        }
+        catch (Exception ex)
+        {
+            return McpExceptionFilter.HandleException(ex, _logger);
+        }
+    }
+
+    [McpServerTool]
+    [Description("Switch to a different database connection")]
+    public string SwitchDatabase([Description("Database connection name to switch to")] string databaseName)
+    {
+        try
+        {
+            var previousDb = _databaseConfig.GetCurrentDatabaseName();
+            var success = _databaseConfig.SwitchDatabase(databaseName);
+
+            if (!success)
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.ConnectionFailed,
+                    $"切换数据库失败: '{databaseName}' 不存在");
+            }
+
+            _logger.LogInformation("已从 {Previous} 切换到 {Current}", previousDb, databaseName);
+
+            return _databaseHelper.SerializeResult(new
+            {
+                success = true,
+                message = $"已成功切换到数据库 '{databaseName}'",
+                previousDatabase = previousDb,
+                currentDatabase = databaseName
+            });
+        }
+        catch (Exception ex)
+        {
+            return McpExceptionFilter.HandleException(ex, _logger);
+        }
+    }
+
+    [McpServerTool]
+    [Description("Get current active database connection name")]
+    public string GetCurrentDatabase()
+    {
+        try
+        {
+            var currentDb = _databaseConfig.GetCurrentDatabaseName();
+
+            return _databaseHelper.SerializeResult(new
+            {
+                success = true,
+                currentDatabase = currentDb,
+                databaseType = _databaseConfig.GetDatabaseType()
+            });
+        }
+        catch (Exception ex)
+        {
+            return McpExceptionFilter.HandleException(ex, _logger);
+        }
     }
 }

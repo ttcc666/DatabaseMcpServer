@@ -1,20 +1,21 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
 
-一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，支持 **34 种数据库类型**，通过环境变量配置连接信息，让 AI 助手能够安全、便捷地执行数据库操作。
+一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，支持 **34 种数据库类型**，**单实例多数据库动态切换**，让 AI 助手能够安全、便捷地执行数据库操作。
 
 ## ✨ 核心特性
 
 - 🗄️ **多数据库支持** - 支持 34 种数据库类型（主流、国产、分布式、时序）
+- 🔄 **单实例多数据库** - 一个 MCP Server 实例可配置和动态切换多个数据库连接（[查看详细指南](MULTI_DATABASE_GUIDE.md)）
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **高性能** - 基于 SqlSugar ORM，提供高效的数据库访问
-- 🔧 **环境变量配置** - 全局配置，无需每次传参
-- 💾 **完整功能** - 47 个 MCP 工具，涵盖查询、操作、架构管理等
+- 🔧 **灵活配置** - 支持配置文件 + 环境变量两种配置方式
+- 💾 **完整功能** - 53 个 MCP 工具，涵盖查询、操作、架构管理、多数据库管理等
 - 🚀 **生产就绪** - 支持事务、批量操作、存储过程
 - 📦 **.NET Global Tool** - 简单安装，一键部署
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
@@ -132,7 +133,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@1.0.5 --yes
+dnx DatabaseMcpServer@1.0.6 --yes
 ```
 
 **MCP 配置**：
@@ -141,7 +142,7 @@ dnx DatabaseMcpServer@1.0.5 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@1.0.5", "--yes"],
+      "args": ["DatabaseMcpServer@1.0.6", "--yes"],
       "env": {
         "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
         "DB_TYPE": "MySql"
@@ -178,17 +179,107 @@ dotnet run
 
 ## ⚙️ 配置指南
 
-### 必需环境变量
+DatabaseMcpServer 支持两种配置方式，**必须配置其中一种，否则会报错**：
+
+### 方式 1：配置文件（推荐 - 多数据库）
+
+通过环境变量 `DB_CONFIG_PATH` 指定配置文件的**绝对路径**：
+
+**MCP 配置示例：**
+
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
+      }
+    }
+  }
+}
+```
+
+**配置文件格式 (databases.json)：**
+
+```json
+{
+  "databases": [
+    {
+      "name": "mysql-main",
+      "connectionString": "Server=localhost;Database=myapp;User=root;Password=123456;",
+      "dbType": "MySql",
+      "description": "MySQL 主库",
+      "isDefault": true
+    },
+    {
+      "name": "postgres-analytics",
+      "connectionString": "Host=localhost;Database=analytics;Username=postgres;Password=123456;",
+      "dbType": "PostgreSQL",
+      "description": "PostgreSQL 分析库"
+    }
+  ]
+}
+```
+
+**新增 MCP 工具：**
+- `list_databases` - 列出所有可用的数据库连接
+- `switch_database` - 切换到指定的数据库
+- `get_current_database` - 获取当前活动的数据库
+- `test_connection_by_name` - 测试指定数据库的连接
+
+---
+
+### 方式 2：环境变量（单数据库模式）
+
+通过环境变量配置单个数据库连接：
+
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
+        "DB_TYPE": "MySql"
+      }
+    }
+  }
+}
+```
+
+此模式会创建一个名为 `default` 的数据库连接。
+
+---
+
+### ⚠️ 配置优先级
+
+1. **`DB_CONFIG_PATH` 优先**
+   - 如果同时配置了 `DB_CONFIG_PATH` 和 `DB_CONNECTION_STRING`
+   - 系统会**优先使用** `DB_CONFIG_PATH` 指定的配置文件
+   - `DB_CONNECTION_STRING` 和 `DB_TYPE` 会被忽略
+
+2. **必须配置其中一种**
+   - 如果两种都未配置，启动时会抛出异常
+   - 错误信息：`未配置数据库连接。请配置以下任一方式...`
+
+---
+
+### 环境变量说明
+
+#### 必需环境变量（二选一）
 
 | 变量名 | 说明 | 示例 |
 |--------|------|------|
-| `DB_CONNECTION_STRING` | 数据库连接字符串（必需） | `Server=localhost;Database=mydb;User=root;Password=123456;` |
+| `DB_CONFIG_PATH` | 配置文件绝对路径（多数据库） | `D:\\config\\databases.json` |
+| `DB_CONNECTION_STRING` | 数据库连接字符串（单数据库） | `Server=localhost;Database=test;...` |
 
 ### 可选环境变量
 
 | 变量名 | 说明 | 默认值 | 示例 |
 |--------|------|--------|------|
-| `DB_TYPE` | 数据库类型 | `MySql` | `SqlServer`、`PostgreSQL`、`Oracle` 等 |
+| `DB_CONFIG_PATH` | 数据库配置文件路径（绝对路径） | - | `D:\\config\\databases.json` 或 `/etc/databases.json` |
+| `DB_TYPE` | 数据库类型（单数据库模式） | `MySql` | `SqlServer`、`PostgreSQL`、`Oracle` 等 |
 | `SEQ_SERVER_URL` | Seq 日志服务器地址 | - | `http://localhost:5341` |
 | `SEQ_API_KEY` | Seq API 密钥 | - | `your-seq-api-key` |
 | `DB_DDL_WHITELIST` | 允许跳过危险 SQL 检测的 DDL 正则白名单（分号分隔） | - | `(?i)^CREATE\\s+TABLE\\s+temp_.*$;ALTER\\s+TABLE\\s+staging\\.` |
@@ -568,7 +659,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 1.0.5 正式版本
+- 本项目已发布 1.0.6 正式版本
 - 生产环境使用前请充分测试
 - 定期备份重要数据
 - 注意配置中的敏感信息保护

@@ -1,0 +1,29 @@
+{
+  "databases": [
+    {
+      "name": "mysql-main",
+      "connectionString": "Server=localhost;Port=3306;Database=myapp;User=root;Password=123456;",
+      "dbType": "MySql",
+      "description": "MySQL 主库",
+      "isDefault": true
+    },
+    {
+      "name": "postgres-analytics",
+      "connectionString": "Host=localhost;Port=5432;Database=analytics;Username=postgres;Password=123456;",
+      "dbType": "PostgreSQL",
+      "description": "PostgreSQL 分析库"
+    },
+    {
+      "name": "sqlserver-crm",
+      "connectionString": "Server=localhost;Database=crm;User Id=sa;Password=123456;",
+      "dbType": "SqlServer",
+      "description": "SQL Server CRM 库"
+    },
+    {
+      "name": "dm-finance",
+      "connectionString": "Server=localhost;Port=5236;Database=finance;User=SYSDBA;Password=SYSDBA001;",
+      "dbType": "dm",
+      "description": "达梦数据库 - 财务系统"
+    }
+  ]
+}
