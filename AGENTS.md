@@ -1,32 +1,22 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `DatabaseMcpServer.csproj` and `Program.cs` sit at the root; keep runtime services in `Services/`, their interfaces in `Interfaces/`, and shared utilities (SqlSugar wiring, serialization, guards) in `Helpers/`.
-- Implement MCP tools inside `Tools/Command`, `Tools/Management`, `Tools/Query`, or `Tools/Schema`, registering the class in `Program.cs`. This preserves SRP and lets new capabilities ship without editing existing tool code.
-- `Filters/` contains cross-cutting concerns such as exception handling, while `.mcp/`, `mcp.json.example`, and `mcp.json.local` store client templates—never insert production secrets there or outside `.mcp/`.
+`DatabaseMcpServer.csproj` and `Program.cs` sit at the root; runtime services belong in `Services/`, interface contracts in `Interfaces/`, and reusable plumbing (SqlSugar configuration, serialization guards, argument validators) in `Helpers/`. Register each MCP tool in `Program.cs` and keep the implementation inside `Tools/Command`, `Tools/Management`, `Tools/Query`, or `Tools/Schema` to preserve single-purpose classes. Cross-cutting filters live in `Filters/`, while `.mcp/`, `mcp.json.example`, and `mcp.json.local` store sanitized client templates. Add new xUnit projects beside the solution root so `dotnet test` discovers them without flags.
+
+## MCP Tool Responsibilities
+`CommandTools` executes data-changing SQL, wrapping transaction batches, stored procedures (with IN/OUT parameters), and SQL Server scripts that contain `GO` statements. `QueryTools` focuses on read patterns: strongly typed queries, scalar fetches, paginated results, IN-clause expansion, and dataset streaming via `GetDataReader`. `SchemaTools` manages structural concerns by exposing inventory endpoints (tables, views, triggers, indexes) plus DDL helpers for adding or dropping indexes, partitions, procedures, functions, and views. `ConnectionTools` governs environment swaps: testing active connections, switching named databases, enumerating configured targets, and surfacing configuration health summaries.
 
 ## Build, Test, and Development Commands
-- `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run` starts the stdio MCP server for smoke tests.
-- `dotnet build` ensures the net9.0 executable compiles against every PackageReference; run it before pushing.
-- `dotnet test` executes all test projects; add new xUnit/NUnit projects beside the solution root so the command succeeds without flags.
-- `dotnet pack -c Release` emits the MCP NuGet/global tool package after a clean build.
-- `DatabaseMcpServer --version` validates the globally installed CLI matches the local source.
+`dotnet build` compiles the net9.0 target and validates package references. `dotnet test` runs every xUnit project; document any required env vars before running integration suites. `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run` launches the stdio MCP server for smoke testing, while `dotnet pack -c Release` produces the NuGet/global tool artifact. `DatabaseMcpServer --version` ensures an installed CLI matches the current source.
 
 ## Coding Style & Naming Conventions
-- Target C# 12 / .NET 9 with implicit usings and nullable reference types. Use four-space indentation, braces on the next line, and file-scoped namespaces when practical.
-- Follow DI-first design (KISS + SOLID): inject services, avoid static state, and keep each tool/service focused on one concern.
-- Use PascalCase for public members, `_camelCase` for private readonly fields, camelCase parameters, and save all files as UTF-8 without BOM.
+Target C# 12 with implicit usings, nullable reference types, and four-space indentation with braces on the next line. Prefer file-scoped namespaces, constructor-injected dependencies, and SRP-aligned tool classes. Use PascalCase for public members, `_camelCase` for private readonly fields, camelCase for parameters, and UTF-8 (no BOM) encoding. Keep comments minimal and focused on rationale.
 
 ## Testing Guidelines
-- Prefer xUnit with `ClassUnderTestTests` naming; colocate new test projects at the repo root for automatic discovery.
-- Favor in-memory or disposable providers when exercising database logic. If a real instance is required, guard it with opt-in env vars and document the prerequisite in the test README.
-- A green `dotnet test` run is mandatory before commits/PRs; summarize which providers or fixtures were used when touching database access.
+Favor xUnit with the `ClassUnderTestTests` naming convention. Keep fixtures isolated, prefer disposable or opt-in database providers, and document manual prerequisites in test READMEs. Aim for deterministic output and ensure every behavior change cites a corresponding `dotnet test` run.
 
 ## Commit & Pull Request Guidelines
-- Branch from main using `feature/<topic>`; write imperative, scoped commits (e.g., `Add schema diff tool`).
-- PR descriptions must outline behavior changes, list impacted tools/services, cite test evidence (`dotnet test`, manual queries), and call out new environment variables like `SEQ_SERVER_URL` or `SEQ_API_KEY`.
-- Link relevant issues, attach sample JSON responses or screenshots for observable changes, and double-check that secrets remain only in local environment variables.
+Branch from `main` using `feature/<topic>`, craft imperative commits (e.g., `Add schema diff tool`), and describe behavioral impact, touched tools/services, linked issues, and verification evidence in each PR. Include screenshots or sample JSON responses whenever changes affect observable output.
 
 ## Security & Configuration Tips
-- Configure credentials through env vars (`DB_CONNECTION_STRING`, `DB_TYPE`, `SEQ_SERVER_URL`, `SEQ_API_KEY`) and keep `.mcp/` templates sanitized before committing.
-- Reuse shared helpers for SQL sanitization and configuration validation, documenting any new variable or permission requirement in README before release.
+Never commit secrets; provide credentials via env vars such as `DB_CONNECTION_STRING`, `DB_TYPE`, `SEQ_SERVER_URL`, and `SEQ_API_KEY`. Reuse shared helpers for SQL sanitization and configuration validation, and document any new variable or permission requirement before release.

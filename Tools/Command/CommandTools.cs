@@ -27,7 +27,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Execute SQL commands (INSERT, UPDATE, DELETE)")]
+    [Description("Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, optionally binding JSON parameters, and return affectedRows.")]
     public string ExecuteCommand(
         [Description("SQL command to execute")] string sql,
         [Description("Optional JSON parameters")] string? parameters = null)
@@ -51,7 +51,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Insert data into table")]
+    [Description("Insert a single row into tableName by passing a JSON object whose properties match column names; returns affectedRows.")]
     public string InsertData(
         [Description("Table name")] string tableName,
         [Description("JSON data to insert")] string data)
@@ -73,7 +73,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Update data in table")]
+    [Description("Update rows in tableName using a JSON object of column values plus a whereClause filter; returns affectedRows.")]
     public string UpdateData(
         [Description("Table name")] string tableName,
         [Description("JSON data to update")] string data,
@@ -96,7 +96,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Delete data from table")]
+    [Description("Delete rows from tableName that satisfy whereClause and return affectedRows.")]
     public string DeleteData(
         [Description("Table name")] string tableName,
         [Description("WHERE condition")] string whereClause)
@@ -114,7 +114,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Execute transaction containing multiple SQL commands")]
+    [Description("Execute an array of SQL commands inside one transaction (each command is checked for dangerous operations) and return success plus any error.")]
     public string ExecuteTransaction(
         [Description("JSON array of SQL commands")] string commands)
     {
@@ -143,7 +143,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Call stored procedure (simple usage)")]
+    [Description("Invoke the specified stored procedure with optional JSON parameters and return the resulting rows and rowCount.")]
     public string CallStoredProcedure(
         [Description("Stored procedure name")] string procedureName,
         [Description("JSON object of stored procedure parameters")] string? parameters = null)
@@ -186,7 +186,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Call stored procedure with output parameters")]
+    [Description("Invoke a stored procedure with JSON input parameters and a list of output parameter names; return rows plus the output parameter values.")]
     public string CallStoredProcedureWithOutput(
         [Description("Stored procedure name")] string procedureName,
         [Description("JSON object of input parameters")] string? inputParameters = null,
@@ -243,7 +243,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Execute SQL Server script containing GO statements")]
+    [Description("Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows.")]
     public string ExecuteCommandWithGo(
         [Description("SQL script containing GO statements")] string sql)
     {
@@ -266,7 +266,7 @@ internal class CommandTools
     }
 
     [McpServerTool]
-    [Description("Batch execute SQL commands (optimized with long connection)")]
+    [Description("Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command.")]
     public string BatchExecuteCommands(
         [Description("JSON array of SQL commands")] string commands,
         [Description("JSON array of parameter objects for each command (optional)")] string? parametersArray = null)

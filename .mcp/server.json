@@ -105,255 +105,255 @@
   "tools": [
     {
       "name": "test_connection",
-      "description": "测试数据库连接"
+      "description": "Run SELECT 1 on the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy."
     },
     {
       "name": "get_database_config",
-      "description": "从环境变量中获取当前数据库配置"
+      "description": "Summarize DB_CONFIG_PATH or DB_CONNECTION_STRING/DB_TYPE and return the active connection name, description, database type, masked connection string, and mode metadata."
     },
     {
       "name": "validate_configuration",
-      "description": "验证数据库配置是否正确"
+      "description": "Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome."
     },
     {
       "name": "get_data_base_list",
-      "description": "获取所有数据库名称"
+      "description": "Call DbMaintenance.GetDataBaseList to retrieve every database the instance can see and return it inside the data array."
     },
     {
       "name": "get_view_info_list",
-      "description": "查询所有视图"
+      "description": "Use DbMaintenance.GetViewInfoList to pull metadata for every view (name, definition, schema) so clients can inventory logical objects."
     },
     {
       "name": "get_table_info_list",
-      "description": "获取所有表名"
+      "description": "Use DbMaintenance.GetTableInfoList(false) to return basic information for each table (name, description, creation time) inside data."
     },
     {
       "name": "get_column_infos_by_table_name",
-      "description": "根据表名获取字段信息"
+      "description": "Accept a tableName and return every column with data type, length, nullable flag, and other metadata via DbMaintenance.GetColumnInfosByTableName."
     },
     {
       "name": "get_is_identities",
-      "description": "获取自增列"
+      "description": "Return all identity (auto-increment) columns for the provided tableName so callers know whether an identity key exists."
     },
     {
       "name": "get_primaries",
-      "description": "获取主键"
+      "description": "Return primary key metadata for the provided tableName, including the constraint name, columns, and ordinal order for composite keys."
     },
     {
       "name": "is_any_table",
-      "description": "判断表是否存在"
+      "description": "Check whether tableName exists in the current database and return an exists boolean."
     },
     {
       "name": "is_any_column",
-      "description": "判断列是否存在"
+      "description": "Check whether columnName exists on tableName and return an exists boolean."
     },
     {
       "name": "is_primary_key",
-      "description": "判断主键是否存在"
+      "description": "Return isPrimary to indicate whether the given tableName.columnName participates in the primary key definition."
     },
     {
       "name": "is_identity",
-      "description": "判断自增是否存在"
+      "description": "Return isIdentity to indicate whether tableName.columnName is configured as an identity column."
     },
     {
       "name": "is_any_constraint",
-      "description": "判断约束是否存在"
+      "description": "Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean."
     },
     {
       "name": "drop_table",
-      "description": "删除表"
+      "description": "Immediately drop the specified tableName, removing both structure and data, and return success to indicate completion."
     },
     {
       "name": "truncate_table",
-      "description": "清空表"
+      "description": "Execute TRUNCATE on tableName to delete all rows while preserving the schema; the response includes success."
     },
     {
       "name": "backup_table",
-      "description": "备份表"
+      "description": "Use DbMaintenance.BackupTable to copy oldTableName to newTableName, duplicating both schema and current data."
     },
     {
       "name": "rename_table",
-      "description": "重命名表"
+      "description": "Rename oldTableName to newTableName and return success so callers know the rename succeeded."
     },
     {
       "name": "add_column",
-      "description": "添加列"
+      "description": "Add a column on tableName using columnInfo JSON (DbColumnName, DataType, Length, IsNullable, etc.) to describe the new definition."
     },
     {
       "name": "update_column",
-      "description": "更新列"
+      "description": "Modify an existing column on tableName using the supplied columnInfo JSON to specify DbColumnName, DataType, Length, IsNullable, and other properties."
     },
     {
       "name": "drop_column",
-      "description": "删除列"
+      "description": "Drop the specified columnName from tableName and return success."
     },
     {
       "name": "rename_column",
-      "description": "重命名列"
+      "description": "Rename oldColumnName to newColumnName within tableName to adjust field naming."
     },
     {
       "name": "add_primary_key",
-      "description": "添加主键"
+      "description": "Create a primary key constraint on tableName for columnName, useful when introducing a single-column key."
     },
     {
       "name": "drop_constraint",
-      "description": "删除约束"
+      "description": "Drop the specified constraintName from tableName (primary key, unique index, foreign key, etc.) and return success."
     },
     {
       "name": "create_index",
-      "description": "创建索引或唯一约束"
+      "description": "Create an index named indexName for tableName.columnName; set isUnique to true to build a unique index and return success."
     },
     {
       "name": "is_any_index",
-      "description": "判断索引是否存在"
+      "description": "Check whether indexName already exists and return an exists boolean."
     },
     {
       "name": "get_index_list",
-      "description": "获取所有索引名字集合"
+      "description": "List every index defined on tableName (name and attributes) and return it in the data array."
     },
     {
       "name": "add_default_value",
-      "description": "添加默认值"
+      "description": "Set defaultValue on tableName.columnName by invoking DbMaintenance.AddDefaultValue."
     },
     {
       "name": "add_table_remark",
-      "description": "添加表描述"
+      "description": "Attach a description to tableName so documentation tools can surface the table’s purpose."
     },
     {
       "name": "is_any_table_remark",
-      "description": "判断是否存在表描述"
+      "description": "Return exists to show whether tableName already has a stored remark."
     },
     {
       "name": "delete_table_remark",
-      "description": "删除表描述"
+      "description": "Remove the remark/description associated with tableName and return success."
     },
     {
       "name": "add_column_remark",
-      "description": "添加列描述"
+      "description": "Attach a description to tableName.columnName, making the column meaning visible to downstream tools."
     },
     {
       "name": "delete_column_remark",
-      "description": "删除列描述"
+      "description": "Delete the stored description for tableName.columnName and return success."
     },
     {
       "name": "get_proc_list",
-      "description": "获取存储过程名字集合"
+      "description": "List every stored procedure name in the current database and place the collection in data."
     },
     {
       "name": "get_func_list",
-      "description": "获取函数集合"
+      "description": "List every database function name so callers can audit reusable logic."
     },
     {
       "name": "drop_view",
-      "description": "删除视图"
+      "description": "Drop the specified viewName definition and return success."
     },
     {
       "name": "drop_func",
-      "description": "删除函数"
+      "description": "Drop the database function identified by functionName, typically during cleanup."
     },
     {
       "name": "drop_proc",
-      "description": "删除存储过程"
+      "description": "Drop the stored procedure identified by procedureName and return success."
     },
     {
       "name": "get_db_types",
-      "description": "获取数据库类型集合"
+      "description": "Return the DbType values supported by the current SqlSugar build so callers know which engines are available."
     },
     {
       "name": "get_trigger_names",
-      "description": "根据表名获取触发器集合"
+      "description": "List every trigger defined on tableName to expose side effects that may fire on DML."
     },
     {
       "name": "get_table_schema",
-      "description": "获取表结构信息"
+      "description": "Return a combined schema document for tableName including columns, primary keys, identity columns, and indexes."
     },
     {
       "name": "sql_query",
-      "description": "执行 SQL 查询并返回强类型实体集合，支持复杂 SQL"
+      "description": "Execute a read-only SQL statement with dangerous-operation detection, optionally binding JSON parameters, and return rowCount plus data."
     },
     {
       "name": "sql_query_single",
-      "description": "执行 SQL 查询并返回单条记录"
+      "description": "Execute a read-only SQL statement and return only the first row (or null) with the same optional JSON parameters."
     },
     {
       "name": "get_data_reader",
-      "description": "获取 DataReader 数据（自动处理释放）"
+      "description": "Execute SQL, stream the results through a DataReader, convert each row to a dictionary, and return the full list after disposing the reader."
     },
     {
       "name": "get_data_set_all",
-      "description": "获取多个结果集，支持一次执行多个查询"
+      "description": "Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets."
     },
     {
       "name": "get_scalar",
-      "description": "获取首行首列的值（标量值）"
+      "description": "Return the first-row, first-column value from the SQL statement—ideal for COUNT/SUM scalar queries."
     },
     {
       "name": "get_string",
-      "description": "获取首行首列的字符串值"
+      "description": "Return the first-row, first-column value as a string."
     },
     {
       "name": "get_int",
-      "description": "获取首行首列的整数值"
+      "description": "Return the first-row, first-column value converted to an integer (throws if conversion fails)."
     },
     {
       "name": "get_long",
-      "description": "获取首行首列的长整数值"
+      "description": "Return the first-row, first-column value converted to a long integer."
     },
     {
       "name": "get_double",
-      "description": "获取首行首列的双精度浮点数值"
+      "description": "Return the first-row, first-column value converted to a double."
     },
     {
       "name": "get_decimal",
-      "description": "获取首行首列的十进制数值"
+      "description": "Return the first-row, first-column value converted to a decimal."
     },
     {
       "name": "get_date_time",
-      "description": "获取首行首列的日期时间值"
+      "description": "Return the first-row, first-column value converted to a DateTime, useful for timestamps."
     },
     {
       "name": "sql_query_multiple",
-      "description": "执行查询并返回两个结果集"
+      "description": "Execute SQL that must return two result sets (separated by a semicolon) and return firstResultSet/secondResultSet with row counts and data."
     },
     {
       "name": "sql_query_with_in_parameter",
-      "description": "处理 IN 参数查询，支持数组参数"
+      "description": "Bind a JSON array to an IN parameter (inParameterName) plus optional otherParameters to safely execute IN-clause queries and return the rows."
     },
     {
       "name": "execute_command",
-      "description": "执行 SQL 命令 (INSERT, UPDATE, DELETE)"
+      "description": "Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, optionally binding JSON parameters, and return affectedRows."
     },
     {
       "name": "insert_data",
-      "description": "将数据插入到表中"
+      "description": "Insert a single row into tableName by passing a JSON object whose properties match column names; returns affectedRows."
     },
     {
       "name": "update_data",
-      "description": "更新表中的数据"
+      "description": "Update rows in tableName using a JSON object of column values plus a whereClause filter; returns affectedRows."
     },
     {
       "name": "delete_data",
-      "description": "从表中删除数据"
+      "description": "Delete rows from tableName that satisfy whereClause and return affectedRows."
     },
     {
       "name": "execute_transaction",
-      "description": "执行包含多条 SQL 命令的事务"
+      "description": "Execute an array of SQL commands inside one transaction (each command is checked for dangerous operations) and return success plus any error."
     },
     {
       "name": "call_stored_procedure",
-      "description": "调用存储过程（简单用法）"
+      "description": "Invoke the specified stored procedure with optional JSON parameters and return the resulting rows and rowCount."
     },
     {
       "name": "call_stored_procedure_with_output",
-      "description": "调用带有输出参数的存储过程"
+      "description": "Invoke a stored procedure with JSON input parameters and a list of output parameter names; return rows plus the output parameter values."
     },
     {
       "name": "execute_command_with_go",
-      "description": "执行包含 GO 语句的 SQL Server 脚本"
+      "description": "Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows."
     },
     {
       "name": "batch_execute_commands",
-      "description": "批量执行 SQL 命令（使用长连接优化性能）"
+      "description": "Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command."
     }
   ],
   "version": "1.0.6"

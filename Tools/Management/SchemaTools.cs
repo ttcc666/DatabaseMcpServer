@@ -27,7 +27,7 @@ internal class SchemaTools
     #region 数据库信息查询
 
     [McpServerTool]
-    [Description("Get all database names")]
+    [Description("Call DbMaintenance.GetDataBaseList to retrieve every database the instance can see and return it inside the data array.")]
     public string GetDataBaseList()
     {
         try
@@ -43,7 +43,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Query all views")]
+    [Description("Use DbMaintenance.GetViewInfoList to pull metadata for every view (name, definition, schema) so clients can inventory logical objects.")]
     public string GetViewInfoList()
     {
         try
@@ -59,7 +59,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get all table names")]
+    [Description("Use DbMaintenance.GetTableInfoList(false) to return basic information for each table (name, description, creation time) inside data.")]
     public string GetTableInfoList()
     {
         try
@@ -75,7 +75,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get column information by table name")]
+    [Description("Accept a tableName and return every column with data type, length, nullable flag, and other metadata via DbMaintenance.GetColumnInfosByTableName.")]
     public string GetColumnInfosByTableName(
         [Description("Table name")] string tableName)
     {
@@ -92,7 +92,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get identity columns")]
+    [Description("Return all identity (auto-increment) columns for the provided tableName so callers know whether an identity key exists.")]
     public string GetIsIdentities(
         [Description("Table name")] string tableName)
     {
@@ -109,7 +109,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get primary keys")]
+    [Description("Return primary key metadata for the provided tableName, including the constraint name, columns, and ordinal order for composite keys.")]
     public string GetPrimaries(
         [Description("Table name")] string tableName)
     {
@@ -130,7 +130,7 @@ internal class SchemaTools
     #region 存在性检查
 
     [McpServerTool]
-    [Description("Check if table exists")]
+    [Description("Check whether tableName exists in the current database and return an exists boolean.")]
     public string IsAnyTable(
         [Description("Table name")] string tableName)
     {
@@ -147,7 +147,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Check if column exists")]
+    [Description("Check whether columnName exists on tableName and return an exists boolean.")]
     public string IsAnyColumn(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName)
@@ -165,7 +165,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Check if primary key exists")]
+    [Description("Return isPrimary to indicate whether the given tableName.columnName participates in the primary key definition.")]
     public string IsPrimaryKey(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName)
@@ -183,7 +183,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Check if identity exists")]
+    [Description("Return isIdentity to indicate whether tableName.columnName is configured as an identity column.")]
     public string IsIdentity(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName)
@@ -201,7 +201,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Check if constraint exists")]
+    [Description("Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean.")]
     public string IsAnyConstraint(
         [Description("Constraint name")] string constraintName)
     {
@@ -222,7 +222,7 @@ internal class SchemaTools
     #region 表操作
 
     [McpServerTool]
-    [Description("Drop table")]
+    [Description("Immediately drop the specified tableName, removing both structure and data, and return success to indicate completion.")]
     public string DropTable(
         [Description("Table name")] string tableName)
     {
@@ -239,7 +239,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Truncate table")]
+    [Description("Execute TRUNCATE on tableName to delete all rows while preserving the schema; the response includes success.")]
     public string TruncateTable(
         [Description("Table name")] string tableName)
     {
@@ -256,7 +256,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Backup table")]
+    [Description("Use DbMaintenance.BackupTable to copy oldTableName to newTableName, duplicating both schema and current data.")]
     public string BackupTable(
         [Description("Original table name")] string oldTableName,
         [Description("New table name")] string newTableName)
@@ -274,7 +274,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Rename table")]
+    [Description("Rename oldTableName to newTableName and return success so callers know the rename succeeded.")]
     public string RenameTable(
         [Description("Original table name")] string oldTableName,
         [Description("New table name")] string newTableName)
@@ -296,7 +296,7 @@ internal class SchemaTools
     #region 列操作
 
     [McpServerTool]
-    [Description("Add column")]
+    [Description("Add a column on tableName using columnInfo JSON (DbColumnName, DataType, Length, IsNullable, etc.) to describe the new definition.")]
     public string AddColumn(
         [Description("Table name")] string tableName,
         [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable")] string columnInfo)
@@ -326,7 +326,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Update column")]
+    [Description("Modify an existing column on tableName using the supplied columnInfo JSON to specify DbColumnName, DataType, Length, IsNullable, and other properties.")]
     public string UpdateColumn(
         [Description("Table name")] string tableName,
         [Description("Column info JSON with properties like DbColumnName, DataType, Length, IsNullable")] string columnInfo)
@@ -356,7 +356,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Drop column")]
+    [Description("Drop the specified columnName from tableName and return success.")]
     public string DropColumn(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName)
@@ -374,7 +374,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Rename column")]
+    [Description("Rename oldColumnName to newColumnName within tableName to adjust field naming.")]
     public string RenameColumn(
         [Description("Table name")] string tableName,
         [Description("Original column name")] string oldColumnName,
@@ -397,7 +397,7 @@ internal class SchemaTools
     #region 约束和索引操作
 
     [McpServerTool]
-    [Description("Add primary key")]
+    [Description("Create a primary key constraint on tableName for columnName, useful when introducing a single-column key.")]
     public string AddPrimaryKey(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName)
@@ -415,7 +415,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Drop constraint")]
+    [Description("Drop the specified constraintName from tableName (primary key, unique index, foreign key, etc.) and return success.")]
     public string DropConstraint(
         [Description("Table name")] string tableName,
         [Description("Constraint name")] string constraintName)
@@ -433,7 +433,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Create index or unique constraint")]
+    [Description("Create an index named indexName for tableName.columnName; set isUnique to true to build a unique index and return success.")]
     public string CreateIndex(
         [Description("Table name")] string tableName,
         [Description("Index name")] string indexName,
@@ -453,7 +453,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Check if index exists")]
+    [Description("Check whether indexName already exists and return an exists boolean.")]
     public string IsAnyIndex(
         [Description("Index name")] string indexName)
     {
@@ -470,7 +470,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get all index names")]
+    [Description("List every index defined on tableName (name and attributes) and return it in the data array.")]
     public string GetIndexList(
         [Description("Table name")] string tableName)
     {
@@ -491,7 +491,7 @@ internal class SchemaTools
     #region 默认值和注释
 
     [McpServerTool]
-    [Description("Add default value")]
+    [Description("Set defaultValue on tableName.columnName by invoking DbMaintenance.AddDefaultValue.")]
     public string AddDefaultValue(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName,
@@ -510,7 +510,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Add table description")]
+    [Description("Attach a description to tableName so documentation tools can surface the table’s purpose.")]
     public string AddTableRemark(
         [Description("Table name")] string tableName,
         [Description("Table description")] string description)
@@ -528,7 +528,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Check if table description exists")]
+    [Description("Return exists to show whether tableName already has a stored remark.")]
     public string IsAnyTableRemark(
         [Description("Table name")] string tableName)
     {
@@ -545,7 +545,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Delete table description")]
+    [Description("Remove the remark/description associated with tableName and return success.")]
     public string DeleteTableRemark(
         [Description("Table name")] string tableName)
     {
@@ -562,7 +562,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Add column description")]
+    [Description("Attach a description to tableName.columnName, making the column meaning visible to downstream tools.")]
     public string AddColumnRemark(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName,
@@ -581,7 +581,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Delete column description")]
+    [Description("Delete the stored description for tableName.columnName and return success.")]
     public string DeleteColumnRemark(
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName)
@@ -603,7 +603,7 @@ internal class SchemaTools
     #region 存储过程、函数、视图操作
 
     [McpServerTool]
-    [Description("Get stored procedure names")]
+    [Description("List every stored procedure name in the current database and place the collection in data.")]
     public string GetProcList()
     {
         try
@@ -619,7 +619,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get function names")]
+    [Description("List every database function name so callers can audit reusable logic.")]
     public string GetFuncList()
     {
         try
@@ -635,7 +635,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Drop view")]
+    [Description("Drop the specified viewName definition and return success.")]
     public string DropView(
         [Description("View name")] string viewName)
     {
@@ -652,7 +652,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Drop function")]
+    [Description("Drop the database function identified by functionName, typically during cleanup.")]
     public string DropFunc(
         [Description("Function name")] string functionName)
     {
@@ -669,7 +669,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Drop stored procedure")]
+    [Description("Drop the stored procedure identified by procedureName and return success.")]
     public string DropProc(
         [Description("Stored procedure name")] string procedureName)
     {
@@ -690,7 +690,7 @@ internal class SchemaTools
     #region 其他工具
 
     [McpServerTool]
-    [Description("Get database types")]
+    [Description("Return the DbType values supported by the current SqlSugar build so callers know which engines are available.")]
     public string GetDbTypes()
     {
         try
@@ -706,7 +706,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get trigger names by table name")]
+    [Description("List every trigger defined on tableName to expose side effects that may fire on DML.")]
     public string GetTriggerNames(
         [Description("Table name")] string tableName)
     {
@@ -723,7 +723,7 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Get table schema information")]
+    [Description("Return a combined schema document for tableName including columns, primary keys, identity columns, and indexes.")]
     public string GetTableSchema(
         [Description("Table name")] string tableName)
     {

@@ -28,7 +28,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Execute SQL query and return strongly typed entity collection, supports complex SQL")]
+    [Description("Execute a read-only SQL statement with dangerous-operation detection, optionally binding JSON parameters, and return rowCount plus data.")]
     public string SqlQuery(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -62,7 +62,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Execute SQL query and return single record")]
+    [Description("Execute a read-only SQL statement and return only the first row (or null) with the same optional JSON parameters.")]
     public string SqlQuerySingle(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -90,7 +90,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get DataReader data (automatically handles disposal)")]
+    [Description("Execute SQL, stream the results through a DataReader, convert each row to a dictionary, and return the full list after disposing the reader.")]
     public string GetDataReader(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -131,7 +131,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get multiple result sets, supports executing multiple queries at once")]
+    [Description("Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets.")]
     public string GetDataSetAll(
         [Description("SQL query to execute (can contain multiple query statements separated by semicolons)")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -168,7 +168,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column value (scalar value)")]
+    [Description("Return the first-row, first-column value from the SQL statement—ideal for COUNT/SUM scalar queries.")]
     public string GetScalar(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -196,7 +196,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column string value")]
+    [Description("Return the first-row, first-column value as a string.")]
     public string GetString(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -224,7 +224,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column integer value")]
+    [Description("Return the first-row, first-column value converted to an integer (throws if conversion fails).")]
     public string GetInt(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -252,7 +252,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column long integer value")]
+    [Description("Return the first-row, first-column value converted to a long integer.")]
     public string GetLong(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -280,7 +280,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column double precision floating point value")]
+    [Description("Return the first-row, first-column value converted to a double.")]
     public string GetDouble(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -308,7 +308,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column decimal value")]
+    [Description("Return the first-row, first-column value converted to a decimal.")]
     public string GetDecimal(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -336,7 +336,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Get first row first column datetime value")]
+    [Description("Return the first-row, first-column value converted to a DateTime, useful for timestamps.")]
     public string GetDateTime(
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -364,7 +364,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Execute query and return two result sets")]
+    [Description("Execute SQL that must return two result sets (separated by a semicolon) and return firstResultSet/secondResultSet with row counts and data.")]
     public string SqlQueryMultiple(
         [Description("SQL statement containing two queries (separated by semicolon)")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
@@ -406,7 +406,7 @@ internal class QueryTools
     }
 
     [McpServerTool]
-    [Description("Handle IN parameter queries, supports array parameters")]
+    [Description("Bind a JSON array to an IN parameter (inParameterName) plus optional otherParameters to safely execute IN-clause queries and return the rows.")]
     public string SqlQueryWithInParameter(
         [Description("SQL query containing IN parameter (e.g.: select * from [order] where id in (@ids))")] string sql,
         [Description("IN parameter name (e.g. \"ids\")")] string inParameterName,

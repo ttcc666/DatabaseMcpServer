@@ -24,7 +24,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Test database connection (current active connection)")]
+    [Description("Run SELECT 1 on the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy.")]
     public string TestConnection()
     {
         _logger.LogInformation("开始测试数据库连接");
@@ -56,7 +56,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Test connection for a specific database")]
+    [Description("Create a connection using databaseName, run SELECT 1, and return success, connected, and databaseName to prove that specific entry is healthy.")]
     public string TestConnectionByName([Description("Database connection name")] string databaseName)
     {
         _logger.LogInformation("开始测试指定数据库连接: {Name}", databaseName);
@@ -87,14 +87,14 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Get current database configuration from environment variables or config file")]
+    [Description("Summarize DB_CONFIG_PATH or DB_CONNECTION_STRING/DB_TYPE and return the active connection name, description, database type, masked connection string, and mode metadata.")]
     public string GetDatabaseConfig()
     {
         return _databaseConfig.GetConfigurationSummary();
     }
 
     [McpServerTool]
-    [Description("Validate if database configuration is correct")]
+    [Description("Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome.")]
     public string ValidateConfiguration()
     {
         var isValid = _databaseConfig.ValidateConfiguration();
@@ -109,7 +109,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("List all available database connections")]
+    [Description("List every configured database connection (name, type, description, default flag, current flag) so callers can choose a target.")]
     public string ListDatabases()
     {
         try
@@ -141,7 +141,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Switch to a different database connection")]
+    [Description("Switch the active connection to databaseName and return previousDatabase/currentDatabase; throw an error if the name does not exist.")]
     public string SwitchDatabase([Description("Database connection name to switch to")] string databaseName)
     {
         try
@@ -172,7 +172,7 @@ internal class ConnectionTools
     }
 
     [McpServerTool]
-    [Description("Get current active database connection name")]
+    [Description("Return the currently active database connection name and database type so callers know the execution context.")]
     public string GetCurrentDatabase()
     {
         try
