@@ -2,28 +2,107 @@
   "databases": [
     {
       "name": "mysql-main",
-      "connectionString": "Server=localhost;Port=3306;Database=myapp;User=root;Password=123456;",
+      "connectionString": "Server=localhost;Port=3306;Database=myapp;User=root;Password=123456;Charset=utf8mb4;AllowLoadLocalInfile=true;Min Pool Size=1;Max Pool Size=100;Allow User Variables=True;Pooling=true;",
       "dbType": "MySql",
-      "description": "MySQL 主库",
+      "description": "MySQL 主库（性能优化：utf8mb4 字符集 + 连接池 + 批量导入支持）",
       "isDefault": true
     },
     {
       "name": "postgres-analytics",
-      "connectionString": "Host=localhost;Port=5432;Database=analytics;Username=postgres;Password=123456;",
+      "connectionString": "Host=localhost;Port=5432;Database=analytics;Username=postgres;Password=123456;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=100;Timeout=30;Command Timeout=30;",
       "dbType": "PostgreSQL",
-      "description": "PostgreSQL 分析库"
+      "description": "PostgreSQL 分析库（性能优化：连接池 + 表名规范 + ILike 支持）",
+      "optimizationSettings": {
+        "autoToLower": "true",
+        "enableILike": "true",
+        "identityStrategy": "Serial"
+      }
     },
     {
       "name": "sqlserver-crm",
-      "connectionString": "Server=localhost;Database=crm;User Id=sa;Password=123456;",
+      "connectionString": "Server=localhost;Database=crm;User Id=sa;Password=123456;Encrypt=True;TrustServerCertificate=True;Min Pool Size=1;Max Pool Size=100;",
       "dbType": "SqlServer",
-      "description": "SQL Server CRM 库"
+      "description": "SQL Server CRM 库（性能优化：自动 NoLock + 连接池）",
+      "optimizationSettings": {
+        "disableNvarchar": "true"
+      }
+    },
+    {
+      "name": "oracle-erp",
+      "connectionString": "Data Source=localhost/orcl;User ID=system;Password=oracle123;Pooling=true;Min Pool Size=5;Max Pool Size=150;",
+      "dbType": "Oracle",
+      "description": "Oracle ERP 系统（性能优化：大连接池 + 原生自增支持）",
+      "optimizationSettings": {
+        "enableIdentity": "true",
+        "maxParamLength": "30"
+      }
     },
     {
       "name": "dm-finance",
       "connectionString": "Server=localhost;Port=5236;Database=finance;User=SYSDBA;Password=SYSDBA001;",
       "dbType": "dm",
-      "description": "达梦数据库 - 财务系统"
+      "description": "达梦数据库 - 财务系统（性能优化：Clob 优化 + Schema 隔离）",
+      "optimizationSettings": {
+        "lowercaseTables": "false",
+        "dockerMysqlMode": "false",
+        "schema": "finance",
+        "clobOptimization": "true",
+        "maxPoolSize": "100"
+      }
+    },
+    {
+      "name": "kdbndp-crm",
+      "connectionString": "Server=localhost;Port=54321;Database=crm;User=SYSTEM;Password=system123;",
+      "dbType": "Kdbndp",
+      "description": "人大金仓 - CRM 系统（Oracle 兼容模式 + JSON 支持）",
+      "optimizationSettings": {
+        "mode": "Oracle",
+        "camelCase": "false",
+        "enableCursor": "true",
+        "enableJson": "true",
+        "schema": "crm"
+      }
+    },
+    {
+      "name": "gaussdb-analytics",
+      "connectionString": "PORT=5432;DATABASE=analytics;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;",
+      "dbType": "GaussDBNative",
+      "description": "GaussDB - 分析库（原生驱动 + 类型映射优化）",
+      "optimizationSettings": {
+        "nativeDriver": "true",
+        "typeMapping": "true",
+        "batchSize": "5000",
+        "maxPoolSize": "200"
+      }
+    },
+    {
+      "name": "questdb-iot",
+      "connectionString": "host=localhost;port=8812;username=admin;password=quest;database=iot;",
+      "dbType": "QuestDB",
+      "description": "QuestDB - IoT 时序数据（高性能写入 + Symbol 优化）",
+      "optimizationSettings": {
+        "syncWal": "false",
+        "symbolOptimization": "true",
+        "batchSize": "10000",
+        "partitionStrategy": "DAY"
+      }
+    },
+    {
+      "name": "tidb-bigdata",
+      "connectionString": "Server=localhost;Port=4000;Database=bigdata;User=root;Password=123456;Charset=utf8mb4;Pooling=true;Min Pool Size=1;Max Pool Size=50;",
+      "dbType": "tidb",
+      "description": "TiDB 分布式数据库 - 大数据分析（性能优化：连接池配置）"
+    },
+    {
+      "name": "sqlite-local",
+      "connectionString": "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;",
+      "dbType": "Sqlite",
+      "description": "SQLite 本地数据库（性能优化：共享缓存 + CodeFirst 增强）",
+      "optimizationSettings": {
+        "enableDefaultValue": "true",
+        "enableDescription": "true",
+        "enableDropColumn": "true"
+      }
     }
   ]
 }

@@ -10,22 +10,24 @@ public interface IDatabaseConfigService
 {
     /// <summary>
     /// 创建数据库客户端实例（使用当前活动连接）
+    /// 使用 SqlSugarScope 实现连接池复用，提高性能和线程安全性
     /// </summary>
-    /// <returns>配置好的 SqlSugarClient 实例</returns>
-    SqlSugarClient CreateClient();
+    /// <returns>配置好的 ISqlSugarClient 实例</returns>
+    ISqlSugarClient CreateClient();
 
     /// <summary>
     /// 创建指定数据库的客户端实例
+    /// 使用 SqlSugarScope 实现连接池复用，提高性能和线程安全性
     /// </summary>
     /// <param name="databaseName">数据库连接名称</param>
-    /// <returns>配置好的 SqlSugarClient 实例</returns>
-    SqlSugarClient CreateClient(string databaseName);
+    /// <returns>配置好的 ISqlSugarClient 实例</returns>
+    ISqlSugarClient CreateClient(string databaseName);
 
     /// <summary>
     /// 异步创建数据库客户端实例（使用当前活动连接）
     /// </summary>
-    /// <returns>配置好的 SqlSugarClient 实例</returns>
-    Task<SqlSugarClient> CreateClientAsync();
+    /// <returns>配置好的 ISqlSugarClient 实例</returns>
+    Task<ISqlSugarClient> CreateClientAsync();
 
     /// <summary>
     /// 获取数据库连接字符串（当前活动连接）

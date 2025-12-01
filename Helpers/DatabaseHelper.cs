@@ -168,13 +168,18 @@ internal class DatabaseHelper : IDatabaseHelperService
     public SqlSugarClient CreateClient(string connectionString, DbType dbType)
     {
         _logger.LogDebug("创建数据库客户端，类型: {DbType}", dbType);
-        var client = new SqlSugarClient(new ConnectionConfig
+
+        var config = new ConnectionConfig
         {
             ConnectionString = connectionString,
             DbType = dbType,
             IsAutoCloseConnection = true,
-            InitKeyType = InitKeyType.Attribute
-        });
+            InitKeyType = InitKeyType.Attribute,
+            // 性能优化配置
+            MoreSettings = CreateOptimizedSettings(dbType)
+        };
+
+        var client = new SqlSugarClient(config);
 
         // 配置 SQL 执行日志
         client.Aop.OnLogExecuting = (sql, pars) =>
@@ -185,7 +190,36 @@ internal class DatabaseHelper : IDatabaseHelperService
             _logger.LogInformation("执行SQL: {Sql} | 参数: {Parameters}", sql, parameters);
         };
 
+        // 配置错误日志
+        client.Aop.OnError = (exp) =>
+        {
+            _logger.LogError(exp.Sql, "SQL执行错误: {Message}", exp.Message);
+        };
+
         return client;
+    }
+
+    /// <summary>
+    /// 根据数据库类型创建优化的配置设置
+    /// 使用策略模式，方便扩展新的数据库类型
+    /// </summary>
+    private ConnMoreSettings CreateOptimizedSettings(DbType dbType)
+    {
+        var settings = new ConnMoreSettings
+        {
+            // 通用性能优化
+            IsAutoRemoveDataCache = true, // 自动移除数据缓存，避免内存泄漏
+            SqlServerCodeFirstNvarchar = true // SQL Server CodeFirst 使用 nvarchar
+        };
+
+        // 使用策略工厂获取对应数据库的优化策略
+        var strategyFactory = new Strategies.DatabaseOptimizationStrategyFactory(_logger);
+        var strategy = strategyFactory.GetStrategy(dbType);
+
+        // 应用数据库特定的优化配置（DatabaseHelper 不使用 JSON 配置，传递 null）
+        strategy.ApplyOptimizations(settings, null);
+
+        return settings;
     }
 
     /// <summary>

@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -13,10 +13,10 @@
 - 🗄️ **多数据库支持** - 支持 34 种数据库类型（主流、国产、分布式、时序）
 - 🔄 **单实例多数据库** - 一个 MCP Server 实例可配置和动态切换多个数据库连接（[查看详细指南](MULTI_DATABASE_GUIDE.md)）
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
-- ⚡ **高性能** - 基于 SqlSugar ORM，提供高效的数据库访问
-- 🔧 **灵活配置** - 支持配置文件 + 环境变量两种配置方式
-- 💾 **完整功能** - 53 个 MCP 工具，涵盖查询、操作、架构管理、多数据库管理等
-- 🚀 **生产就绪** - 支持事务、批量操作、存储过程
+- ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优（[性能优化指南](Doc/performance-optimization.md)）
+- 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
+- 💾 **完整功能** - 55+ MCP 工具，涵盖查询、操作、架构管理、健康检查等
+- 🚀 **生产就绪** - 支持事务、批量操作、存储过程、自动重连
 - 📦 **.NET Global Tool** - 简单安装，一键部署
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
 
@@ -69,7 +69,25 @@ dotnet tool install --global DatabaseMcpServer
 DatabaseMcpServer --version
 ```
 
-### 第二步：配置 MCP 客户端
+### 第二步：创建数据库配置文件
+
+创建 `databases.json` 配置文件：
+
+```json
+{
+  "databases": [
+    {
+      "name": "default",
+      "connectionString": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
+      "dbType": "MySql",
+      "description": "默认数据库",
+      "isDefault": true
+    }
+  ]
+}
+```
+
+### 第三步：配置 MCP 客户端
 
 创建 `mcp.json` 配置文件（VS Code: `.vscode/mcp.json`）:
 
@@ -79,15 +97,14 @@ DatabaseMcpServer --version
     "database": {
       "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
 }
 ```
 
-### 第三步：测试连接并执行查询
+### 第四步：测试连接并执行查询
 
 重启 IDE 后，在 AI 助手中测试：
 
@@ -121,8 +138,7 @@ dotnet tool install --global DatabaseMcpServer
     "database": {
       "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
@@ -133,7 +149,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@1.0.6 --yes
+dnx DatabaseMcpServer@2.0.0 --yes
 ```
 
 **MCP 配置**：
@@ -142,10 +158,9 @@ dnx DatabaseMcpServer@1.0.6 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@1.0.6", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
@@ -169,8 +184,7 @@ dotnet run
       "command": "dotnet",
       "args": ["run", "--project", "path/to/DatabaseMcpServer"],
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
@@ -179,9 +193,9 @@ dotnet run
 
 ## ⚙️ 配置指南
 
-DatabaseMcpServer 支持两种配置方式，**必须配置其中一种，否则会报错**：
+DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 
-### 方式 1：配置文件（推荐 - 多数据库）
+### 配置文件方式（必需）
 
 通过环境变量 `DB_CONFIG_PATH` 指定配置文件的**绝对路径**：
 
@@ -210,121 +224,183 @@ DatabaseMcpServer 支持两种配置方式，**必须配置其中一种，否则
       "connectionString": "Server=localhost;Database=myapp;User=root;Password=123456;",
       "dbType": "MySql",
       "description": "MySQL 主库",
-      "isDefault": true
+      "isDefault": true,
+      "optimizationSettings": {
+        "enableCache": "true",
+        "batchSize": "1000"
+      }
     },
     {
       "name": "postgres-analytics",
       "connectionString": "Host=localhost;Database=analytics;Username=postgres;Password=123456;",
       "dbType": "PostgreSQL",
-      "description": "PostgreSQL 分析库"
+      "description": "PostgreSQL 分析库",
+      "optimizationSettings": {
+        "autoToLower": "true",
+        "enableIlike": "true"
+      }
     }
   ]
 }
 ```
 
-**新增 MCP 工具：**
+**多数据库管理工具：**
 - `list_databases` - 列出所有可用的数据库连接
 - `switch_database` - 切换到指定的数据库
 - `get_current_database` - 获取当前活动的数据库
 - `test_connection_by_name` - 测试指定数据库的连接
 
+**性能优化工具：**
+- `health_check` - 对所有数据库连接执行健康检查（响应时间、连接状态）
+- `test_connection_with_retry` - 带自动重试的连接测试（指数退避策略）
+
 ---
 
-### 方式 2：环境变量（单数据库模式）
+## 🌐 环境配置
 
-通过环境变量配置单个数据库连接：
+### 必需环境变量
+- `DB_CONFIG_PATH`: 数据库配置文件路径（必需）
+  - 示例: `D:\config\databases.json`
 
+### 可选环境变量
+- `SEQ_SERVER_URL`: Seq 日志服务器地址（可选）
+- `SEQ_API_KEY`: Seq API 密钥（可选）
+- `DB_DDL_WHITELIST`: DDL 操作白名单（可选，分号分隔的正则表达式）
+
+### 数据库特定优化配置
+从 2.0.0 版本开始，所有数据库特定优化配置都在 `databases.json` 的 `optimizationSettings` 中设置。
+
+**详细配置文档**：
+- [MySQL 配置指南](DatabaseSetting/MySQL.md)
+- [SQL Server 配置指南](DatabaseSetting/SQLServer.md)
+- [Oracle 配置指南](DatabaseSetting/Oracle.md)
+- [PostgreSQL 配置指南](DatabaseSetting/PostgreSQL.md)
+- [SQLite 配置指南](DatabaseSetting/SQLite.md)
+- [达梦数据库配置指南](DatabaseSetting/DM.md)
+- [人大金仓配置指南](DatabaseSetting/Kdbndp.md)
+- [GaussDB 配置指南](DatabaseSetting/GaussDB.md)
+- [QuestDB 配置指南](DatabaseSetting/QuestDB.md)
+- [配置索引](DatabaseSetting/README.md)
+
+---
+
+## 🔄 从 1.x 迁移到 2.0
+
+### ⚠️ 破坏性变更
+
+DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON 配置文件。
+
+### 迁移步骤
+
+#### 1. 单数据库配置迁移
+
+**旧方式（1.x - 已废弃）**:
 ```json
 {
   "mcpServers": {
     "database": {
       "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;...",
+        "DB_TYPE": "MySql",
+        "DB_DM_LOWERCASE_TABLES": "true"
       }
     }
   }
 }
 ```
 
-此模式会创建一个名为 `default` 的数据库连接。
+**新方式（2.0）**:
 
----
+1. 创建 `databases.json` 文件：
+```json
+{
+  "databases": [
+    {
+      "name": "default",
+      "connectionString": "Server=localhost;Database=test;...",
+      "dbType": "MySql",
+      "description": "默认数据库",
+      "isDefault": true,
+      "optimizationSettings": {
+        "lowercaseTables": "true"
+      }
+    }
+  ]
+}
+```
 
-### ⚠️ 配置优先级
+2. 更新 MCP 配置：
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
+      }
+    }
+  }
+}
+```
 
-1. **`DB_CONFIG_PATH` 优先**
-   - 如果同时配置了 `DB_CONFIG_PATH` 和 `DB_CONNECTION_STRING`
-   - 系统会**优先使用** `DB_CONFIG_PATH` 指定的配置文件
-   - `DB_CONNECTION_STRING` 和 `DB_TYPE` 会被忽略
+#### 2. 环境变量映射表
 
-2. **必须配置其中一种**
-   - 如果两种都未配置，启动时会抛出异常
-   - 错误信息：`未配置数据库连接。请配置以下任一方式...`
+| 旧环境变量 | 新 JSON 配置路径 |
+|-----------|----------------|
+| `DB_CONNECTION_STRING` | `databases[].connectionString` |
+| `DB_TYPE` | `databases[].dbType` |
+| `DB_DM_LOWERCASE_TABLES` | `databases[].optimizationSettings.lowercaseTables` |
+| `DB_KDBNDP_MODE` | `databases[].optimizationSettings.mode` |
+| `DB_GAUSSDB_NATIVE_DRIVER` | `databases[].optimizationSettings.nativeDriver` |
+| `DB_QUESTDB_SYNC_WAL` | `databases[].optimizationSettings.syncWal` |
+| `DB_ORACLE_CAMEL_CASE` | `databases[].optimizationSettings.camelCase` |
+| `DB_POSTGRES_AUTO_TO_LOWER` | `databases[].optimizationSettings.autoToLower` |
+| `DB_SQLITE_ENABLE_DEFAULT_VALUE` | `databases[].optimizationSettings.enableDefaultValue` |
+| `DB_DISABLE_NVARCHAR` | `databases[].optimizationSettings.disableNvarchar` |
 
----
+完整映射表请参考各数据库配置文档。
 
-### 环境变量说明
+#### 3. 自动迁移检测
 
-#### 必需环境变量（二选一）
-
-| 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `DB_CONFIG_PATH` | 配置文件绝对路径（多数据库） | `D:\\config\\databases.json` |
-| `DB_CONNECTION_STRING` | 数据库连接字符串（单数据库） | `Server=localhost;Database=test;...` |
-
-### 可选环境变量
-
-| 变量名 | 说明 | 默认值 | 示例 |
-|--------|------|--------|------|
-| `DB_CONFIG_PATH` | 数据库配置文件路径（绝对路径） | - | `D:\\config\\databases.json` 或 `/etc/databases.json` |
-| `DB_TYPE` | 数据库类型（单数据库模式） | `MySql` | `SqlServer`、`PostgreSQL`、`Oracle` 等 |
-| `SEQ_SERVER_URL` | Seq 日志服务器地址 | - | `http://localhost:5341` |
-| `SEQ_API_KEY` | Seq API 密钥 | - | `your-seq-api-key` |
-| `DB_DDL_WHITELIST` | 允许跳过危险 SQL 检测的 DDL 正则白名单（分号分隔） | - | `(?i)^CREATE\\s+TABLE\\s+temp_.*$;ALTER\\s+TABLE\\s+staging\\.` |
+如果您仍在使用旧的环境变量配置，DatabaseMcpServer 2.0.0 会自动检测并显示详细的迁移提示。
 
 ### 常用数据库连接字符串示例
 
-**MySQL**
-```
-Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;
-```
+| 数据库 | 连接字符串示例 | 详细文档 |
+|--------|---------------|---------|
+| **MySQL** | `Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;` | [MySQL.md](DatabaseSetting/MySQL.md) |
+| **SQL Server** | `Server=localhost;Database=mydb;User Id=sa;Password=123456;` | [SQLServer.md](DatabaseSetting/SQLServer.md) |
+| **PostgreSQL** | `Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;` | [PostgreSQL.md](DatabaseSetting/PostgreSQL.md) |
+| **Oracle** | `Data Source=localhost/orcl;User ID=system;Password=oracle123;` | [Oracle.md](DatabaseSetting/Oracle.md) |
+| **SQLite** | `Data Source=mydb.db;` | [SQLite.md](DatabaseSetting/SQLite.md) |
+| **达梦数据库** | `Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;` | [DM.md](DatabaseSetting/DM.md) |
+| **人大金仓** | `Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;` | [Kdbndp.md](DatabaseSetting/Kdbndp.md) |
+| **GaussDB** | `PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;` | [GaussDB.md](DatabaseSetting/GaussDB.md) |
+| **QuestDB** | `host=localhost;port=8812;username=admin;password=quest;database=mydb;` | [QuestDB.md](DatabaseSetting/QuestDB.md) |
 
-**SQL Server**
-```
-Server=localhost;Database=mydb;User Id=sa;Password=123456;
-```
+更多连接字符串和优化配置请参考 [DatabaseSetting/](DatabaseSetting/) 目录下的详细文档。
 
-**SQLite**
-```
-Data Source=mydb.db;
-```
+---
 
-**PostgreSQL**
-```
-Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;
-```
+## 📋 完整功能清单（55+ 工具）
 
-**达梦数据库**
-```
-Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;
-```
+### 🔌 一、连接与配置管理（9 个工具）
 
-**OceanBase**
-```
-Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;
-```
-
-更多连接字符串请参考 [mcp.json.example](mcp.json.example) 文件。
-
-## 📋 完整功能清单（47 个工具）
-
-### 🔌 一、连接与配置管理（3 个工具）
-
-- **test_connection** - 测试数据库连接
+**基础连接管理**:
+- **test_connection** - 测试当前数据库连接
+- **test_connection_by_name** - 测试指定数据库的连接
 - **get_database_config** - 获取当前数据库配置信息
 - **validate_configuration** - 验证数据库配置是否正确
+
+**多数据库管理**:
+- **list_databases** - 列出所有可用的数据库连接
+- **switch_database** - 切换到指定的数据库
+- **get_current_database** - 获取当前活动的数据库
+
+**性能与健康检查**:
+- **health_check** - 对所有数据库连接执行健康检查（响应时间、连接状态）
+- **test_connection_with_retry** - 带自动重试的连接测试（指数退避策略）
 
 ### 🔍 二、数据库架构查询（12 个工具）
 
@@ -544,8 +620,8 @@ Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
 
-# 设置环境变量后运行
-DB_CONNECTION_STRING="your_connection" DB_TYPE="MySql" dotnet run
+# 创建配置文件 databases.json 后运行
+DB_CONFIG_PATH="path/to/databases.json" dotnet run
 
 # 构建项目
 dotnet build
@@ -659,7 +735,8 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 1.0.6 正式版本
+- 本项目已发布 2.0.0 正式版本
+- 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据
 - 注意配置中的敏感信息保护

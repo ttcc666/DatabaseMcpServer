@@ -14,7 +14,10 @@
       "Bash(Start-Sleep -Seconds 2)",
       "Bash($env:DB_CONFIG_PATH=\"D:\\Demo\\my-mcp\\DatabaseMcpServer\\databases.json\")",
       "Bash(dotnet run:*)",
-      "Bash(Start-Sleep -Seconds 3)"
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(dotnet build:*)",
+      "Bash(Select-String -Path \"D:\\Demo\\my-mcp\\DatabaseMcpServer\\CLAUDE.md\" -Pattern \"DB_CONNECTION_STRING|DB_TYPE|DB_DM_|DB_KDBNDP_|DB_GAUSSDB_|DB_QUESTDB_\" -CaseSensitive)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []

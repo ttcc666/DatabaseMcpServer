@@ -1,21 +1,22 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-1.0.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
 
-A powerful database operation MCP (Model Context Protocol) server that supports **34 database types**, configured through environment variables, enabling AI assistants to safely and conveniently execute database operations.
+A powerful database operation MCP (Model Context Protocol) server that supports **34 database types**, **single-instance multi-database dynamic switching**, enabling AI assistants to safely and conveniently execute database operations.
 
 ## ✨ Core Features
 
 - 🗄️ **Multi-Database Support** - Supports 34 database types (mainstream, domestic, distributed, time-series)
+- 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections ([View Detailed Guide](MULTI_DATABASE_GUIDE.md))
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
-- ⚡ **High Performance** - Based on SqlSugar ORM, providing efficient database access
-- 🔧 **Environment Variable Configuration** - Global configuration, no need to pass parameters each time
-- 💾 **Complete Functionality** - 47 MCP tools, covering queries, operations, schema management, etc.
-- 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures
+- ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning ([Performance Optimization Guide](Doc/performance-optimization.md))
+- 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
+- 💾 **Complete Functionality** - 55+ MCP tools, covering queries, operations, schema management, health checks, etc.
+- 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
 - 📦 **.NET Global Tool** - Simple installation, one-click deployment
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
 
@@ -73,7 +74,25 @@ dotnet tool install --global DatabaseMcpServer
 DatabaseMcpServer --version
 ```
 
-### Step 2: Configure MCP Client
+### Step 2: Create Database Configuration File
+
+Create `databases.json` configuration file:
+
+```json
+{
+  "databases": [
+    {
+      "name": "default",
+      "connectionString": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
+      "dbType": "MySql",
+      "description": "Default database",
+      "isDefault": true
+    }
+  ]
+}
+```
+
+### Step 3: Configure MCP Client
 
 Create `mcp.json` configuration file (VS Code: `.vscode/mcp.json`):
 
@@ -83,15 +102,14 @@ Create `mcp.json` configuration file (VS Code: `.vscode/mcp.json`):
     "database": {
       "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
 }
 ```
 
-### Step 3: Test Connection and Execute Queries
+### Step 4: Test Connection and Execute Queries
 
 After restarting IDE, test in AI assistant:
 
@@ -128,8 +146,7 @@ dotnet tool install --global DatabaseMcpServer
     "database": {
       "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
@@ -141,7 +158,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@1.0.6 --yes
+dnx DatabaseMcpServer@2.0.0 --yes
 ```
 
 **MCP Configuration**:
@@ -151,10 +168,9 @@ dnx DatabaseMcpServer@1.0.6 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@1.0.6", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
@@ -180,8 +196,7 @@ dotnet run
       "command": "dotnet",
       "args": ["run", "--project", "path/to/DatabaseMcpServer"],
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     }
   }
@@ -190,9 +205,9 @@ dotnet run
 
 ## ⚙️ Configuration Guide
 
-DatabaseMcpServer supports two configuration methods, **one must be configured, otherwise an error will occur**:
+DatabaseMcpServer 2.0.0 uses JSON configuration file for unified database connection management.
 
-### Method 1: Configuration File (Recommended - Multi-Database)
+### Configuration File (Required)
 
 Specify the **absolute path** of the configuration file through the environment variable `DB_CONFIG_PATH`:
 
@@ -221,126 +236,183 @@ Specify the **absolute path** of the configuration file through the environment 
       "connectionString": "Server=localhost;Database=myapp;User=root;Password=123456;",
       "dbType": "MySql",
       "description": "MySQL Main Database",
-      "isDefault": true
+      "isDefault": true,
+      "optimizationSettings": {
+        "enableCache": "true",
+        "batchSize": "1000"
+      }
     },
     {
       "name": "postgres-analytics",
       "connectionString": "Host=localhost;Database=analytics;Username=postgres;Password=123456;",
       "dbType": "PostgreSQL",
-      "description": "PostgreSQL Analytics Database"
+      "description": "PostgreSQL Analytics Database",
+      "optimizationSettings": {
+        "autoToLower": "true",
+        "enableIlike": "true"
+      }
     }
   ]
 }
 ```
 
-**New MCP Tools:**
+**Multi-Database Management Tools:**
 - `list_databases` - List all available database connections
 - `switch_database` - Switch to a specified database
 - `get_current_database` - Get current active database
 - `test_connection_by_name` - Test connection for a specific database
 
+**Performance Optimization Tools:**
+- `health_check` - Perform health checks on all database connections (response time, connection status)
+- `test_connection_with_retry` - Connection test with automatic retry (exponential backoff strategy)
+
 ---
 
-### Method 2: Environment Variables (Single Database Mode)
+## 🌐 Environment Configuration
 
-Configure a single database connection through environment variables:
+### Required Environment Variables
+- `DB_CONFIG_PATH`: Database configuration file path (required)
+  - Example: `D:\config\databases.json`
 
+### Optional Environment Variables
+- `SEQ_SERVER_URL`: Seq log server address (optional)
+- `SEQ_API_KEY`: Seq API key (optional)
+- `DB_DDL_WHITELIST`: DDL operation whitelist (optional, semicolon-separated regex patterns)
+
+### Database-Specific Optimization Configuration
+Starting from version 2.0.0, all database-specific optimization configurations are set in the `optimizationSettings` section of `databases.json`.
+
+**Detailed Configuration Documentation**:
+- [MySQL Configuration Guide](DatabaseSetting/MySQL.md)
+- [SQL Server Configuration Guide](DatabaseSetting/SQLServer.md)
+- [Oracle Configuration Guide](DatabaseSetting/Oracle.md)
+- [PostgreSQL Configuration Guide](DatabaseSetting/PostgreSQL.md)
+- [SQLite Configuration Guide](DatabaseSetting/SQLite.md)
+- [DaMeng Database Configuration Guide](DatabaseSetting/DM.md)
+- [KingbaseES Configuration Guide](DatabaseSetting/Kdbndp.md)
+- [GaussDB Configuration Guide](DatabaseSetting/GaussDB.md)
+- [QuestDB Configuration Guide](DatabaseSetting/QuestDB.md)
+- [Configuration Index](DatabaseSetting/README.md)
+
+---
+
+## 🔄 Migration from 1.x to 2.0
+
+### ⚠️ Breaking Changes
+
+DatabaseMcpServer 2.0.0 has removed environment variable configuration method and unified to use JSON configuration file.
+
+### Migration Steps
+
+#### 1. Single Database Configuration Migration
+
+**Old Method (1.x - Deprecated)**:
 ```json
 {
   "mcpServers": {
     "database": {
       "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONNECTION_STRING": "Server=localhost;Database=test;...",
+        "DB_TYPE": "MySql",
+        "DB_DM_LOWERCASE_TABLES": "true"
       }
     }
   }
 }
 ```
 
-This mode creates a database connection named `default`.
+**New Method (2.0)**:
 
----
+1. Create `databases.json` file:
+```json
+{
+  "databases": [
+    {
+      "name": "default",
+      "connectionString": "Server=localhost;Database=test;...",
+      "dbType": "MySql",
+      "description": "Default database",
+      "isDefault": true,
+      "optimizationSettings": {
+        "lowercaseTables": "true"
+      }
+    }
+  ]
+}
+```
 
-### ⚠️ Configuration Priority
+2. Update MCP configuration:
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "DatabaseMcpServer",
+      "env": {
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
+      }
+    }
+  }
+}
+```
 
-1. **`DB_CONFIG_PATH` Takes Priority**
-   - If both `DB_CONFIG_PATH` and `DB_CONNECTION_STRING` are configured
-   - The system will **prioritize** the configuration file specified by `DB_CONFIG_PATH`
-   - `DB_CONNECTION_STRING` and `DB_TYPE` will be ignored
+#### 2. Environment Variable Mapping Table
 
-2. **One Must Be Configured**
-   - If neither is configured, an exception will be thrown at startup
-   - Error message: `Database connection not configured. Please configure one of the following methods...`
+| Old Environment Variable | New JSON Configuration Path |
+|-------------------------|----------------------------|
+| `DB_CONNECTION_STRING` | `databases[].connectionString` |
+| `DB_TYPE` | `databases[].dbType` |
+| `DB_DM_LOWERCASE_TABLES` | `databases[].optimizationSettings.lowercaseTables` |
+| `DB_KDBNDP_MODE` | `databases[].optimizationSettings.mode` |
+| `DB_GAUSSDB_NATIVE_DRIVER` | `databases[].optimizationSettings.nativeDriver` |
+| `DB_QUESTDB_SYNC_WAL` | `databases[].optimizationSettings.syncWal` |
+| `DB_ORACLE_CAMEL_CASE` | `databases[].optimizationSettings.camelCase` |
+| `DB_POSTGRES_AUTO_TO_LOWER` | `databases[].optimizationSettings.autoToLower` |
+| `DB_SQLITE_ENABLE_DEFAULT_VALUE` | `databases[].optimizationSettings.enableDefaultValue` |
+| `DB_DISABLE_NVARCHAR` | `databases[].optimizationSettings.disableNvarchar` |
 
----
+For complete mapping table, please refer to each database configuration documentation.
 
-### Environment Variable Description
+#### 3. Automatic Migration Detection
 
-#### Required Environment Variables (Choose One)
-
-| Variable Name | Description | Example |
-|---------------|-------------|---------|
-| `DB_CONFIG_PATH` | Absolute path to configuration file (multi-database) | `D:\\config\\databases.json` |
-| `DB_CONNECTION_STRING` | Database connection string (single database) | `Server=localhost;Database=test;...` |
-
-#### Optional Environment Variables
-
-| Variable Name | Description | Default Value | Example |
-|---------------|-------------|---------------|---------|
-| `DB_TYPE` | Database type | `MySql` | `SqlServer`, `PostgreSQL`, `Oracle`, etc. |
-| `SEQ_SERVER_URL` | Seq log server address | - | `http://localhost:5341` |
-| `SEQ_API_KEY` | Seq API key | - | `your-seq-api-key` |
-| `DB_DDL_WHITELIST` | DDL regex whitelist to bypass dangerous SQL detection (semicolon separated) | - | `(?i)^CREATE\\s+TABLE\\s+temp_.*$;ALTER\\s+TABLE\\s+staging\\.` |
+If you are still using old environment variable configuration, DatabaseMcpServer 2.0.0 will automatically detect and display detailed migration prompts.
 
 ### Common Database Connection String Examples
 
-**MySQL**
+| Database | Connection String Example | Detailed Documentation |
+|----------|--------------------------|------------------------|
+| **MySQL** | `Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;` | [MySQL.md](DatabaseSetting/MySQL.md) |
+| **SQL Server** | `Server=localhost;Database=mydb;User Id=sa;Password=123456;` | [SQLServer.md](DatabaseSetting/SQLServer.md) |
+| **PostgreSQL** | `Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;` | [PostgreSQL.md](DatabaseSetting/PostgreSQL.md) |
+| **Oracle** | `Data Source=localhost/orcl;User ID=system;Password=oracle123;` | [Oracle.md](DatabaseSetting/Oracle.md) |
+| **SQLite** | `Data Source=mydb.db;` | [SQLite.md](DatabaseSetting/SQLite.md) |
+| **DaMeng Database** | `Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;` | [DM.md](DatabaseSetting/DM.md) |
+| **KingbaseES** | `Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;` | [Kdbndp.md](DatabaseSetting/Kdbndp.md) |
+| **GaussDB** | `PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;` | [GaussDB.md](DatabaseSetting/GaussDB.md) |
+| **QuestDB** | `host=localhost;port=8812;username=admin;password=quest;database=mydb;` | [QuestDB.md](DatabaseSetting/QuestDB.md) |
 
-```
-Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;
-```
+For more connection strings and optimization configurations, please refer to the detailed documentation in the [DatabaseSetting/](DatabaseSetting/) directory.
 
-**SQL Server**
+---
 
-```
-Server=localhost;Database=mydb;User Id=sa;Password=123456;
-```
+## 📋 Complete Feature List (55+ Tools)
 
-**SQLite**
+### 🔌 1. Connection and Configuration Management (9 tools)
 
-```
-Data Source=mydb.db;
-```
-
-**PostgreSQL**
-
-```
-Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;
-```
-
-**DaMeng Database**
-
-```
-Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;
-```
-
-**OceanBase**
-
-```
-Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;
-```
-
-For more connection strings, please refer to the [mcp.json.example](mcp.json.example) file.
-
-## 📋 Complete Feature List (47 Tools)
-
-### 🔌 1. Connection and Configuration Management (3 tools)
-
-- **test_connection** - Test database connection
+**Basic Connection Management**:
+- **test_connection** - Test current database connection
+- **test_connection_by_name** - Test connection for a specific database
 - **get_database_config** - Get current database configuration information
 - **validate_configuration** - Validate if database configuration is correct
+
+**Multi-Database Management**:
+- **list_databases** - List all available database connections
+- **switch_database** - Switch to a specified database
+- **get_current_database** - Get current active database
+
+**Performance and Health Checks**:
+- **health_check** - Perform health checks on all database connections (response time, connection status)
+- **test_connection_with_retry** - Connection test with automatic retry (exponential backoff strategy)
 
 ### 🔍 2. Database Schema Queries (12 tools)
 
@@ -588,8 +660,8 @@ All queries support parameterized queries, automatically preventing SQL injectio
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
 
-# Run after setting environment variables
-DB_CONNECTION_STRING="your_connection" DB_TYPE="MySql" dotnet run
+# Create databases.json configuration file, then run
+DB_CONFIG_PATH="path/to/databases.json" dotnet run
 
 # Build project
 dotnet build
@@ -707,7 +779,8 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 1.0.6
+- This project has released version 2.0.0
+- Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data
 - Pay attention to sensitive information protection in configuration

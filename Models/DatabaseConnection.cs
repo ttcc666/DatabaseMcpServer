@@ -29,4 +29,9 @@ public class DatabaseConnection
     /// 是否为默认连接
     /// </summary>
     public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// 数据库优化配置选项
+    /// </summary>
+    public Dictionary<string, string>? OptimizationSettings { get; set; }
 }

@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace DatabaseMcpServer.Services;
 
 /// <summary>
-/// 数据库配置服务 - 支持单数据库（环境变量）和多数据库（配置文件）模式。
+/// 数据库配置服务 - DatabaseMcpServer 2.0.0+ 仅支持 JSON 配置文件模式。
 /// </summary>
 internal class DatabaseConfigService : IDatabaseConfigService
 {
@@ -16,6 +16,8 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private readonly ILogger<DatabaseConfigService> _logger;
     private readonly IDatabaseHelperService _databaseHelper;
     private readonly Dictionary<string, DatabaseConnection> _connections = new();
+    private readonly Dictionary<string, SqlSugarScope> _clientPool = new();
+    private readonly object _poolLock = new();
     private string? _currentDatabaseName;
 
     public DatabaseConfigService(IConfiguration configuration, ILogger<DatabaseConfigService> logger, IDatabaseHelperService databaseHelper)
@@ -29,44 +31,38 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     /// <summary>
     /// 加载数据库连接配置
-    /// 优先级：
-    /// 1. DB_CONFIG_PATH 环境变量指定的配置文件
-    /// 2. DB_CONNECTION_STRING 和 DB_TYPE 环境变量（单数据库模式）
-    /// 如果两种都未配置，抛出异常
+    /// DatabaseMcpServer 2.0.0+ 仅支持 JSON 配置文件方式
     /// </summary>
     private void LoadDatabaseConnections()
     {
+        // 首先检查是否使用了已废弃的环境变量
+        CheckDeprecatedEnvironmentVariables();
+
         var configPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
 
-        // 情况 1: 指定了配置文件路径
-        if (!string.IsNullOrWhiteSpace(configPath))
+        if (string.IsNullOrWhiteSpace(configPath))
         {
-            _logger.LogInformation("使用配置文件路径: {Path}", configPath);
-
-            if (LoadFromConfigFile(configPath))
-            {
-                _logger.LogInformation("已从配置文件加载 {Count} 个数据库连接", _connections.Count);
-                return;
-            }
-
-            // 配置文件加载失败，记录错误
-            _logger.LogError("配置文件加载失败: {Path}", configPath);
+            throw new InvalidOperationException(
+                "未配置数据库连接。请设置 DB_CONFIG_PATH 环境变量指向 databases.json 配置文件。\n\n" +
+                "示例:\n" +
+                "  DB_CONFIG_PATH=D:\\config\\databases.json\n\n" +
+                "配置文件格式请参考: databases.json.example");
         }
 
-        // 情况 2: 使用环境变量（单数据库模式）
-        if (!string.IsNullOrWhiteSpace(connectionString))
+        _logger.LogInformation("使用配置文件路径: {Path}", configPath);
+
+        if (!LoadFromConfigFile(configPath))
         {
-            _logger.LogInformation("使用环境变量配置（单数据库模式）");
-            LoadFromEnvironmentVariables();
-            return;
+            throw new InvalidOperationException(
+                $"无法加载配置文件: {configPath}\n\n" +
+                "请检查:\n" +
+                "  1. 文件是否存在\n" +
+                "  2. JSON 格式是否正确\n" +
+                "  3. 文件编码是否为 UTF-8\n\n" +
+                "配置文件格式请参考: databases.json.example");
         }
 
-        // 情况 3: 两种都未配置，抛出异常
-        throw new InvalidOperationException(
-            "未配置数据库连接。请配置以下任一方式：\n" +
-            "1. 设置环境变量 DB_CONFIG_PATH 指向配置文件路径\n" +
-            "2. 设置环境变量 DB_CONNECTION_STRING 和 DB_TYPE（单数据库模式）");
+        _logger.LogInformation("已从配置文件加载 {Count} 个数据库连接", _connections.Count);
     }
 
     /// <summary>
@@ -121,28 +117,62 @@ internal class DatabaseConfigService : IDatabaseConfigService
     }
 
     /// <summary>
-    /// 从环境变量加载单数据库配置（兼容模式）
+    /// 检测已废弃的环境变量配置（DatabaseMcpServer 2.0.0+）
     /// </summary>
-    private void LoadFromEnvironmentVariables()
+    private void CheckDeprecatedEnvironmentVariables()
     {
-        var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-        var dbType = Environment.GetEnvironmentVariable("DB_TYPE") ?? "MySql";
-
-        if (!string.IsNullOrWhiteSpace(connectionString))
+        var deprecatedVars = new[]
         {
-            var connection = new DatabaseConnection
+            "DB_CONNECTION_STRING",
+            "DB_TYPE",
+            "DB_DM_LOWERCASE_TABLES",
+            "DB_KDBNDP_MODE",
+            "DB_GAUSSDB_NATIVE_DRIVER",
+            "DB_QUESTDB_SYNC_WAL",
+            "DB_ORACLE_CAMEL_CASE",
+            "DB_POSTGRES_AUTO_TO_LOWER",
+            "DB_SQLITE_ENABLE_DEFAULT_VALUE",
+            "DB_DISABLE_NVARCHAR",
+            "DB_DDL_WHITELIST"
+        };
+
+        var foundVars = deprecatedVars
+            .Where(v => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(v)))
+            .ToList();
+
+        if (foundVars.Any())
+        {
+            var message = new System.Text.StringBuilder();
+            message.AppendLine("检测到已废弃的环境变量配置（DatabaseMcpServer 2.0.0+）：");
+            message.AppendLine();
+            foreach (var v in foundVars)
             {
-                Name = "default",
-                ConnectionString = connectionString,
-                DbType = dbType,
-                Description = "从环境变量加载的默认数据库",
-                IsDefault = true
-            };
+                message.AppendLine($"  - {v}");
+            }
+            message.AppendLine();
+            message.AppendLine("从 2.0.0 版本开始，所有配置都必须在 databases.json 文件中设置。");
+            message.AppendLine();
+            message.AppendLine("迁移示例：");
+            message.AppendLine("旧方式（环境变量）：");
+            message.AppendLine("  DB_CONNECTION_STRING=Server=localhost;...");
+            message.AppendLine("  DB_TYPE=MySql");
+            message.AppendLine("  DB_DM_LOWERCASE_TABLES=true");
+            message.AppendLine();
+            message.AppendLine("新方式（databases.json）：");
+            message.AppendLine("  {");
+            message.AppendLine("    \"databases\": [{");
+            message.AppendLine("      \"name\": \"default\",");
+            message.AppendLine("      \"connectionString\": \"Server=localhost;...\",");
+            message.AppendLine("      \"dbType\": \"MySql\",");
+            message.AppendLine("      \"optimizationSettings\": {");
+            message.AppendLine("        \"lowercaseTables\": \"true\"");
+            message.AppendLine("      }");
+            message.AppendLine("    }]");
+            message.AppendLine("  }");
+            message.AppendLine();
+            message.AppendLine("详细迁移指南请参考 README.md 中的\"从 1.x 迁移到 2.0\"章节");
 
-            _connections["default"] = connection;
-            _currentDatabaseName = "default";
-
-            _logger.LogInformation("已从环境变量加载默认数据库连接");
+            throw new InvalidOperationException(message.ToString());
         }
     }
 
@@ -178,10 +208,9 @@ internal class DatabaseConfigService : IDatabaseConfigService
     }
 
     /// <summary>
-    /// 从环境变量读取数据库连接字符串（已弃用，保留向后兼容）
+    /// 获取当前数据库连接字符串
     /// </summary>
-    /// <returns>连接字符串,如果未配置则抛出异常</returns>
-    /// <exception cref="InvalidOperationException">当环境变量未配置时抛出</exception>
+    /// <returns>连接字符串</returns>
     public string GetConnectionString()
     {
         return GetCurrentConnection().ConnectionString;
@@ -208,42 +237,124 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     /// <summary>
     /// 创建数据库客户端（使用当前活动连接）
+    /// 使用 SqlSugarScope 实现连接池复用，提高性能和线程安全性
     /// </summary>
-    /// <returns>配置好的 SqlSugarClient 实例</returns>
-    public SqlSugarClient CreateClient()
+    /// <returns>配置好的 ISqlSugarClient 实例</returns>
+    public ISqlSugarClient CreateClient()
     {
         var connection = GetCurrentConnection();
-        _logger.LogDebug("正在创建数据库客户端连接: {Name}", connection.Name);
-
-        var dbType = _databaseHelper.ParseDbType(connection.DbType);
-        var client = _databaseHelper.CreateClient(connection.ConnectionString, dbType);
-
-        _logger.LogInformation("数据库客户端连接创建成功: {Name} ({DbType})", connection.Name, dbType);
-        return client;
+        return GetOrCreateScopedClient(connection);
     }
 
     /// <summary>
     /// 创建指定数据库的客户端
+    /// 使用 SqlSugarScope 实现连接池复用，提高性能和线程安全性
     /// </summary>
     /// <param name="databaseName">数据库连接名称</param>
-    /// <returns>配置好的 SqlSugarClient 实例</returns>
-    public SqlSugarClient CreateClient(string databaseName)
+    /// <returns>配置好的 ISqlSugarClient 实例</returns>
+    public ISqlSugarClient CreateClient(string databaseName)
     {
         var connection = GetConnection(databaseName);
-        _logger.LogDebug("正在创建指定数据库客户端连接: {Name}", connection.Name);
+        return GetOrCreateScopedClient(connection);
+    }
 
-        var dbType = _databaseHelper.ParseDbType(connection.DbType);
-        var client = _databaseHelper.CreateClient(connection.ConnectionString, dbType);
+    /// <summary>
+    /// 获取或创建 SqlSugarScope 客户端（线程安全的连接池实现）
+    /// </summary>
+    private ISqlSugarClient GetOrCreateScopedClient(DatabaseConnection connection)
+    {
+        // 检查连接池中是否已存在
+        if (_clientPool.TryGetValue(connection.Name, out var existingScope))
+        {
+            _logger.LogDebug("复用连接池中的数据库客户端: {Name}", connection.Name);
+            return existingScope;
+        }
 
-        _logger.LogInformation("指定数据库客户端连接创建成功: {Name} ({DbType})", connection.Name, dbType);
-        return client;
+        // 使用锁确保线程安全
+        lock (_poolLock)
+        {
+            // 双重检查
+            if (_clientPool.TryGetValue(connection.Name, out existingScope))
+            {
+                return existingScope;
+            }
+
+            _logger.LogDebug("创建新的 SqlSugarScope 客户端: {Name}", connection.Name);
+
+            var dbType = _databaseHelper.ParseDbType(connection.DbType);
+
+            // 使用 SqlSugarScope 替代 SqlSugarClient，提供更好的线程安全性和连接池管理
+            var scope = new SqlSugarScope(new ConnectionConfig
+            {
+                ConnectionString = connection.ConnectionString,
+                DbType = dbType,
+                IsAutoCloseConnection = true,
+                InitKeyType = InitKeyType.Attribute,
+                // 性能优化配置
+                MoreSettings = CreateOptimizedSettings(dbType, connection)
+            }, db =>
+            {
+                // 配置 SQL 执行日志
+                db.Aop.OnLogExecuting = (sql, pars) =>
+                {
+                    var parameters = pars?.Length > 0 ?
+                        string.Join(", ", pars.Select(p => $"{p.ParameterName}={p.Value}")) :
+                        "无参数";
+                    _logger.LogInformation("执行SQL: {Sql} | 参数: {Parameters}", sql, parameters);
+                };
+
+                // 配置错误日志
+                db.Aop.OnError = (exp) =>
+                {
+                    _logger.LogError(exp.Sql, "SQL执行错误: {Message}", exp.Message);
+                };
+            });
+
+            _clientPool[connection.Name] = scope;
+            _logger.LogInformation("SqlSugarScope 客户端创建成功并加入连接池: {Name} ({DbType})", connection.Name, dbType);
+
+            return scope;
+        }
+    }
+
+    /// <summary>
+    /// 根据数据库类型和连接配置创建优化的设置
+    /// 使用策略模式，方便扩展新的数据库类型
+    /// </summary>
+    private ConnMoreSettings CreateOptimizedSettings(DbType dbType, DatabaseConnection connection)
+    {
+        var settings = new ConnMoreSettings
+        {
+            // 通用性能优化
+            IsAutoRemoveDataCache = true, // 自动移除数据缓存，避免内存泄漏
+            SqlServerCodeFirstNvarchar = true // SQL Server CodeFirst 使用 nvarchar
+        };
+
+        try
+        {
+            // 使用策略工厂获取对应数据库的优化策略
+            var strategyFactory = new Strategies.DatabaseOptimizationStrategyFactory(_logger);
+            var strategy = strategyFactory.GetStrategy(dbType);
+
+            // 应用数据库特定的优化配置，传递 optimizationSettings
+            strategy.ApplyOptimizations(settings, connection.OptimizationSettings);
+
+            _logger.LogDebug("已为数据库 {Name} 应用性能优化: {Description}",
+                connection.Name, strategy.GetDescription());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "应用数据库 {Name} 优化策略时出错，使用默认配置", connection.Name);
+        }
+
+        return settings;
     }
 
     /// <summary>
     /// 异步创建数据库客户端
     /// </summary>
-    /// <returns>配置好的 SqlSugarClient 实例</returns>
-    public async Task<SqlSugarClient> CreateClientAsync()
+    /// <returns>配置好的 ISqlSugarClient 实例</returns>
+    public async Task<ISqlSugarClient> CreateClientAsync()
     {
         return await Task.FromResult(CreateClient());
     }
