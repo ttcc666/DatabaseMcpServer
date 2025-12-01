@@ -589,13 +589,4 @@ db.DbMaintenance.BackupDataBase(null, "backup.db");
 
 ---
 
-## 📚 相关文档
-
-- [性能优化指南](../Doc/performance-optimization.md)
-- [连接字符串优化](../Doc/connection-string-optimization.md)
-- [快速参考](../Doc/quick-reference.md)
-- [SQLite 官方文档](../Doc/donet5_sqlite.md)
-
----
-
 **最后更新**: 2025-12-01

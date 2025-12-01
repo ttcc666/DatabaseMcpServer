@@ -483,9 +483,6 @@ public void SqlServerOptimizationStrategy_ShouldRespectDisableNvarcharSetting()
 
 ## 📚 相关文档
 
-- [性能优化指南](./performance-optimization.md)
-- [连接字符串优化](./connection-string-optimization.md)
-- [快速参考](./quick-reference.md)
 - [主 README](../README.md)
 
 ---

@@ -551,7 +551,6 @@ Server=localhost:5236;User Id=SYSDBA;PWD=SYSDBA;SCHEMA=myschema;DATABASE=DAMENG
 
 - [达梦数据库 .NET 操作](../Doc/donet5_dm.md)
 - [扩展数据库优化策略](../Doc/extending-database-optimization.md)
-- [性能优化指南](../Doc/performance-optimization.md)
 - [主 README](../README.md)
 
 ---

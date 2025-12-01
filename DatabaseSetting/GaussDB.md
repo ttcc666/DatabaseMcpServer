@@ -585,7 +585,6 @@ dotnet add package SqlSugar.GaussDBNativeCore
 
 - [华为 GaussDB/OpenGauss .NET 操作](../Doc/donet5_gaussdb.md)
 - [扩展数据库优化策略](../Doc/extending-database-optimization.md)
-- [性能优化指南](../Doc/performance-optimization.md)
 - [主 README](../README.md)
 
 ---

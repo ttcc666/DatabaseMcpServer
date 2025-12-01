@@ -273,9 +273,6 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 
 ## 📚 相关文档
 
-- [性能优化指南](../Doc/performance-optimization.md)
-- [连接字符串优化](../Doc/connection-string-optimization.md)
-- [快速参考](../Doc/quick-reference.md)
 - [扩展数据库优化策略](../Doc/extending-database-optimization.md)
 - [主 README](../README.md)
 

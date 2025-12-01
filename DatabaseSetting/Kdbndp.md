@@ -629,7 +629,6 @@ CREATE TABLE user_info (
 
 - [人大金仓 .NET 操作](../Doc/donet5_kdbndp.md)
 - [扩展数据库优化策略](../Doc/extending-database-optimization.md)
-- [性能优化指南](../Doc/performance-optimization.md)
 - [主 README](../README.md)
 
 ---

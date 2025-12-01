@@ -625,7 +625,6 @@ ASOF JOIN quotes ON symbol;
 
 - [QuestDB .NET 操作](../Doc/donet5_questdb.md)
 - [扩展数据库优化策略](../Doc/extending-database-optimization.md)
-- [性能优化指南](../Doc/performance-optimization.md)
 - [QuestDB 官方文档](https://questdb.io/docs/)
 - [主 README](../README.md)
 

@@ -403,13 +403,4 @@ db.Ado.ExecuteCommand("EXEC sp_name @p", param);
 
 ---
 
-## 📚 相关文档
-
-- [性能优化指南](../Doc/performance-optimization.md)
-- [连接字符串优化](../Doc/connection-string-optimization.md)
-- [快速参考](../Doc/quick-reference.md)
-- [SQL Server 官方文档](../Doc/sqlserver.md)
-
----
-
 **最后更新**: 2025-12-01

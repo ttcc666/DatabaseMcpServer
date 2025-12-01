@@ -1,22 +1,37 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`DatabaseMcpServer.csproj` and `Program.cs` sit at the root; runtime services belong in `Services/`, interface contracts in `Interfaces/`, and reusable plumbing (SqlSugar configuration, serialization guards, argument validators) in `Helpers/`. Register each MCP tool in `Program.cs` and keep the implementation inside `Tools/Command`, `Tools/Management`, `Tools/Query`, or `Tools/Schema` to preserve single-purpose classes. Cross-cutting filters live in `Filters/`, while `.mcp/`, `mcp.json.example`, and `mcp.json.local` store sanitized client templates. Add new xUnit projects beside the solution root so `dotnet test` discovers them without flags.
-
-## MCP Tool Responsibilities
-`CommandTools` executes data-changing SQL, wrapping transaction batches, stored procedures (with IN/OUT parameters), and SQL Server scripts that contain `GO` statements. `QueryTools` focuses on read patterns: strongly typed queries, scalar fetches, paginated results, IN-clause expansion, and dataset streaming via `GetDataReader`. `SchemaTools` manages structural concerns by exposing inventory endpoints (tables, views, triggers, indexes) plus DDL helpers for adding or dropping indexes, partitions, procedures, functions, and views. `ConnectionTools` governs environment swaps: testing active connections, switching named databases, enumerating configured targets, and surfacing configuration health summaries.
+- Root: `DatabaseMcpServer.csproj` and `Program.cs` sit at the top level; MCP tools register in `Program.cs`.
+- Runtime services: `Services/`; interfaces: `Interfaces/`; helpers (SqlSugar config, serialization guards, argument validators): `Helpers/`.
+- Tool implementations: `Tools/Command`, `Tools/Query`, `Tools/Schema`, `Tools/Management`, and `ConnectionTools` for environment swaps; keep each class single-purpose.
+- Cross-cutting filters: `Filters/`. Client templates: `.mcp/`, `mcp.json.example`, `mcp.json.local`.
+- Tests: xUnit projects live beside the solution root so `dotnet test` discovers them without extra flags.
 
 ## Build, Test, and Development Commands
-`dotnet build` compiles the net9.0 target and validates package references. `dotnet test` runs every xUnit project; document any required env vars before running integration suites. `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run` launches the stdio MCP server for smoke testing, while `dotnet pack -c Release` produces the NuGet/global tool artifact. `DatabaseMcpServer --version` ensures an installed CLI matches the current source.
+- `dotnet build` — compile net9.0 target and validate package references.
+- `dotnet test` — run all xUnit projects; document required env vars before invoking integration suites.
+- `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run` — launch the stdio MCP server for smoke testing.
+- `dotnet pack -c Release` — produce the NuGet/global tool artifact.
+- `DatabaseMcpServer --version` — confirm an installed CLI matches current source.
 
 ## Coding Style & Naming Conventions
-Target C# 12 with implicit usings, nullable reference types, and four-space indentation with braces on the next line. Prefer file-scoped namespaces, constructor-injected dependencies, and SRP-aligned tool classes. Use PascalCase for public members, `_camelCase` for private readonly fields, camelCase for parameters, and UTF-8 (no BOM) encoding. Keep comments minimal and focused on rationale.
+- C# 12, implicit usings, nullable enabled, four-space indentation, braces on the next line.
+- Prefer file-scoped namespaces, constructor injection, and SRP-aligned tool classes.
+- Naming: PascalCase for public members; `_camelCase` for private readonly fields; camelCase for parameters.
+- UTF-8 (no BOM). Keep comments minimal and rationale-focused; favor self-explanatory code.
 
 ## Testing Guidelines
-Favor xUnit with the `ClassUnderTestTests` naming convention. Keep fixtures isolated, prefer disposable or opt-in database providers, and document manual prerequisites in test READMEs. Aim for deterministic output and ensure every behavior change cites a corresponding `dotnet test` run.
+- Framework: xUnit; name test classes `ClassUnderTestTests`.
+- Keep fixtures isolated; prefer disposable/opt-in database providers.
+- Aim for deterministic output; record any manual prerequisites in test READMEs.
+- Every behavioral change should cite a `dotnet test` run.
 
 ## Commit & Pull Request Guidelines
-Branch from `main` using `feature/<topic>`, craft imperative commits (e.g., `Add schema diff tool`), and describe behavioral impact, touched tools/services, linked issues, and verification evidence in each PR. Include screenshots or sample JSON responses whenever changes affect observable output.
+- Branch from `main` using `feature/<topic>`.
+- Commits: imperative mood (e.g., `Add schema diff tool`); describe behavioral impact, touched tools/services, linked issues, and verification evidence.
+- PRs: include impact summary, linked issues, verification notes (tests, screenshots, sample JSON responses) when output changes.
 
 ## Security & Configuration Tips
-Never commit secrets; provide credentials via env vars such as `DB_CONNECTION_STRING`, `DB_TYPE`, `SEQ_SERVER_URL`, and `SEQ_API_KEY`. Reuse shared helpers for SQL sanitization and configuration validation, and document any new variable or permission requirement before release.
+- Never commit secrets. Supply credentials via env vars: `DB_CONNECTION_STRING`, `DB_TYPE`, `SEQ_SERVER_URL`, `SEQ_API_KEY`.
+- Reuse shared helpers for SQL sanitization and configuration validation.
+- Document any new variable or permission requirement before release.

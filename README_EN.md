@@ -11,9 +11,9 @@ A powerful database operation MCP (Model Context Protocol) server that supports 
 ## ✨ Core Features
 
 - 🗄️ **Multi-Database Support** - Supports 34 database types (mainstream, domestic, distributed, time-series)
-- 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections ([View Detailed Guide](MULTI_DATABASE_GUIDE.md))
+- 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
-- ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning ([Performance Optimization Guide](Doc/performance-optimization.md))
+- ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
 - 💾 **Complete Functionality** - 55+ MCP tools, covering queries, operations, schema management, health checks, etc.
 - 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
