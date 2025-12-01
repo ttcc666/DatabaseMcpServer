@@ -1,23 +1,23 @@
 {
   "mcpServers": {
-    "// 方式 1: 配置文件方式（推荐 - 多数据库）": "",
-    "database-config-file": {
+    "// 方式 1: .NET Global Tool（推荐）": "",
+    "database": {
       "command": "DatabaseMcpServer",
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     },
 
-    "// 方式 2: 环境变量方式（单数据库模式）": "",
-    "database-env": {
-      "command": "DatabaseMcpServer",
+    "// 方式 2: dnx 命令": "",
+    "database-dnx": {
+      "command": "dnx",
+      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=test;Uid=root;Pwd=123456;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     },
 
-    "// 本地开发 - 使用源码运行": "",
+    "// 方式 3: 本地开发 - 使用源码运行": "",
     "database-dev": {
       "command": "dotnet",
       "args": ["run", "--project", "path/to/DatabaseMcpServer"],
@@ -26,13 +26,13 @@
       }
     },
 
-    "// NuGet 包部署": "",
-    "database-nuget": {
-      "command": "dnx",
-      "args": ["DatabaseMcpServer", "--version", "1.0.6", "--yes"],
+    "// 可选: 配置日志服务器": "",
+    "database-with-logging": {
+      "command": "DatabaseMcpServer",
       "env": {
-        "DB_CONNECTION_STRING": "Server=localhost;Database=prod;Uid=root;Pwd=prod_password;",
-        "DB_TYPE": "MySql"
+        "DB_CONFIG_PATH": "D:\\config\\databases.json",
+        "SEQ_SERVER_URL": "http://localhost:5341",
+        "SEQ_API_KEY": "your-seq-api-key"
       }
     }
   },
@@ -41,128 +41,100 @@
     "databases": [
       {
         "name": "mysql-main",
-        "connectionString": "Server=localhost;Port=3306;Database=myapp;User=root;Password=123456;",
+        "connectionString": "Server=localhost;Port=3306;Database=myapp;User=root;Password=123456;Charset=utf8mb4;",
         "dbType": "MySql",
         "description": "MySQL 主库",
-        "isDefault": true
+        "isDefault": true,
+        "optimizationSettings": {
+          "enableBulkCopy": "true",
+          "maxPoolSize": "100"
+        }
       },
       {
         "name": "postgres-analytics",
         "connectionString": "Host=localhost;Port=5432;Database=analytics;Username=postgres;Password=123456;",
         "dbType": "PostgreSQL",
-        "description": "PostgreSQL 分析库"
+        "description": "PostgreSQL 分析库",
+        "optimizationSettings": {
+          "autoToLower": "true",
+          "enableILike": "true"
+        }
       },
       {
         "name": "sqlserver-crm",
         "connectionString": "Server=localhost;Database=crm;User Id=sa;Password=123456;",
         "dbType": "SqlServer",
-        "description": "SQL Server CRM 库"
+        "description": "SQL Server CRM 库",
+        "optimizationSettings": {
+          "disableNvarchar": "true"
+        }
       }
     ]
   },
 
-  "// 数据库配置示例": {
-    "// 主流数据库": "",
-    "MySQL": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;",
-      "DB_TYPE": "MySql"
-    },
-
-    "SQL Server": {
-      "DB_CONNECTION_STRING": "Server=localhost;Database=mydb;User Id=sa;Password=123456;",
-      "DB_TYPE": "SqlServer"
-    },
-
-    "SQLite": {
-      "DB_CONNECTION_STRING": "Data Source=mydb.db;",
-      "DB_TYPE": "Sqlite"
-    },
-
-    "PostgreSQL": {
-      "DB_CONNECTION_STRING": "Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;",
-      "DB_TYPE": "PostgreSQL"
-    },
-
-    "Oracle": {
-      "DB_CONNECTION_STRING": "Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=orcl)));User Id=system;Password=123456;",
-      "DB_TYPE": "Oracle"
-    },
-
-    "// 国产数据库": "",
-    "达梦数据库": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;",
-      "DB_TYPE": "dm"
-    },
-
-    "人大金仓": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=MANAGER;",
-      "DB_TYPE": "kdbndp"
-    },
-
-    "神通数据库": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=2003;Database=mydb;User=SYSDBA;Password=SYSDBA;",
-      "DB_TYPE": "oscar"
-    },
-
-    "瀚高数据库": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=5866;Database=mydb;User=postgres;Password=123456;",
-      "DB_TYPE": "hg"
-    },
-
-    "// 分布式数据库": "",
-    "OceanBase": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;",
-      "DB_TYPE": "oceanbase"
-    },
-
-    "TiDB": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;",
-      "DB_TYPE": "tidb"
-    },
-
-    "// 时序数据库": "",
-    "TDengine": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=6030;Database=mydb;User=root;Password=taosdata;",
-      "DB_TYPE": "tdengine"
-    },
-
-    "ClickHouse": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=9000;Database=mydb;User=default;Password=123456;",
-      "DB_TYPE": "clickhouse"
-    },
-
-    "// 分析型数据库": "",
-    "DuckDB": {
-      "DB_CONNECTION_STRING": "Data Source=mydb.duckdb;",
-      "DB_TYPE": "duckdb"
-    },
-
-    "Doris": {
-      "DB_CONNECTION_STRING": "Server=localhost;Port=9030;Database=mydb;User=root;Password=123456;",
-      "DB_TYPE": "doris"
-    }
+  "// 常用数据库连接字符串示例": {
+    "MySQL": "Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;Charset=utf8mb4;",
+    "SQL Server": "Server=localhost;Database=mydb;User Id=sa;Password=123456;",
+    "PostgreSQL": "Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;",
+    "Oracle": "Data Source=localhost/orcl;User ID=system;Password=oracle123;",
+    "SQLite": "Data Source=mydb.db;",
+    "达梦数据库": "Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;",
+    "人大金仓": "Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;",
+    "GaussDB": "PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;",
+    "QuestDB": "host=localhost;port=8812;username=admin;password=quest;database=mydb;",
+    "TiDB": "Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;",
+    "OceanBase": "Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;",
+    "详细配置": "请参考 DatabaseSetting/ 目录下的各数据库配置文档"
   },
 
   "// 环境变量说明": {
-    "DB_CONFIG_PATH": "（二选一）配置文件绝对路径，如 D:\\config\\databases.json",
-    "DB_CONNECTION_STRING": "（二选一）数据库连接字符串",
-    "DB_TYPE": "（可选）数据库类型，默认 MySql。支持：主流数据库(MySql, SqlServer, Sqlite, PostgreSQL, Oracle)、国产数据库(dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb)、分布式数据库(oceanbase, tidb, polardb, doris)、时序数据库(tdengine, questdb, clickhouse)、其他数据库(duckdb, access, odbc, hana, db2, mongodb, custom)等",
-    "SEQ_SERVER_URL": "（可选）Seq日志服务器地址",
-    "SEQ_API_KEY": "（可选）Seq API密钥"
+    "DB_CONFIG_PATH": "（必需）数据库配置文件绝对路径，如 D:\\config\\databases.json",
+    "SEQ_SERVER_URL": "（可选）Seq 日志服务器地址，如 http://localhost:5341",
+    "SEQ_API_KEY": "（可选）Seq API 密钥",
+    "DB_DDL_WHITELIST": "（可选）DDL 操作白名单（分号分隔的正则表达式）"
   },
 
-  "// 配置优先级": {
-    "1": "DB_CONFIG_PATH（最高优先级）- 如果设置，只使用配置文件",
-    "2": "DB_CONNECTION_STRING + DB_TYPE - 如果未设置 DB_CONFIG_PATH，使用环境变量",
-    "3": "两种都未配置 - 启动时报错"
+  "// 优化配置选项 (optimizationSettings)": {
+    "说明": "从 2.0.0 版本开始，所有数据库特定优化配置都在 databases.json 的 optimizationSettings 中设置",
+    "MySQL": {
+      "enableBulkCopy": "启用批量导入优化",
+      "maxPoolSize": "连接池最大连接数",
+      "charset": "字符集配置"
+    },
+    "SQL Server": {
+      "disableNvarchar": "禁用 nvarchar（性能优化）"
+    },
+    "PostgreSQL": {
+      "autoToLower": "自动转小写表名",
+      "enableILike": "启用 ILIKE 支持"
+    },
+    "Oracle": {
+      "camelCase": "使用驼峰表名",
+      "enableIdentity": "启用原生自增",
+      "maxParamLength": "参数名最大长度"
+    },
+    "SQLite": {
+      "enableDefaultValue": "启用默认值支持",
+      "enableDescription": "启用描述支持",
+      "enableDropColumn": "启用删除列支持"
+    },
+    "详细配置": "请参考 DatabaseSetting/ 目录下的各数据库配置文档"
   },
 
   "// 使用说明": {
-    "1": "复制此文件到你的IDE配置目录",
-    "2": "VS Code: <WORKSPACE>/.vscode/mcp.json",
-    "3": "Visual Studio: <SOLUTION>/.mcp.json",
-    "4": "选择配置方式（配置文件或环境变量）",
-    "5": "修改连接字符串和数据库类型",
-    "6": "重启IDE或重新加载MCP配置"
+    "1": "创建 databases.json 配置文件（参考上面的配置文件格式）",
+    "2": "复制此文件到你的 IDE 配置目录",
+    "3": "VS Code: <WORKSPACE>/.vscode/mcp.json",
+    "4": "Visual Studio: <SOLUTION>/.mcp.json",
+    "5": "修改 DB_CONFIG_PATH 指向你的 databases.json 文件",
+    "6": "重启 IDE 或重新加载 MCP 配置"
+  },
+
+  "// 从 1.x 迁移到 2.0": {
+    "说明": "DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON 配置文件",
+    "旧方式": "DB_CONNECTION_STRING + DB_TYPE 环境变量",
+    "新方式": "DB_CONFIG_PATH 指向 databases.json 配置文件",
+    "迁移步骤": "1. 创建 databases.json 文件 2. 将连接字符串和数据库类型移到 JSON 中 3. 更新 MCP 配置只保留 DB_CONFIG_PATH",
+    "详细指南": "请参考 README.md 中的迁移指南章节"
   }
 }

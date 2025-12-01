@@ -31,8 +31,9 @@
       "GaussDB"
     ],
     "features": [
-      "环境变量全局配置",
-      "数据库连接管理",
+      "JSON 配置文件管理",
+      "单实例多数据库动态切换",
+      "数据库连接管理（连接测试、健康检查、自动重连）",
       "数据库架构查询（数据库列表、表列表、视图列表、表结构、列信息、主键、索引等）",
       "数据库架构操作（创建/删除/重命名表、添加/删除/修改列、索引管理、约束管理等）",
       "基础查询（SqlQuery、SqlQuerySingle、GetDataReader）",
@@ -43,7 +44,8 @@
       "批量操作（批量执行命令）",
       "SQL Server 特殊支持（GO 语句执行）",
       "参数化查询防止 SQL 注入",
-      "危险操作检测和防护"
+      "危险操作检测和防护",
+      "数据库特定性能优化（连接池、查询优化、类型映射等）"
     ],
     "security": [
       "参数化查询防止 SQL 注入",
@@ -54,7 +56,7 @@
   },
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.ttcc666/database-mcp-server",
-  "description": "一个功能强大的数据库操作 MCP 服务器，支持 34 种数据库类型，包括主流数据库、国产数据库、分布式数据库、时序数据库等。通过环境变量配置连接信息，提供数据库连接管理、架构查询与操作、高级查询、数据操作、存储过程调用和事务处理等功能。",
+  "description": "一个功能强大的数据库操作 MCP 服务器，支持 34 种数据库类型，包括主流数据库、国产数据库、分布式数据库、时序数据库等。通过 JSON 配置文件管理多数据库连接，支持单实例多数据库动态切换，提供数据库连接管理、架构查询与操作、高级查询、数据操作、存储过程调用、事务处理和性能优化等功能。",
   "packages": [
     {
       "packageArguments": [],
@@ -63,36 +65,26 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "1.0.6",
+      "version": "2.0.0",
       "environmentVariables": [
         {
           "name": "DB_CONFIG_PATH",
-          "description": "数据库配置文件绝对路径（二选一，推荐多数据库场景），如 D:\\config\\databases.json",
-          "required": false
-        },
-        {
-          "name": "DB_CONNECTION_STRING",
-          "description": "数据库连接字符串（二选一，单数据库模式）",
-          "required": false
-        },
-        {
-          "name": "DB_TYPE",
-          "description": "数据库类型：主流数据库(MySql, SqlServer, Sqlite, PostgreSQL, Oracle)、国产数据库(dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb)、分布式数据库(oceanbase, tidb, polardb, doris)、时序数据库(tdengine, questdb, clickhouse)、其他数据库(duckdb, access, odbc, hana, db2, mongodb, custom)等（可选，默认 MySql）",
-          "required": false
+          "description": "数据库配置文件绝对路径（必需），如 D:\\config\\databases.json。配置文件格式请参考 databases.json.example",
+          "required": true
         },
         {
           "name": "SEQ_SERVER_URL",
-          "description": "Seq 日志服务器地址（可选，如 http://localhost:5341）",
+          "description": "Seq 日志服务器地址（可选），如 http://localhost:5341",
           "required": false
         },
         {
           "name": "SEQ_API_KEY",
-          "description": "Seq API 密钥（可选，用于认证和高级功能）",
+          "description": "Seq API 密钥（可选），用于认证和高级功能",
           "required": false
         },
         {
           "name": "DB_DDL_WHITELIST",
-          "description": "DDL 白名单（可选，用于限制 DDL 操作）",
+          "description": "DDL 操作白名单（可选），分号分隔的正则表达式，用于放行特定的 DDL 操作",
           "required": false
         }
       ]
@@ -108,8 +100,32 @@
       "description": "Run SELECT 1 on the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy."
     },
     {
+      "name": "test_connection_by_name",
+      "description": "Test connection for a specific database by name and return success, connected, and databaseType."
+    },
+    {
+      "name": "list_databases",
+      "description": "List all available database connections configured in databases.json and return name, description, dbType, and isDefault for each."
+    },
+    {
+      "name": "switch_database",
+      "description": "Switch to a specified database connection by name and return success to indicate the switch completed."
+    },
+    {
+      "name": "get_current_database",
+      "description": "Get the name of the currently active database connection."
+    },
+    {
+      "name": "health_check",
+      "description": "Perform health check on all database connections and return response time, connection status, and error messages for each."
+    },
+    {
+      "name": "test_connection_with_retry",
+      "description": "Test connection with automatic retry using exponential backoff strategy and return success, attempts, and total elapsed time."
+    },
+    {
       "name": "get_database_config",
-      "description": "Summarize DB_CONFIG_PATH or DB_CONNECTION_STRING/DB_TYPE and return the active connection name, description, database type, masked connection string, and mode metadata."
+      "description": "Summarize DB_CONFIG_PATH configuration and return the active connection name, description, database type, masked connection string, and mode metadata."
     },
     {
       "name": "validate_configuration",
@@ -356,5 +372,5 @@
       "description": "Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command."
     }
   ],
-  "version": "1.0.6"
+  "version": "2.0.0"
 }
