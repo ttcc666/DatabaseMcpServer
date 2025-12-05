@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(Select-String -Pattern \"ValidateExportParameters|ValidateTableExportParameters\" -Context 0,5)",
-      "Bash(Select-Object -First 10)"
+      "Bash(Select-Object -First 10)",
+      "Bash(dotnet build:*)"
     ],
     "deny": [],
     "ask": []

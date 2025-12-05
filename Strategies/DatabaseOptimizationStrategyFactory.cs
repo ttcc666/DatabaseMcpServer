@@ -53,8 +53,8 @@ public class DatabaseOptimizationStrategyFactory
             [DbType.GoldenDB] = () => new DefaultOptimizationStrategy("GoldenDB", _logger),
 
             // 分布式数据库
-            [DbType.OceanBase] = () => new DefaultOptimizationStrategy("OceanBase", _logger),
-            [DbType.Tidb] = () => new MySqlOptimizationStrategy(_logger), // TiDB 兼容 MySQL
+            [DbType.OceanBase] = () => new OceanBaseOptimizationStrategy(_logger),
+            [DbType.Tidb] = () => new TidbOptimizationStrategy(_logger),
             [DbType.PolarDB] = () => new MySqlOptimizationStrategy(_logger), // PolarDB 兼容 MySQL
             [DbType.Doris] = () => new MySqlOptimizationStrategy(_logger), // Doris 兼容 MySQL
 
