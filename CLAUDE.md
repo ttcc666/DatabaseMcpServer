@@ -183,9 +183,9 @@ public class YourDbOptimizationStrategy : IDatabaseOptimizationStrategy
 ### 可选环境变量（安全配置）
 - `DB_DDL_WHITELIST`: DDL 操作白名单（逗号分隔的正则表达式列表）
 
-### 数据库特定优化配置（2.0.0+）
+### 数据库特定优化配置（2.0.1-test+）
 
-从 2.0.0 版本开始，所有数据库特定优化配置都在 `databases.json` 的 `optimizationSettings` 中设置。
+从 2.0.1-test 版本开始，所有数据库特定优化配置都在 `databases.json` 的 `optimizationSettings` 中设置。
 不再使用环境变量（如 `DB_DM_LOWERCASE_TABLES`）。
 
 **配置示例**:

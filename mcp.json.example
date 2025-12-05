@@ -11,7 +11,7 @@
     "// 方式 2: dnx 命令": "",
     "database-dnx": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.1-test", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -95,7 +95,7 @@
   },
 
   "// 优化配置选项 (optimizationSettings)": {
-    "说明": "从 2.0.0 版本开始，所有数据库特定优化配置都在 databases.json 的 optimizationSettings 中设置",
+    "说明": "从 2.0.1-test 版本开始，所有数据库特定优化配置都在 databases.json 的 optimizationSettings 中设置",
     "MySQL": {
       "enableBulkCopy": "启用批量导入优化",
       "maxPoolSize": "连接池最大连接数",
@@ -131,7 +131,7 @@
   },
 
   "// 从 1.x 迁移到 2.0": {
-    "说明": "DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON 配置文件",
+    "说明": "DatabaseMcpServer 2.0.1-test 移除了环境变量配置方式，统一使用 JSON 配置文件",
     "旧方式": "DB_CONNECTION_STRING + DB_TYPE 环境变量",
     "新方式": "DB_CONFIG_PATH 指向 databases.json 配置文件",
     "迁移步骤": "1. 创建 databases.json 文件 2. 将连接字符串和数据库类型移到 JSON 中 3. 更新 MCP 配置只保留 DB_CONFIG_PATH",

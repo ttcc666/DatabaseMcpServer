@@ -88,7 +88,7 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 
 ## 🔧 优化配置选项
 
-从 2.0.0 版本开始，所有优化配置都在 databases.json 的 optimizationSettings 中设置。
+从 2.0.1-test 版本开始，所有优化配置都在 databases.json 的 optimizationSettings 中设置。
 
 ### 配置格式
 
@@ -281,7 +281,7 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 ## 💡 提示
 
 - 📖 每个配置文档都是独立的，可以单独查阅
-- 🔧 从 2.0.0 版本开始，统一使用 JSON 配置文件管理数据库连接
+- 🔧 从 2.0.1-test 版本开始，统一使用 JSON 配置文件管理数据库连接
 - ⚡ 文档中的性能优化建议都经过实际测试验证
 - 🎯 遇到问题时，先查看对应数据库的"常见问题"章节
 - 🔄 优化配置选项从环境变量迁移到 optimizationSettings 配置项

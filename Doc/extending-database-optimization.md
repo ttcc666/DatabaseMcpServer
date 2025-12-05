@@ -511,4 +511,4 @@ public void SqlServerOptimizationStrategy_ShouldRespectDisableNvarcharSetting()
 
 ---
 
-**最后更新**: 2025-12-01 (DatabaseMcpServer 2.0.0)
+**最后更新**: 2025-12-01 (DatabaseMcpServer 2.0.1-test)

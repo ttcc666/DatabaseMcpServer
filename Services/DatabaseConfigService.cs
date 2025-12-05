@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace DatabaseMcpServer.Services;
 
 /// <summary>
-/// 数据库配置服务 - DatabaseMcpServer 2.0.0+ 仅支持 JSON 配置文件模式。
+/// 数据库配置服务 - DatabaseMcpServer 2.0.1-test+ 仅支持 JSON 配置文件模式。
 /// </summary>
 internal class DatabaseConfigService : IDatabaseConfigService
 {
@@ -31,7 +31,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     /// <summary>
     /// 加载数据库连接配置
-    /// DatabaseMcpServer 2.0.0+ 仅支持 JSON 配置文件方式
+    /// DatabaseMcpServer 2.0.1-test+ 仅支持 JSON 配置文件方式
     /// </summary>
     private void LoadDatabaseConnections()
     {
@@ -117,7 +117,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
     }
 
     /// <summary>
-    /// 检测已废弃的环境变量配置（DatabaseMcpServer 2.0.0+）
+    /// 检测已废弃的环境变量配置（DatabaseMcpServer 2.0.1-test+）
     /// </summary>
     private void CheckDeprecatedEnvironmentVariables()
     {
@@ -143,14 +143,14 @@ internal class DatabaseConfigService : IDatabaseConfigService
         if (foundVars.Any())
         {
             var message = new System.Text.StringBuilder();
-            message.AppendLine("检测到已废弃的环境变量配置（DatabaseMcpServer 2.0.0+）：");
+            message.AppendLine("检测到已废弃的环境变量配置（DatabaseMcpServer 2.0.1-test+）：");
             message.AppendLine();
             foreach (var v in foundVars)
             {
                 message.AppendLine($"  - {v}");
             }
             message.AppendLine();
-            message.AppendLine("从 2.0.0 版本开始，所有配置都必须在 databases.json 文件中设置。");
+            message.AppendLine("从 2.0.1-test 版本开始，所有配置都必须在 databases.json 文件中设置。");
             message.AppendLine();
             message.AppendLine("迁移示例：");
             message.AppendLine("旧方式（环境变量）：");

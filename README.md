@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.1-test-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -149,7 +149,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.0.0 --yes
+dnx DatabaseMcpServer@2.0.1-test --yes
 ```
 
 **MCP 配置**：
@@ -158,7 +158,7 @@ dnx DatabaseMcpServer@2.0.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.1-test", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -193,7 +193,7 @@ dotnet run
 
 ## ⚙️ 配置指南
 
-DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
+DatabaseMcpServer 2.0.1-test 统一使用 JSON 配置文件管理数据库连接。
 
 ### 配置文件方式（必需）
 
@@ -268,7 +268,7 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 - `DB_DDL_WHITELIST`: DDL 操作白名单（可选，分号分隔的正则表达式）
 
 ### 数据库特定优化配置
-从 2.0.0 版本开始，所有数据库特定优化配置都在 `databases.json` 的 `optimizationSettings` 中设置。
+从 2.0.1-test 版本开始，所有数据库特定优化配置都在 `databases.json` 的 `optimizationSettings` 中设置。
 
 **详细配置文档**：
 - [MySQL 配置指南](DatabaseSetting/MySQL.md)
@@ -288,7 +288,7 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 
 ### ⚠️ 破坏性变更
 
-DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON 配置文件。
+DatabaseMcpServer 2.0.1-test 移除了环境变量配置方式，统一使用 JSON 配置文件。
 
 ### 迁移步骤
 
@@ -363,7 +363,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 #### 3. 自动迁移检测
 
-如果您仍在使用旧的环境变量配置，DatabaseMcpServer 2.0.0 会自动检测并显示详细的迁移提示。
+如果您仍在使用旧的环境变量配置，DatabaseMcpServer 2.0.1-test 会自动检测并显示详细的迁移提示。
 
 ### 常用数据库连接字符串示例
 
@@ -735,8 +735,8 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.0.0 正式版本
-- 2.0.0 版本包含破坏性变更，请参考迁移指南
+- 本项目已发布 2.0.1-test 正式版本
+- 2.0.1-test 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据
 - 注意配置中的敏感信息保护

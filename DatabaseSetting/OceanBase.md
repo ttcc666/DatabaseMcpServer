@@ -388,7 +388,7 @@ long id = db.Insertable(entity).ExecuteReturnSnowflakeId();
 
 ## 📝 版本历史
 
-- **v2.0.0** (2025-12-05): 添加 OceanBase MySQL 模式专用优化策略
+- **v2.0.1-test** (2025-12-05): 添加 OceanBase MySQL 模式专用优化策略
 - **v1.0.0**: 初始版本，支持 MySQL 模式和 Oracle 模式
 
 ---

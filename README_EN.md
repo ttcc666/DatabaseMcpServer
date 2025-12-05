@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.1-test-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -158,7 +158,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@2.0.0 --yes
+dnx DatabaseMcpServer@2.0.1-test --yes
 ```
 
 **MCP Configuration**:
@@ -168,7 +168,7 @@ dnx DatabaseMcpServer@2.0.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.1-test", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -205,7 +205,7 @@ dotnet run
 
 ## ⚙️ Configuration Guide
 
-DatabaseMcpServer 2.0.0 uses JSON configuration file for unified database connection management.
+DatabaseMcpServer 2.0.1-test uses JSON configuration file for unified database connection management.
 
 ### Configuration File (Required)
 
@@ -280,7 +280,7 @@ Specify the **absolute path** of the configuration file through the environment 
 - `DB_DDL_WHITELIST`: DDL operation whitelist (optional, semicolon-separated regex patterns)
 
 ### Database-Specific Optimization Configuration
-Starting from version 2.0.0, all database-specific optimization configurations are set in the `optimizationSettings` section of `databases.json`.
+Starting from version 2.0.1-test, all database-specific optimization configurations are set in the `optimizationSettings` section of `databases.json`.
 
 **Detailed Configuration Documentation**:
 - [MySQL Configuration Guide](DatabaseSetting/MySQL.md)
@@ -300,7 +300,7 @@ Starting from version 2.0.0, all database-specific optimization configurations a
 
 ### ⚠️ Breaking Changes
 
-DatabaseMcpServer 2.0.0 has removed environment variable configuration method and unified to use JSON configuration file.
+DatabaseMcpServer 2.0.1-test has removed environment variable configuration method and unified to use JSON configuration file.
 
 ### Migration Steps
 
@@ -375,7 +375,7 @@ For complete mapping table, please refer to each database configuration document
 
 #### 3. Automatic Migration Detection
 
-If you are still using old environment variable configuration, DatabaseMcpServer 2.0.0 will automatically detect and display detailed migration prompts.
+If you are still using old environment variable configuration, DatabaseMcpServer 2.0.1-test will automatically detect and display detailed migration prompts.
 
 ### Common Database Connection String Examples
 
@@ -779,8 +779,8 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 2.0.0
-- Version 2.0.0 contains breaking changes, please refer to the migration guide
+- This project has released version 2.0.1-test
+- Version 2.0.1-test contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data
 - Pay attention to sensitive information protection in configuration
