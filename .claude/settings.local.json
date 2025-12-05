@@ -1,23 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet build)",
-      "Bash(tree:*)",
-      "Bash(set:*)",
-      "Bash(Database=test)",
-      "Bash(Uid=test)",
-      "Bash(Pwd=test:*)",
-      "Bash(dotnet run --no-build)",
-      "Bash(DB_CONNECTION_STRING=\"Server=localhost;Database=test;Uid=test;Pwd=test;\" DB_TYPE=\"MySql\" dotnet run:*)",
-      "Bash(DB_CONNECTION_STRING=\"Server=localhost;Database=test;Uid=test;Pwd=test;\" DB_TYPE=\"MySql\" SEQ_SERVER_URL=\"http://localhost:5341\" SEQ_API_KEY=\"test-api-key\" dotnet run:*)",
-      "Bash(Stop-Process -Name \"DatabaseMcpServer\" -Force -ErrorAction SilentlyContinue)",
-      "Bash(Start-Sleep -Seconds 2)",
-      "Bash($env:DB_CONFIG_PATH=\"D:\\Demo\\my-mcp\\DatabaseMcpServer\\databases.json\")",
-      "Bash(dotnet run:*)",
-      "Bash(Start-Sleep -Seconds 3)",
-      "Bash(dotnet build:*)",
-      "Bash(Select-String -Path \"D:\\Demo\\my-mcp\\DatabaseMcpServer\\CLAUDE.md\" -Pattern \"DB_CONNECTION_STRING|DB_TYPE|DB_DM_|DB_KDBNDP_|DB_GAUSSDB_|DB_QUESTDB_\" -CaseSensitive)",
-      "Bash(powershell:*)"
+      "Bash(Select-String -Pattern \"ValidateExportParameters|ValidateTableExportParameters\" -Context 0,5)",
+      "Bash(Select-Object -First 10)"
     ],
     "deny": [],
     "ask": []

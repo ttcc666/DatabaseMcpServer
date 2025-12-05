@@ -2,6 +2,7 @@ using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Tools.Command;
+using DatabaseMcpServer.Tools.Export;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +45,7 @@ builder.Services
     .WithTools<ConnectionTools>()
     .WithTools<SchemaTools>()
     .WithTools<QueryTools>()
-    .WithTools<CommandTools>();
+    .WithTools<CommandTools>()
+    .WithTools<ExcelExportTools>();
 
 await builder.Build().RunAsync();

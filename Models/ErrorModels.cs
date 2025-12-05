@@ -31,6 +31,21 @@ public enum DatabaseErrorCode
     ConfigurationError = 1005,
 
     /// <summary>
+    /// Excel 导出失败
+    /// </summary>
+    ExcelExportFailed = 1006,
+
+    /// <summary>
+    /// 文件生成失败
+    /// </summary>
+    FileGenerationFailed = 1007,
+
+    /// <summary>
+    /// 内存不足（大数据量）
+    /// </summary>
+    InsufficientMemory = 1008,
+
+    /// <summary>
     /// 未知错误
     /// </summary>
     UnknownError = 9999
