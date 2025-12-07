@@ -353,6 +353,11 @@ internal class CommandTools
 
     private void EnsureSafeSql(string sql)
     {
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 语句不能为空");
+        }
+
         if (_databaseHelper.DetectDangerousOperation(sql))
         {
             throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,

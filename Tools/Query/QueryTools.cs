@@ -453,6 +453,11 @@ internal class QueryTools
 
     private void EnsureSafeSql(string sql)
     {
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 语句不能为空");
+        }
+
         if (_databaseHelper.DetectDangerousOperation(sql))
         {
             throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到潜在危险操作，请使用 Schema 工具执行结构变更。");
