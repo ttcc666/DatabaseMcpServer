@@ -27,11 +27,23 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
             return;
         }
 
+        var appliedOptions = new List<string>();
+
+        // 兼容特殊环境可选禁用 nvarchar
+        if (optimizationSettings.TryGetValue("disableNvarchar", out var disableNvarcharStr) &&
+            bool.TryParse(disableNvarcharStr, out var disableNvarchar))
+        {
+            settings.DisableNvarchar = disableNvarchar;
+            _logger?.LogDebug("TiDB 禁用 Nvarchar: {Disabled}", disableNvarchar);
+            appliedOptions.Add($"disableNvarchar={disableNvarchar}");
+        }
+
         // 读取是否启用 Optimizer Hints
         if (optimizationSettings.TryGetValue("enableHints", out var enableHintsStr) &&
             bool.TryParse(enableHintsStr, out var enableHints))
         {
             _logger?.LogDebug("TiDB Optimizer Hints 支持: {Enabled}", enableHints);
+            appliedOptions.Add($"enableHints={enableHints}");
         }
 
         // 读取连接池大小配置
@@ -39,6 +51,7 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
             int.TryParse(maxPoolSizeStr, out var maxPoolSize))
         {
             _logger?.LogDebug("TiDB 最大连接池大小: {MaxPoolSize}", maxPoolSize);
+            appliedOptions.Add($"maxPoolSize={maxPoolSize}");
         }
 
         // 读取是否启用批量操作优化
@@ -46,6 +59,7 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
             bool.TryParse(enableBulkCopyStr, out var enableBulkCopy))
         {
             _logger?.LogDebug("TiDB 批量操作优化: {Enabled}", enableBulkCopy);
+            appliedOptions.Add($"enableBulkCopy={enableBulkCopy}");
         }
 
         // 读取是否启用悲观事务模式
@@ -53,6 +67,12 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
             bool.TryParse(pessimisticTxnStr, out var pessimisticTxn))
         {
             _logger?.LogDebug("TiDB 悲观事务模式: {Enabled}", pessimisticTxn);
+            appliedOptions.Add($"pessimisticTxn={pessimisticTxn}");
+        }
+
+        if (appliedOptions.Count > 0)
+        {
+            _logger?.LogDebug("TiDB 优化配置选项: {Options}", string.Join(", ", appliedOptions));
         }
 
         _logger?.LogDebug("应用 TiDB 性能优化配置");
@@ -60,6 +80,6 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
 
     public string GetDescription()
     {
-        return "TiDB 性能优化：MySQL 兼容 + Optimizer Hints + 分布式事务 + 连接池管理";
+        return "TiDB 性能优化：MySQL 兼容 + Optimizer Hints + 悲观事务 + 批量导入 + 连接池管理";
     }
 }

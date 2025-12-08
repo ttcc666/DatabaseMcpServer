@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.3-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -149,7 +149,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.0.0 --yes
+dnx DatabaseMcpServer@2.0.3 --yes
 ```
 
 **MCP 配置**：
@@ -158,7 +158,7 @@ dnx DatabaseMcpServer@2.0.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.0", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.3", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -735,7 +735,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.0.0 正式版本
+- 本项目已发布 2.0.3 正式版本
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据

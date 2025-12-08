@@ -28,7 +28,6 @@ internal class DatabaseConfigService : IDatabaseConfigService
         LoadDatabaseConnections();
     }
 
-
     /// <summary>
     /// 加载数据库连接配置
     /// DatabaseMcpServer 2.0.0+ 仅支持 JSON 配置文件方式

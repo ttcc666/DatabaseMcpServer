@@ -23,12 +23,61 @@
 | **达梦数据库** | [DM.md](./DM.md) | 达梦数据库配置指南 |
 | **人大金仓** | [Kdbndp.md](./Kdbndp.md) | 人大金仓数据库配置指南 |
 | **GaussDB / OpenGauss** | [GaussDB.md](./GaussDB.md) | 华为 GaussDB/OpenGauss 配置指南 |
+| **GBase 8s** | [GBase.md](./GBase.md) | 南大通用 GBase 配置指南 |
+
+### ☁️ 分布式数据库
+
+| 数据库 | 文档 | 说明 |
+|--------|------|------|
+| **OceanBase** | [OceanBase.md](./OceanBase.md) | MySQL/Oracle 双模式，租户隔离 |
+| **TiDB** | [TiDB.md](./TiDB.md) | MySQL 兼容分布式数据库 |
 
 ### ⏱️ 时序数据库
 
 | 数据库 | 文档 | 说明 |
 |--------|------|------|
 | **QuestDB** | [QuestDB.md](./QuestDB.md) | QuestDB 时序数据库配置指南 |
+| **TDengine** | [TDengine.md](./TDengine.md) | TDengine 时序数据库配置指南 |
+
+---
+
+### 🧩 其他/兼容数据库
+
+| 数据库 | 文档 | 说明 |
+|--------|------|------|
+| **GoldenDB** | [GoldenDB.md](./GoldenDB.md) | MySQL 兼容，推荐禁用连接池 |
+| **Vastbase** | [Vastbase.md](./Vastbase.md) | PostgreSQL 衍生，建议 `No Reset On Close=true` |
+| **ClickHouse** | [ClickHouse.md](./ClickHouse.md) | 列式/分析型数据库 |
+| **MongoDB** | [MongoDB.md](./MongoDB.md) | 文档型数据库 |
+| **DB2** | [DB2.md](./DB2.md) | IBM DB2 连接指南 |
+| **DuckDB** | [DuckDB.md](./DuckDB.md) | 内嵌列式数据库 |
+| **Hana** | [Hana.md](./Hana.md) | SAP HANA 连接指南 |
+| **HighGo** | [HighGo.md](./HighGo.md) | 瀚高数据库（PG 衍生） |
+| **Xugu** | [Xugu.md](./Xugu.md) | 虚谷数据库 |
+| **PolarDB** | [PolarDB.md](./PolarDB.md) | MySQL 兼容分布式库 |
+| **Doris** | [Doris.md](./Doris.md) | MySQL 兼容列式/HTAP 库 |
+| **Oscar** | [Oscar.md](./Oscar.md) | 神通数据库 |
+| **Access** | [Access.md](./Access.md) | Microsoft Access（默认策略） |
+| **Odbc** | [Odbc.md](./Odbc.md) | 通用 ODBC 连接 |
+| **MySqlConnector** | [MySqlConnector.md](./MySqlConnector.md) | MySQL 官方驱动兼容 |
+| **Custom** | [Custom.md](./Custom.md) | 自定义/未列出数据库 |
+
+---
+
+## 🆕 新增数据库文档与依赖
+
+已按 `Doc/db.md` 列表抓取官方文档到 `Doc/*.html`，并补充需要的驱动包。常用策略与包对照如下：
+
+| 数据库 | 文档 | 策略/DbType | NuGet 包 |
+|--------|------|-------------|----------|
+| MongoDB | `Doc/MongoDB.html` | `MongoDb` / `MongoDbOptimizationStrategy` | `SqlSugar.MongoDbCore` |
+| TDengine | `Doc/TDengine.html` | `TDengine` / `TdengineOptimizationStrategy` | `SqlSugar.TDengineCore` |
+| GBase 8s | `Doc/Gbase.html` | `GBase` / `GBaseOptimizationStrategy` | `SqlSugar.GBaseCore` |
+| ClickHouse | `Doc/ClickHouse.html` | `ClickHouse` / `ClickHouseOptimizationStrategy` | `SqlSugar.ClickHouseCore` |
+| GaussDB Native | `Doc/Gauss.html` | `GaussDBNative` / `GaussDbOptimizationStrategy` | `SqlSugar.GaussDBNativeCore` |
+| 虚谷数据库 | `Doc/Xugu.html` | `Xugu` / `XuguOptimizationStrategy` | `SqlSugar.XuguCoreNew` |
+
+其他 MySQL 兼容库（PolarDB、Doris、TDSQL、MySqlConnector、GoldenDB 等）复用 `MySqlOptimizationStrategy`，无需额外包；Odbc/Access/Custom 使用默认策略。
 
 ---
 
@@ -112,6 +161,11 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 
 | 数据库 | 配置键名 | 说明 |
 |--------|---------|------|
+| MySQL / MariaDB | `enableBulkCopy` | 启用 BulkCopy（需连接串 AllowLoadLocalInfile=true） |
+| MySQL / MariaDB | `maxPoolSize` | 连接池最大连接数 |
+| MySQL / MariaDB | `charset` | 字符集（默认 utf8mb4） |
+| MySQL / MariaDB | `enableSsl` | 启用 SSL 连接 |
+| MySQL / MariaDB | `allowUserVariables` | 允许用户变量 |
 | SQL Server | `disableNvarchar` | 禁用 nvarchar 优化索引 |
 | Oracle | `camelCase` | 使用驼峰表名 |
 | Oracle | `enableIdentity` | 启用原生自增（12C+） |
@@ -125,14 +179,41 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 | 达梦 | `lowercaseTables` | 使用小写表名 |
 | 达梦 | `dockerMysqlMode` | Docker MySQL 兼容模式 |
 | 达梦 | `clobOptimization` | Clob 类型优化 |
+| 达梦 | `schema` | Schema 隔离 |
+| 达梦 | `maxPoolSize` | 连接池最大连接数 |
 | 人大金仓 | `mode` | 兼容模式（Oracle/MySQL/PostgreSQL/SqlServer） |
+| 人大金仓 | `camelCase` | 使用驼峰表名 |
 | 人大金仓 | `enableCursor` | 启用游标支持 |
 | 人大金仓 | `enableJson` | 启用 JSON 类型 |
+| 人大金仓 | `enableGeometry` | 启用 Geometry/Postgis |
+| 人大金仓 | `enableArray` | 启用数组类型 |
+| 人大金仓 | `maxPoolSize` | 连接池最大连接数 |
+| 人大金仓 | `schema` | Schema 隔离 |
 | GaussDB | `nativeDriver` | 使用原生驱动 |
+| GaussDB | `isOpenGauss` | 标识 OpenGauss 数据库 |
+| GaussDB | `schema` | Schema 隔离 |
 | GaussDB | `typeMapping` | 数据类型映射优化 |
+| GaussDB | `batchSize` | 批量操作大小 |
+| GaussDB | `maxPoolSize` | 连接池最大连接数 |
 | QuestDB | `syncWal` | WAL 同步写入 |
 | QuestDB | `symbolOptimization` | Symbol 类型优化 |
 | QuestDB | `batchSize` | 批量插入大小 |
+| QuestDB | `partitionStrategy` | 分区策略（DAY/MONTH/YEAR） |
+| GBase | `batchPageSize` | 分页批量写入大小（不支持 BulkCopy，推荐 10-100） |
+| GBase | `enableBulkCopy` | 仅提示用，GBase ODBC 不支持 BulkCopy，保持 false |
+| GBase | `dbLocale` / `clientLocale` | 记录 Locale 编码，避免字符集不一致 |
+| GBase | `maxPoolSize` | 连接池最大连接数 |
+| OceanBase | `disablePooling` | 禁用连接池（部分租户不支持池化） |
+| OceanBase | `disableNvarchar` | 可选禁用 nvarchar（少数兼容模式需要） |
+| OceanBase | `enableHints` | 启用 Optimizer Hints 支持 |
+| OceanBase | `tenantMode` | 租户兼容模式（mysql/oracle） |
+| OceanBase | `enableBulkCopy` | 批量写入优化 |
+| OceanBase | `maxPoolSize` | 连接池最大连接数 |
+| TiDB | `enableHints` | 启用 TiDB Optimizer Hints |
+| TiDB | `pessimisticTxn` | 启用悲观事务模式 |
+| TiDB | `maxPoolSize` | 连接池最大连接数 |
+| TiDB | `enableBulkCopy` | 批量导入优化 |
+| TiDB | `disableNvarchar` | 少数特殊环境禁用 nvarchar（官方提示兼容项） |
 
 详见各数据库配置文档。
 
@@ -188,11 +269,31 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 - ✅ 数据类型映射: JSON、Geometry 等
 - ✅ 批量操作优化: 大数据导入性能提升
 
+### GBase 8s
+- ✅ ODBC 驱动: 安装 `SqlSugar.GBaseCore` 并注册 `GBaseProvider`
+- ✅ 分页批量写入: 使用 `Insertable(...).PageSize(10-100)`（不支持 BulkCopy）
+- ✅ Locale 一致: `Db_locale` / `Client_locale` 保持相同编码
+- ✅ 连接池: 常见场景 `Max Pool Size` 建议 50 左右
+
 ### QuestDB
 - ✅ WAL 异步写入: 写入性能提升 10-100 倍
 - ✅ Symbol 类型: 存储空间节省 50-90%
 - ✅ 批量插入: 大数据导入性能提升 10-50 倍
 - ✅ 时间分区: 查询性能提升 5-20 倍
+
+### OceanBase
+- ✅ MySQL 模式: 默认支持 utf8mb4 与 MySQL 协议
+- ✅ 连接池开关: `disablePooling` 兼容不支持池化的租户
+- ✅ 租户模式: `tenantMode` 区分 mysql/oracle 兼容
+- ✅ Optimizer Hints: 支持查询计划调优
+- ✅ 批量写入: `enableBulkCopy` 优化大批量导入
+
+### TiDB
+- ✅ MySQL 兼容: 直接复用 MySQL 驱动
+- ✅ 悲观事务: `pessimisticTxn` 适配高并发冲突场景
+- ✅ 连接池: `maxPoolSize`、`Pooling` 建议更大池化配置
+- ✅ 优化提示: `enableHints` 支持 TiFlash/索引选择
+- ✅ 批量导入: `enableBulkCopy`、`AllowLoadLocalInfile=true` 加速写入
 
 ---
 
@@ -252,6 +353,7 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 - 达梦数据库 → [DM.md](./DM.md)
 - 人大金仓 → [Kdbndp.md](./Kdbndp.md)
 - GaussDB/OpenGauss → [GaussDB.md](./GaussDB.md)
+- GBase 8s → [GBase.md](./GBase.md)
 
 **时序数据库**:
 - QuestDB → [QuestDB.md](./QuestDB.md)
@@ -288,4 +390,4 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-08

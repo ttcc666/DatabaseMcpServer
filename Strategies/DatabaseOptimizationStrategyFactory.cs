@@ -45,12 +45,12 @@ public class DatabaseOptimizationStrategyFactory
             // 国产数据库
             [DbType.Dm] = () => new DmOptimizationStrategy(_logger),
             [DbType.Kdbndp] = () => new KdbndpOptimizationStrategy(_logger),
-            [DbType.Oscar] = () => new DefaultOptimizationStrategy("神通数据库", _logger),
-            [DbType.HG] = () => new DefaultOptimizationStrategy("瀚高数据库", _logger),
-            [DbType.GBase] = () => new DefaultOptimizationStrategy("南大通用 GBase", _logger),
-            [DbType.Xugu] = () => new DefaultOptimizationStrategy("虚谷数据库", _logger),
-            [DbType.Vastbase] = () => new DefaultOptimizationStrategy("海量数据库", _logger),
-            [DbType.GoldenDB] = () => new DefaultOptimizationStrategy("GoldenDB", _logger),
+            [DbType.Oscar] = () => new OscarOptimizationStrategy(_logger),
+            [DbType.HG] = () => new HighGoOptimizationStrategy(_logger),
+            [DbType.GBase] = () => new GBaseOptimizationStrategy(_logger),
+            [DbType.Xugu] = () => new XuguOptimizationStrategy(_logger),
+            [DbType.Vastbase] = () => new VastbaseOptimizationStrategy(_logger),
+            [DbType.GoldenDB] = () => new GoldenDbOptimizationStrategy(_logger),
 
             // 分布式数据库
             [DbType.OceanBase] = () => new OceanBaseOptimizationStrategy(_logger),
@@ -59,26 +59,26 @@ public class DatabaseOptimizationStrategyFactory
             [DbType.Doris] = () => new MySqlOptimizationStrategy(_logger), // Doris 兼容 MySQL
 
             // 时序数据库
-            [DbType.TDengine] = () => new DefaultOptimizationStrategy("TDengine", _logger),
+            [DbType.TDengine] = () => new TdengineOptimizationStrategy(_logger),
             [DbType.QuestDB] = () => new QuestDbOptimizationStrategy(_logger),
-            [DbType.ClickHouse] = () => new DefaultOptimizationStrategy("ClickHouse", _logger),
+            [DbType.ClickHouse] = () => new ClickHouseOptimizationStrategy(_logger),
 
             // 分析型数据库
-            [DbType.DuckDB] = () => new DefaultOptimizationStrategy("DuckDB", _logger),
+            [DbType.DuckDB] = () => new DuckDbOptimizationStrategy(_logger),
 
             // 其他数据库
             [DbType.Access] = () => new DefaultOptimizationStrategy("Microsoft Access", _logger),
             [DbType.Odbc] = () => new DefaultOptimizationStrategy("ODBC", _logger),
-            [DbType.HANA] = () => new DefaultOptimizationStrategy("SAP HANA", _logger),
-            [DbType.DB2] = () => new DefaultOptimizationStrategy("IBM DB2", _logger),
-            [DbType.MongoDb] = () => new DefaultOptimizationStrategy("MongoDB", _logger),
+            [DbType.HANA] = () => new HanaOptimizationStrategy(_logger),
+            [DbType.DB2] = () => new Db2OptimizationStrategy(_logger),
+            [DbType.MongoDb] = () => new MongoDbOptimizationStrategy(_logger),
             [DbType.Custom] = () => new DefaultOptimizationStrategy("Custom", _logger),
 
             // 特定版本和变体
             [DbType.OpenGauss] = () => new GaussDbOptimizationStrategy(_logger),
             [DbType.GaussDB] = () => new GaussDbOptimizationStrategy(_logger),
             [DbType.GaussDBNative] = () => new GaussDbOptimizationStrategy(_logger),
-            [DbType.OceanBaseForOracle] = () => new OracleOptimizationStrategy(_logger), // OceanBase for Oracle 使用 Oracle 策略
+            [DbType.OceanBaseForOracle] = () => new OceanBaseOracleOptimizationStrategy(_logger),
             [DbType.TDSQL] = () => new MySqlOptimizationStrategy(_logger), // TDSQL 兼容 MySQL
             [DbType.TDSQLForPGODBC] = () => new DefaultOptimizationStrategy("TDSQL for PG", _logger)
         };

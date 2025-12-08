@@ -257,6 +257,21 @@ db.Queryable<Order>()
 }
 ```
 
+### disableNvarchar
+
+**类型**: `bool`
+**默认值**: `false`
+**说明**: 少数兼容模式不支持 `N''` 前缀（官方文档提示特殊服务器需禁用 Nvarchar），如遇连续写入或字符集异常可开启。
+
+**配置示例**:
+```json
+{
+  "optimizationSettings": {
+    "disableNvarchar": "true"
+  }
+}
+```
+
 ---
 
 ## 📊 配置场景
@@ -380,7 +395,7 @@ long id = db.Insertable(entity).ExecuteReturnSnowflakeId();
 - **无需额外驱动**
 
 ### Oracle 模式
-- **NuGet**: `SqlSugar.OceanBaseForOracleCore`（需要手动安装）
+- **NuGet**: `SqlSugar.OceanBaseForOracleCore`（项目默认引用，版本 ≥ 5.1.4.92-preview14）
 - **ODBC 驱动**: `ob-connector-odbc-2.0.8.2-win64.msi`
 - **SqlSugar 版本**: 5.1.4.92-preview14+
 

@@ -30,20 +30,24 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
                     settings.IsAutoToUpper = true; // Oracle 模式默认转大写
                     _logger?.LogDebug("人大金仓使用 Oracle 兼容模式");
                     break;
+
                 case "MYSQL":
                     settings.DatabaseModel = DbType.MySql;
                     settings.DisableNvarchar = false;
                     _logger?.LogDebug("人大金仓使用 MySQL 兼容模式");
                     break;
+
                 case "POSTGRESQL":
                     settings.DatabaseModel = DbType.PostgreSQL;
                     settings.DisableNvarchar = true;
                     _logger?.LogDebug("人大金仓使用 PostgreSQL 兼容模式");
                     break;
+
                 case "SQLSERVER":
                     settings.DatabaseModel = DbType.SqlServer;
                     _logger?.LogDebug("人大金仓使用 SQL Server 兼容模式");
                     break;
+
                 default:
                     _logger?.LogWarning("未知的人大金仓数据库模式: {Mode}，使用默认配置", databaseMode);
                     break;

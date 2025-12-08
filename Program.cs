@@ -8,6 +8,7 @@ using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using System.Reflection;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -32,7 +33,10 @@ if (!string.IsNullOrWhiteSpace(seqServerUrl))
     }
 }
 
-builder.Services.AddSerilog(loggerConfig.CreateLogger());
+var serilogLogger = loggerConfig.CreateLogger();
+builder.Services.AddSerilog(serilogLogger);
+
+WarmupSqlSugarProviders(serilogLogger);
 
 // Register services for dependency injection
 builder.Services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();
@@ -49,3 +53,60 @@ builder.Services
     .WithTools<ExcelExportTools>();
 
 await builder.Build().RunAsync();
+
+static void WarmupSqlSugarProviders(Serilog.ILogger? logger)
+{
+    // 预加载部分 SqlSugar Provider，避免裁剪/单文件发布遗漏
+    var providers = new (string AssemblyName, string? ProviderTypeName)[]
+    {
+        ("SqlSugar.TDengineCore", "TDengineProvider"),
+        ("SqlSugar.ClickHouseCore", "ClickHouseProvider"),
+        ("SqlSugar.XuguCoreNew", "XuguProvider"),
+        ("SqlSugar.MongoDbCore", "MongoDbProvider"),
+        ("SqlSugar.GaussDBNativeCore", "GaussDBProvider"),
+        ("SqlSugar.GBaseCore", "GBaseProvider"),
+        ("SqlSugar.OceanBaseForOracleCore", "OceanBaseForOracleProvider"),
+        // Access/Odbc 在 SqlSugarCore 内，保持字符串加载
+        ("SqlSugarCore", "AccessProvider"),
+        ("SqlSugarCore", "OdbcProvider")
+    };
+
+    foreach (var (assemblyName, providerTypeName) in providers)
+    {
+        try
+        {
+            var assembly = Assembly.Load(assemblyName);
+
+            if (providerTypeName != null)
+            {
+                Type? providerType = null;
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (string.Equals(type.Name, providerTypeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        providerType = type;
+                        break;
+                    }
+                }
+
+                if (providerType != null)
+                {
+                    _ = providerType.Assembly;
+                    logger?.Debug("预加载 SqlSugar Provider: {Provider} ({Assembly})", providerTypeName, assemblyName);
+                }
+                else
+                {
+                    logger?.Warning("未找到 Provider 类型 {Provider} 于 {Assembly}", providerTypeName, assemblyName);
+                }
+            }
+            else
+            {
+                logger?.Debug("预加载 SqlSugar 程序集: {Assembly}", assemblyName);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.Warning(ex, "预加载 SqlSugar Provider 失败: {Assembly}", assemblyName);
+        }
+    }
+}

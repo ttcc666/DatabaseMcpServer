@@ -64,6 +64,20 @@ public class GaussDbOptimizationStrategy : IDatabaseOptimizationStrategy
             _logger?.LogDebug("GaussDB 连接池大小: {PoolSize}", maxPoolSize);
         }
 
+        // 5.1 Npgsql 连接建议 No Reset On Close=true
+        if (optimizationSettings.TryGetValue("noResetOnClose", out var noResetStr) &&
+            bool.TryParse(noResetStr, out var noResetOnClose))
+        {
+            if (!noResetOnClose)
+            {
+                _logger?.LogWarning("GaussDB 建议在连接字符串加上 No Reset On Close=true 以避免会话重置问题");
+            }
+        }
+        else
+        {
+            _logger?.LogInformation("GaussDB 未显式配置 No Reset On Close，推荐在连接字符串中设置为 true");
+        }
+
         // 6. 数据类型映射优化
         if (optimizationSettings.TryGetValue("typeMapping", out var typeMappingStr) &&
             bool.TryParse(typeMappingStr, out var typeMapping))
