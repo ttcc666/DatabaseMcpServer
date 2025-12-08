@@ -2,6 +2,7 @@ using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Tools.Command;
+using DatabaseMcpServer.Tools.Documentation;
 using DatabaseMcpServer.Tools.Export;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
@@ -41,6 +42,7 @@ WarmupSqlSugarProviders(serilogLogger);
 // Register services for dependency injection
 builder.Services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();
 builder.Services.AddSingleton<IDatabaseConfigService, DatabaseConfigService>();
+builder.Services.AddSingleton<IDatabaseDocumentationService, DatabaseDocumentationService>();
 
 // Add the MCP services: the transport to use (stdio) and the tools to register.
 builder.Services
@@ -50,7 +52,8 @@ builder.Services
     .WithTools<SchemaTools>()
     .WithTools<QueryTools>()
     .WithTools<CommandTools>()
-    .WithTools<ExcelExportTools>();
+    .WithTools<ExcelExportTools>()
+    .WithTools<DocumentationTools>();
 
 await builder.Build().RunAsync();
 
