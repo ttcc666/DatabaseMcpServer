@@ -76,6 +76,15 @@ internal static class DocumentationMarkdownFormatter
         {
             sb.AppendLine($"- 创建时间: {table.CreatedTime.Value:yyyy-MM-dd HH:mm:ss}");
         }
+        if (table.Statistics is not null)
+        {
+            var stats = table.Statistics;
+            var rowCount = stats.RowCount?.ToString() ?? "-";
+            var dataSize = FormatBytes(stats.DataBytes);
+            var indexSize = FormatBytes(stats.IndexBytes);
+            var totalSize = FormatBytes(stats.TotalBytes);
+            sb.AppendLine($"- 数据量: 行数 {rowCount}, 数据 {dataSize}, 索引 {indexSize}, 总计 {totalSize}");
+        }
 
         sb.AppendLine();
         sb.AppendLine("| 列名 | 类型 | 可空 | 主键 | 自增 | 默认值 | 说明 |");
@@ -101,6 +110,20 @@ internal static class DocumentationMarkdownFormatter
             }
         }
 
+        if (table.ForeignKeys.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("**外键**");
+            foreach (var fk in table.ForeignKeys.OrderBy(f => f.Name))
+            {
+                var columns = fk.Columns.Count > 0 ? string.Join(", ", fk.Columns) : "(未提供列信息)";
+                var refColumns = fk.ReferencedColumns.Count > 0 ? string.Join(", ", fk.ReferencedColumns) : "(未提供列信息)";
+                var rules = BuildForeignKeyRuleDisplay(fk);
+                var desc = string.IsNullOrWhiteSpace(fk.Description) ? string.Empty : $" - {fk.Description}";
+                sb.AppendLine($"- {fk.Name}: {columns} => {fk.ReferencedTable} ({refColumns}){rules}{desc}");
+            }
+        }
+
         if (table.Triggers.Count > 0)
         {
             sb.AppendLine();
@@ -109,6 +132,15 @@ internal static class DocumentationMarkdownFormatter
             {
                 sb.AppendLine($"- {trigger}");
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(table.Ddl))
+        {
+            sb.AppendLine();
+            sb.AppendLine("**DDL 摘要**");
+            sb.AppendLine("```sql");
+            sb.AppendLine(table.Ddl);
+            sb.AppendLine("```");
         }
 
         sb.AppendLine();
@@ -127,5 +159,45 @@ internal static class DocumentationMarkdownFormatter
         }
 
         return column.DataType;
+    }
+
+    private static string FormatBytes(long? bytes)
+    {
+        if (!bytes.HasValue || bytes.Value < 0)
+        {
+            return "-";
+        }
+
+        double value = bytes.Value;
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        var index = 0;
+
+        while (value >= 1024 && index < units.Length - 1)
+        {
+            value /= 1024;
+            index++;
+        }
+
+        return $"{value:0.##}{units[index]}";
+    }
+
+    private static string BuildForeignKeyRuleDisplay(ForeignKeyDocumentation fk)
+    {
+        if (string.IsNullOrWhiteSpace(fk.UpdateRule) && string.IsNullOrWhiteSpace(fk.DeleteRule))
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(fk.UpdateRule))
+        {
+            parts.Add($"更新:{fk.UpdateRule}");
+        }
+        if (!string.IsNullOrWhiteSpace(fk.DeleteRule))
+        {
+            parts.Add($"删除:{fk.DeleteRule}");
+        }
+
+        return parts.Count == 0 ? string.Empty : $" [{string.Join(", ", parts)}]";
     }
 }

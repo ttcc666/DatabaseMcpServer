@@ -6,6 +6,7 @@ using DatabaseMcpServer.Tools.Documentation;
 using DatabaseMcpServer.Tools.Export;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
+using DatabaseMcpServer.Strategies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -42,6 +43,7 @@ WarmupSqlSugarProviders(serilogLogger);
 // Register services for dependency injection
 builder.Services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();
 builder.Services.AddSingleton<IDatabaseConfigService, DatabaseConfigService>();
+builder.Services.AddSingleton<DatabaseDocumentationStrategyFactory>();
 builder.Services.AddSingleton<IDatabaseDocumentationService, DatabaseDocumentationService>();
 
 // Add the MCP services: the transport to use (stdio) and the tools to register.

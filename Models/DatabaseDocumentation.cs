@@ -24,7 +24,10 @@ public class TableDocumentation
     public DateTime? CreatedTime { get; set; }
     public List<ColumnDocumentation> Columns { get; set; } = new();
     public List<IndexDocumentation> Indexes { get; set; } = new();
+    public List<ForeignKeyDocumentation> ForeignKeys { get; set; } = new();
     public List<string> Triggers { get; set; } = new();
+    public TableStatistics? Statistics { get; set; }
+    public string? Ddl { get; set; }
 }
 
 /// <summary>
@@ -53,6 +56,31 @@ public class IndexDocumentation
     public string? Type { get; set; }
     public List<string> Columns { get; set; } = new();
     public string? Description { get; set; }
+}
+
+/// <summary>
+/// 外键文档
+/// </summary>
+public class ForeignKeyDocumentation
+{
+    public string Name { get; set; } = string.Empty;
+    public List<string> Columns { get; set; } = new();
+    public string ReferencedTable { get; set; } = string.Empty;
+    public List<string> ReferencedColumns { get; set; } = new();
+    public string? UpdateRule { get; set; }
+    public string? DeleteRule { get; set; }
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// 表统计信息
+/// </summary>
+public class TableStatistics
+{
+    public long? RowCount { get; set; }
+    public long? DataBytes { get; set; }
+    public long? IndexBytes { get; set; }
+    public long? TotalBytes { get; set; }
 }
 
 /// <summary>
