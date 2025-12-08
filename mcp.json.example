@@ -81,7 +81,6 @@
     "达梦数据库": "Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;",
     "人大金仓": "Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;",
     "GaussDB": "PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;",
-    "QuestDB": "host=localhost;port=8812;username=admin;password=quest;database=mydb;",
     "TiDB": "Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;",
     "OceanBase": "Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;",
     "详细配置": "请参考 DatabaseSetting/ 目录下的各数据库配置文档"

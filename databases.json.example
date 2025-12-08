@@ -76,18 +76,6 @@
       }
     },
     {
-      "name": "questdb-iot",
-      "connectionString": "host=localhost;port=8812;username=admin;password=quest;database=iot;",
-      "dbType": "QuestDB",
-      "description": "QuestDB - IoT 时序数据（高性能写入 + Symbol 优化）",
-      "optimizationSettings": {
-        "syncWal": "false",
-        "symbolOptimization": "true",
-        "batchSize": "10000",
-        "partitionStrategy": "DAY"
-      }
-    },
-    {
       "name": "tidb-bigdata",
       "connectionString": "Server=localhost;Port=4000;Database=bigdata;User=root;Password=123456;Charset=utf8mb4;Pooling=true;Min Pool Size=1;Max Pool Size=50;",
       "dbType": "tidb",

@@ -127,7 +127,6 @@ internal class DatabaseConfigService : IDatabaseConfigService
             "DB_DM_LOWERCASE_TABLES",
             "DB_KDBNDP_MODE",
             "DB_GAUSSDB_NATIVE_DRIVER",
-            "DB_QUESTDB_SYNC_WAL",
             "DB_ORACLE_CAMEL_CASE",
             "DB_POSTGRES_AUTO_TO_LOWER",
             "DB_SQLITE_ENABLE_DEFAULT_VALUE",

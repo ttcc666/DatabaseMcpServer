@@ -44,13 +44,9 @@ internal class DatabaseHelper : IDatabaseHelperService
     /// <exception cref="ArgumentException">当数据库类型不支持时抛出</exception>
     /// <remarks>
     /// 支持的数据库类型字符串包括：
-    /// - 主流数据库: mysql, sqlserver, sqlite, postgresql, oracle
-    /// - 国产数据库: dm (达梦), kdbndp/kingbase (人大金仓), oscar (神通), hg (瀚高), gbase (南大通用), xugu (虚谷), vastbase (海量), goldendb (GoldenDB)
-    /// - 分布式数据库: oceanbase, tidb, polardb, doris, tdengine, questdb
-    /// - 时序数据库: tdengine, questdb, clickhouse
-    /// - 分析型数据库: duckdb, clickhouse, doris
-    /// - 其他数据库: access, odbc, hana, db2, mongodb, custom
-    /// - 特定版本: mysqlconnector, opengauss, gaussdb, gaussdbnative, oceanbasefororacle, tsql, tsqlforpgodbc
+    /// - 主流数据库: mysql, postgresql, sqlserver, oracle, mongodb
+    /// - 常用数据库: sqlite, clickhouse, tidb, oceanbase, db2, hana
+    /// - 国产/信创数据库: dm (达梦), kdbndp/kingbase (人大金仓), oscar (神通), hg (瀚高), vastbase (海量), goldendb (GoldenDB), polardb (阿里云), gaussdb/opengauss/gaussdbnative (华为)
     /// </remarks>
     public DbType ParseDbType(string dbType)
     {
@@ -58,10 +54,11 @@ internal class DatabaseHelper : IDatabaseHelperService
         {
             // 主流数据库
             "mysql" => DbType.MySql,
+            "postgresql" => DbType.PostgreSQL,
             "sqlserver" => DbType.SqlServer,
             "sqlite" => DbType.Sqlite,
-            "postgresql" => DbType.PostgreSQL,
             "oracle" => DbType.Oracle,
+            "mongodb" => DbType.MongoDb,
 
             // 国产数据库
             "dm" => DbType.Dm,
@@ -69,8 +66,6 @@ internal class DatabaseHelper : IDatabaseHelperService
             "kingbase" => DbType.Kdbndp,
             "oscar" => DbType.Oscar,
             "hg" => DbType.HG,
-            "gbase" => DbType.GBase,
-            "xugu" => DbType.Xugu,
             "vastbase" => DbType.Vastbase,
             "goldendb" => DbType.GoldenDB,
 
@@ -78,34 +73,20 @@ internal class DatabaseHelper : IDatabaseHelperService
             "oceanbase" => DbType.OceanBase,
             "tidb" => DbType.Tidb,
             "polardb" => DbType.PolarDB,
-            "doris" => DbType.Doris,
 
-            // 时序数据库
-            "tdengine" => DbType.TDengine,
-            "questdb" => DbType.QuestDB,
+            // 分析/时序数据库
             "clickhouse" => DbType.ClickHouse,
 
-            // 分析型数据库
-            "duckdb" => DbType.DuckDB,
-
-            // 其他数据库
-            "access" => DbType.Access,
-            "odbc" => DbType.Odbc,
+            // 企业级数据库
             "hana" => DbType.HANA,
             "db2" => DbType.DB2,
-            "mongodb" => DbType.MongoDb,
-            "custom" => DbType.Custom,
 
             // 特定版本和变体
-            "mysqlconnector" => DbType.MySqlConnector,
             "opengauss" => DbType.OpenGauss,
             "gaussdb" => DbType.GaussDB,
             "gaussdbnative" => DbType.GaussDBNative,
-            "oceanbasefororacle" => DbType.OceanBaseForOracle,
-            "tdsql" => DbType.TDSQL,
-            "tdsqlforpgodbc" => DbType.TDSQLForPGODBC,
 
-            _ => throw new ArgumentException($"不支持的数据库类型: {dbType}。支持的数据库类型包括：mysql, sqlserver, sqlite, postgresql, oracle, dm, kdbndp, kingbase, oscar, hg, gbase, xugu, vastbase, goldendb, oceanbase, tidb, polardb, doris, tdengine, questdb, clickhouse, duckdb, access, odbc, hana, db2, mongodb, custom, mysqlconnector, opengauss, gaussdb, gaussdbnative, oceanbasefororacle, tsql, tsqlforpgodbc")
+            _ => throw new ArgumentException($"不支持的数据库类型: {dbType}。支持的数据库类型包括：mysql, postgresql, sqlserver, oracle, mongodb, sqlite, clickhouse, tidb, oceanbase, db2, hana, dm, kdbndp, kingbase, oscar, hg, vastbase, goldendb, polardb, gaussdb, opengauss, gaussdbnative")
         };
     }
 

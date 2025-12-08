@@ -1,6 +1,6 @@
 # MySQL / MariaDB / TiDB 数据库配置指南
 
-本文档详细说明 MySQL 系列数据库（MySQL、MariaDB、TiDB、PolarDB、Doris、TDSQL）的配置方法。
+本文档详细说明 MySQL 系列数据库（MySQL、MariaDB、TiDB、PolarDB）的配置方法。
 
 ---
 
@@ -537,9 +537,6 @@ AllowLoadLocalInfile=true
 | MariaDB | `MySql` | MySQL 分支 |
 | TiDB | `tidb` | 分布式数据库 |
 | PolarDB | `polardb` | 阿里云数据库 |
-| Doris | `doris` | 分析型数据库 |
-| TDSQL | `tdsql` | 腾讯云数据库 |
-| OceanBase | `oceanbase` | 蚂蚁金服数据库 |
 
 ---
 

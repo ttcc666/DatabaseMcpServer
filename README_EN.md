@@ -6,11 +6,11 @@
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
 
-A powerful database operation MCP (Model Context Protocol) server that supports **34 database types**, **single-instance multi-database dynamic switching**, enabling AI assistants to safely and conveniently execute database operations.
+A powerful database operation MCP (Model Context Protocol) server focused on **19 widely used databases** (mainstream, scenario-specific, and domestic/compliance) with **single-instance multi-database dynamic switching**, enabling AI assistants to safely and conveniently execute database operations.
 
 ## ✨ Core Features
 
-- 🗄️ **Multi-Database Support** - Supports 34 database types (mainstream, domestic, distributed, time-series)
+- 🗄️ **Multi-Database Support** - Covers 19 commonly used databases (MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA + DM/Kingbase/GaussDB/PolarDB/Vastbase/HighGo/Oscar/GoldenDB)
 - 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
 - ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
@@ -22,45 +22,33 @@ A powerful database operation MCP (Model Context Protocol) server that supports 
 
 ## 🗄️ Supported Database Types
 
-### 🌐 Mainstream Databases
+### 🔥 Mainstream
 
 - **MySQL** (default)
-- **SQL Server**
-- **SQLite**
 - **PostgreSQL**
+- **SQL Server**
 - **Oracle**
+- **MongoDB**
 
-### 🇨🇳 Domestic Databases
+### 📊 Scenario-Focused
 
-- **DaMeng Database** (dm)
-- **RenDaJinCang** (kdbndp/kingbase)
-- **ShenTong Database** (oscar)
-- **HanGao Database** (hg)
-- **NanDaTongYong GBase** (gbase)
-- **XuGu Database** (xugu)
-- **HaiLiang Database** (vastbase)
-- **GoldenDB** (goldendb)
+- **SQLite**
+- **ClickHouse**
+- **TiDB**
+- **OceanBase**
+- **IBM DB2**
+- **SAP HANA**
 
-### 🚀 Distributed Databases
+### 🇨🇳 Domestic / Compliance
 
-- **OceanBase** (oceanbase)
-- **TiDB** (tidb)
+- **DaMeng (DM)** (dm)
+- **Kingbase / Kdbndp** (kdbndp/kingbase)
+- **Huawei GaussDB / OpenGauss**
 - **PolarDB** (polardb)
-- **Doris** (doris)
-
-### ⏱️ Time-Series Databases
-
-- **TDengine** (tdengine)
-- **QuestDB** (questdb)
-- **ClickHouse** (clickhouse)
-
-### 🔍 Other Databases
-
-**Analytical**: DuckDB, DuckDB
-**Interfaces**: Microsoft Access, ODBC
-**Enterprise**: SAP HANA, IBM DB2
-**Document**: MongoDB
-**Specialized**: OpenGauss, GaussDB, etc.
+- **Vastbase** (vastbase)
+- **HighGo Database** (hg)
+- **Oscar Database** (oscar)
+- **GoldenDB** (goldendb)
 
 ## 🚀 Quick Start
 
@@ -284,14 +272,24 @@ Starting from version 2.0.0, all database-specific optimization configurations a
 
 **Detailed Configuration Documentation**:
 - [MySQL Configuration Guide](DatabaseSetting/MySQL.md)
+- [PostgreSQL Configuration Guide](DatabaseSetting/PostgreSQL.md)
 - [SQL Server Configuration Guide](DatabaseSetting/SQLServer.md)
 - [Oracle Configuration Guide](DatabaseSetting/Oracle.md)
-- [PostgreSQL Configuration Guide](DatabaseSetting/PostgreSQL.md)
+- [MongoDB Configuration Guide](DatabaseSetting/MongoDB.md)
 - [SQLite Configuration Guide](DatabaseSetting/SQLite.md)
+- [ClickHouse Configuration Guide](DatabaseSetting/ClickHouse.md)
+- [TiDB Configuration Guide](DatabaseSetting/TiDB.md)
+- [OceanBase Configuration Guide](DatabaseSetting/OceanBase.md)
+- [DB2 Configuration Guide](DatabaseSetting/DB2.md)
+- [SAP HANA Configuration Guide](DatabaseSetting/Hana.md)
 - [DaMeng Database Configuration Guide](DatabaseSetting/DM.md)
 - [KingbaseES Configuration Guide](DatabaseSetting/Kdbndp.md)
 - [GaussDB Configuration Guide](DatabaseSetting/GaussDB.md)
-- [QuestDB Configuration Guide](DatabaseSetting/QuestDB.md)
+- [PolarDB Configuration Guide](DatabaseSetting/PolarDB.md)
+- [Vastbase Configuration Guide](DatabaseSetting/Vastbase.md)
+- [HighGo Database Configuration Guide](DatabaseSetting/HighGo.md)
+- [Oscar Database Configuration Guide](DatabaseSetting/Oscar.md)
+- [GoldenDB Configuration Guide](DatabaseSetting/GoldenDB.md)
 - [Configuration Index](DatabaseSetting/README.md)
 
 ---
@@ -365,7 +363,6 @@ DatabaseMcpServer 2.0.0 has removed environment variable configuration method an
 | `DB_DM_LOWERCASE_TABLES` | `databases[].optimizationSettings.lowercaseTables` |
 | `DB_KDBNDP_MODE` | `databases[].optimizationSettings.mode` |
 | `DB_GAUSSDB_NATIVE_DRIVER` | `databases[].optimizationSettings.nativeDriver` |
-| `DB_QUESTDB_SYNC_WAL` | `databases[].optimizationSettings.syncWal` |
 | `DB_ORACLE_CAMEL_CASE` | `databases[].optimizationSettings.camelCase` |
 | `DB_POSTGRES_AUTO_TO_LOWER` | `databases[].optimizationSettings.autoToLower` |
 | `DB_SQLITE_ENABLE_DEFAULT_VALUE` | `databases[].optimizationSettings.enableDefaultValue` |
@@ -389,7 +386,6 @@ If you are still using old environment variable configuration, DatabaseMcpServer
 | **DaMeng Database** | `Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;` | [DM.md](DatabaseSetting/DM.md) |
 | **KingbaseES** | `Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;` | [Kdbndp.md](DatabaseSetting/Kdbndp.md) |
 | **GaussDB** | `PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;` | [GaussDB.md](DatabaseSetting/GaussDB.md) |
-| **QuestDB** | `host=localhost;port=8812;username=admin;password=quest;database=mydb;` | [QuestDB.md](DatabaseSetting/QuestDB.md) |
 
 For more connection strings and optimization configurations, please refer to the detailed documentation in the [DatabaseSetting/](DatabaseSetting/) directory.
 

@@ -6,11 +6,11 @@
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
 
- 一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，支持 **34 种数据库类型**，**单实例多数据库动态切换**，让 AI 助手能够安全、便捷地执行数据库操作。
+ 一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，聚焦 **19 种常用数据库类型**（主流 + 特定场景 + 国产化/信创），支持 **单实例多数据库动态切换**，让 AI 助手能够安全、便捷地执行数据库操作。
 
 ## ✨ 核心特性
 
-- 🗄️ **多数据库支持** - 支持 34 种数据库类型（主流、国产、分布式、时序）
+- 🗄️ **多数据库支持** - 覆盖 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA + 达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）
 - 🔄 **单实例多数据库** - 一个 MCP Server 实例可配置和动态切换多个数据库连接
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优
@@ -22,40 +22,30 @@
 
 ## 🗄️ 支持的数据库类型
 
-### 🌐 主流数据库
+### 🔥 一线最常用
 - **MySQL** (默认)
-- **SQL Server**
-- **SQLite**
 - **PostgreSQL**
+- **SQL Server**
 - **Oracle**
+- **MongoDB**
 
-### 🇨🇳 国产数据库
+### 📊 特定场景常用
+- **SQLite**
+- **ClickHouse**
+- **TiDB**
+- **OceanBase**
+- **IBM DB2**
+- **SAP HANA**
+
+### 🇨🇳 国产化/信创
 - **达梦数据库** (dm)
 - **人大金仓** (kdbndp/kingbase)
-- **神通数据库** (oscar)
-- **瀚高数据库** (hg)
-- **南大通用 GBase** (gbase)
-- **虚谷数据库** (xugu)
-- **海量数据库** (vastbase)
-- **GoldenDB** (goldendb)
-
-### 🚀 分布式数据库
-- **OceanBase** (oceanbase)
-- **TiDB** (tidb)
+- **华为 GaussDB / OpenGauss**
 - **PolarDB** (polardb)
-- **Doris** (doris)
-
-### ⏱️ 时序数据库
-- **TDengine** (tdengine)
-- **QuestDB** (questdb)
-- **ClickHouse** (clickhouse)
-
-### 🔍 其他数据库
-**分析型**：DuckDB、DuckDB
-**接口**：Microsoft Access、ODBC
-**企业**：SAP HANA、IBM DB2
-**文档**：MongoDB
-**专用**：OpenGauss、GaussDB 等
+- **海量数据库** (vastbase)
+- **瀚高数据库** (hg)
+- **神通数据库** (oscar)
+- **GoldenDB** (goldendb)
 
 ## 🚀 快速开始
 
@@ -272,14 +262,24 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 
 **详细配置文档**：
 - [MySQL 配置指南](DatabaseSetting/MySQL.md)
+- [PostgreSQL 配置指南](DatabaseSetting/PostgreSQL.md)
 - [SQL Server 配置指南](DatabaseSetting/SQLServer.md)
 - [Oracle 配置指南](DatabaseSetting/Oracle.md)
-- [PostgreSQL 配置指南](DatabaseSetting/PostgreSQL.md)
+- [MongoDB 配置指南](DatabaseSetting/MongoDB.md)
 - [SQLite 配置指南](DatabaseSetting/SQLite.md)
+- [ClickHouse 配置指南](DatabaseSetting/ClickHouse.md)
+- [TiDB 配置指南](DatabaseSetting/TiDB.md)
+- [OceanBase 配置指南](DatabaseSetting/OceanBase.md)
+- [DB2 配置指南](DatabaseSetting/DB2.md)
+- [SAP HANA 配置指南](DatabaseSetting/Hana.md)
 - [达梦数据库配置指南](DatabaseSetting/DM.md)
 - [人大金仓配置指南](DatabaseSetting/Kdbndp.md)
 - [GaussDB 配置指南](DatabaseSetting/GaussDB.md)
-- [QuestDB 配置指南](DatabaseSetting/QuestDB.md)
+- [PolarDB 配置指南](DatabaseSetting/PolarDB.md)
+- [Vastbase 配置指南](DatabaseSetting/Vastbase.md)
+- [瀚高数据库配置指南](DatabaseSetting/HighGo.md)
+- [神通数据库配置指南](DatabaseSetting/Oscar.md)
+- [GoldenDB 配置指南](DatabaseSetting/GoldenDB.md)
 - [配置索引](DatabaseSetting/README.md)
 
 ---
@@ -353,7 +353,6 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 | `DB_DM_LOWERCASE_TABLES` | `databases[].optimizationSettings.lowercaseTables` |
 | `DB_KDBNDP_MODE` | `databases[].optimizationSettings.mode` |
 | `DB_GAUSSDB_NATIVE_DRIVER` | `databases[].optimizationSettings.nativeDriver` |
-| `DB_QUESTDB_SYNC_WAL` | `databases[].optimizationSettings.syncWal` |
 | `DB_ORACLE_CAMEL_CASE` | `databases[].optimizationSettings.camelCase` |
 | `DB_POSTGRES_AUTO_TO_LOWER` | `databases[].optimizationSettings.autoToLower` |
 | `DB_SQLITE_ENABLE_DEFAULT_VALUE` | `databases[].optimizationSettings.enableDefaultValue` |
@@ -370,14 +369,24 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 | 数据库 | 连接字符串示例 | 详细文档 |
 |--------|---------------|---------|
 | **MySQL** | `Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;` | [MySQL.md](DatabaseSetting/MySQL.md) |
-| **SQL Server** | `Server=localhost;Database=mydb;User Id=sa;Password=123456;` | [SQLServer.md](DatabaseSetting/SQLServer.md) |
 | **PostgreSQL** | `Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;` | [PostgreSQL.md](DatabaseSetting/PostgreSQL.md) |
+| **SQL Server** | `Server=localhost;Database=mydb;User Id=sa;Password=123456;` | [SQLServer.md](DatabaseSetting/SQLServer.md) |
 | **Oracle** | `Data Source=localhost/orcl;User ID=system;Password=oracle123;` | [Oracle.md](DatabaseSetting/Oracle.md) |
+| **MongoDB** | `mongodb://localhost:27017/mydb` | [MongoDB.md](DatabaseSetting/MongoDB.md) |
 | **SQLite** | `Data Source=mydb.db;` | [SQLite.md](DatabaseSetting/SQLite.md) |
+| **ClickHouse** | `Host=localhost;Port=8123;User=default;Password=;Database=default;` | [ClickHouse.md](DatabaseSetting/ClickHouse.md) |
+| **TiDB** | `Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;` | [TiDB.md](DatabaseSetting/TiDB.md) |
+| **OceanBase** | `Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;` | [OceanBase.md](DatabaseSetting/OceanBase.md) |
+| **IBM DB2** | `Server=localhost:50000;Database=mydb;UID=db2;PWD=123456;` | [DB2.md](DatabaseSetting/DB2.md) |
+| **SAP HANA** | `ServerNode=localhost:39015;UserID=SYSTEM;Password=hana123;` | [Hana.md](DatabaseSetting/Hana.md) |
 | **达梦数据库** | `Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;` | [DM.md](DatabaseSetting/DM.md) |
 | **人大金仓** | `Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;` | [Kdbndp.md](DatabaseSetting/Kdbndp.md) |
-| **GaussDB** | `PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;` | [GaussDB.md](DatabaseSetting/GaussDB.md) |
-| **QuestDB** | `host=localhost;port=8812;username=admin;password=quest;database=mydb;` | [QuestDB.md](DatabaseSetting/QuestDB.md) |
+| **GaussDB / OpenGauss** | `PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;` | [GaussDB.md](DatabaseSetting/GaussDB.md) |
+| **PolarDB** | `Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;` | [PolarDB.md](DatabaseSetting/PolarDB.md) |
+| **Vastbase** | `Host=localhost;Port=5432;Database=mydb;Username=vastbase;Password=123456;` | [Vastbase.md](DatabaseSetting/Vastbase.md) |
+| **瀚高数据库** | `Server=localhost;Port=5866;Database=mydb;Uid=highgo;Pwd=123456;` | [HighGo.md](DatabaseSetting/HighGo.md) |
+| **神通数据库** | `Data Source=localhost;User Id=sysdba;Password=oracle;` | [Oscar.md](DatabaseSetting/Oscar.md) |
+| **GoldenDB** | `Server=localhost;Port=1888;Database=mydb;Uid=golden;Pwd=123456;` | [GoldenDB.md](DatabaseSetting/GoldenDB.md) |
 
 更多连接字符串和优化配置请参考 [DatabaseSetting/](DatabaseSetting/) 目录下的详细文档。
 

@@ -28,7 +28,6 @@ public class DatabaseOptimizationStrategyFactory
         {
             // MySQL 系列
             [DbType.MySql] = () => new MySqlOptimizationStrategy(_logger),
-            [DbType.MySqlConnector] = () => new MySqlOptimizationStrategy(_logger),
 
             // SQL Server
             [DbType.SqlServer] = () => new SqlServerOptimizationStrategy(_logger),
@@ -47,8 +46,6 @@ public class DatabaseOptimizationStrategyFactory
             [DbType.Kdbndp] = () => new KdbndpOptimizationStrategy(_logger),
             [DbType.Oscar] = () => new OscarOptimizationStrategy(_logger),
             [DbType.HG] = () => new HighGoOptimizationStrategy(_logger),
-            [DbType.GBase] = () => new GBaseOptimizationStrategy(_logger),
-            [DbType.Xugu] = () => new XuguOptimizationStrategy(_logger),
             [DbType.Vastbase] = () => new VastbaseOptimizationStrategy(_logger),
             [DbType.GoldenDB] = () => new GoldenDbOptimizationStrategy(_logger),
 
@@ -56,31 +53,19 @@ public class DatabaseOptimizationStrategyFactory
             [DbType.OceanBase] = () => new OceanBaseOptimizationStrategy(_logger),
             [DbType.Tidb] = () => new TidbOptimizationStrategy(_logger),
             [DbType.PolarDB] = () => new MySqlOptimizationStrategy(_logger), // PolarDB 兼容 MySQL
-            [DbType.Doris] = () => new MySqlOptimizationStrategy(_logger), // Doris 兼容 MySQL
 
             // 时序数据库
-            [DbType.TDengine] = () => new TdengineOptimizationStrategy(_logger),
-            [DbType.QuestDB] = () => new QuestDbOptimizationStrategy(_logger),
             [DbType.ClickHouse] = () => new ClickHouseOptimizationStrategy(_logger),
 
-            // 分析型数据库
-            [DbType.DuckDB] = () => new DuckDbOptimizationStrategy(_logger),
-
             // 其他数据库
-            [DbType.Access] = () => new DefaultOptimizationStrategy("Microsoft Access", _logger),
-            [DbType.Odbc] = () => new DefaultOptimizationStrategy("ODBC", _logger),
             [DbType.HANA] = () => new HanaOptimizationStrategy(_logger),
             [DbType.DB2] = () => new Db2OptimizationStrategy(_logger),
             [DbType.MongoDb] = () => new MongoDbOptimizationStrategy(_logger),
-            [DbType.Custom] = () => new DefaultOptimizationStrategy("Custom", _logger),
 
             // 特定版本和变体
             [DbType.OpenGauss] = () => new GaussDbOptimizationStrategy(_logger),
             [DbType.GaussDB] = () => new GaussDbOptimizationStrategy(_logger),
-            [DbType.GaussDBNative] = () => new GaussDbOptimizationStrategy(_logger),
-            [DbType.OceanBaseForOracle] = () => new OceanBaseOracleOptimizationStrategy(_logger),
-            [DbType.TDSQL] = () => new MySqlOptimizationStrategy(_logger), // TDSQL 兼容 MySQL
-            [DbType.TDSQLForPGODBC] = () => new DefaultOptimizationStrategy("TDSQL for PG", _logger)
+            [DbType.GaussDBNative] = () => new GaussDbOptimizationStrategy(_logger)
         };
     }
 

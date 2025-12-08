@@ -23,7 +23,10 @@
 | **达梦数据库** | [DM.md](./DM.md) | 达梦数据库配置指南 |
 | **人大金仓** | [Kdbndp.md](./Kdbndp.md) | 人大金仓数据库配置指南 |
 | **GaussDB / OpenGauss** | [GaussDB.md](./GaussDB.md) | 华为 GaussDB/OpenGauss 配置指南 |
-| **GBase 8s** | [GBase.md](./GBase.md) | 南大通用 GBase 配置指南 |
+| **神通数据库** | [Oscar.md](./Oscar.md) | 神通数据库配置指南 |
+| **瀚高数据库** | [HighGo.md](./HighGo.md) | 瀚高数据库（PG 衍生） |
+| **Vastbase** | [Vastbase.md](./Vastbase.md) | PostgreSQL 衍生，建议 `No Reset On Close=true` |
+| **GoldenDB** | [GoldenDB.md](./GoldenDB.md) | MySQL 兼容，推荐禁用连接池 |
 
 ### ☁️ 分布式数据库
 
@@ -31,53 +34,21 @@
 |--------|------|------|
 | **OceanBase** | [OceanBase.md](./OceanBase.md) | MySQL/Oracle 双模式，租户隔离 |
 | **TiDB** | [TiDB.md](./TiDB.md) | MySQL 兼容分布式数据库 |
+| **PolarDB** | [PolarDB.md](./PolarDB.md) | MySQL 兼容分布式库 |
 
-### ⏱️ 时序数据库
-
-| 数据库 | 文档 | 说明 |
-|--------|------|------|
-| **QuestDB** | [QuestDB.md](./QuestDB.md) | QuestDB 时序数据库配置指南 |
-| **TDengine** | [TDengine.md](./TDengine.md) | TDengine 时序数据库配置指南 |
-
----
-
-### 🧩 其他/兼容数据库
+### 📊 分析型数据库
 
 | 数据库 | 文档 | 说明 |
 |--------|------|------|
-| **GoldenDB** | [GoldenDB.md](./GoldenDB.md) | MySQL 兼容，推荐禁用连接池 |
-| **Vastbase** | [Vastbase.md](./Vastbase.md) | PostgreSQL 衍生，建议 `No Reset On Close=true` |
 | **ClickHouse** | [ClickHouse.md](./ClickHouse.md) | 列式/分析型数据库 |
 | **MongoDB** | [MongoDB.md](./MongoDB.md) | 文档型数据库 |
+
+### 🏢 企业级数据库
+
+| 数据库 | 文档 | 说明 |
+|--------|------|------|
 | **DB2** | [DB2.md](./DB2.md) | IBM DB2 连接指南 |
-| **DuckDB** | [DuckDB.md](./DuckDB.md) | 内嵌列式数据库 |
 | **Hana** | [Hana.md](./Hana.md) | SAP HANA 连接指南 |
-| **HighGo** | [HighGo.md](./HighGo.md) | 瀚高数据库（PG 衍生） |
-| **Xugu** | [Xugu.md](./Xugu.md) | 虚谷数据库 |
-| **PolarDB** | [PolarDB.md](./PolarDB.md) | MySQL 兼容分布式库 |
-| **Doris** | [Doris.md](./Doris.md) | MySQL 兼容列式/HTAP 库 |
-| **Oscar** | [Oscar.md](./Oscar.md) | 神通数据库 |
-| **Access** | [Access.md](./Access.md) | Microsoft Access（默认策略） |
-| **Odbc** | [Odbc.md](./Odbc.md) | 通用 ODBC 连接 |
-| **MySqlConnector** | [MySqlConnector.md](./MySqlConnector.md) | MySQL 官方驱动兼容 |
-| **Custom** | [Custom.md](./Custom.md) | 自定义/未列出数据库 |
-
----
-
-## 🆕 新增数据库文档与依赖
-
-已按 `Doc/db.md` 列表抓取官方文档到 `Doc/*.html`，并补充需要的驱动包。常用策略与包对照如下：
-
-| 数据库 | 文档 | 策略/DbType | NuGet 包 |
-|--------|------|-------------|----------|
-| MongoDB | `Doc/MongoDB.html` | `MongoDb` / `MongoDbOptimizationStrategy` | `SqlSugar.MongoDbCore` |
-| TDengine | `Doc/TDengine.html` | `TDengine` / `TdengineOptimizationStrategy` | `SqlSugar.TDengineCore` |
-| GBase 8s | `Doc/Gbase.html` | `GBase` / `GBaseOptimizationStrategy` | `SqlSugar.GBaseCore` |
-| ClickHouse | `Doc/ClickHouse.html` | `ClickHouse` / `ClickHouseOptimizationStrategy` | `SqlSugar.ClickHouseCore` |
-| GaussDB Native | `Doc/Gauss.html` | `GaussDBNative` / `GaussDbOptimizationStrategy` | `SqlSugar.GaussDBNativeCore` |
-| 虚谷数据库 | `Doc/Xugu.html` | `Xugu` / `XuguOptimizationStrategy` | `SqlSugar.XuguCoreNew` |
-
-其他 MySQL 兼容库（PolarDB、Doris、TDSQL、MySqlConnector、GoldenDB 等）复用 `MySqlOptimizationStrategy`，无需额外包；Odbc/Access/Custom 使用默认策略。
 
 ---
 
@@ -195,14 +166,6 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 | GaussDB | `typeMapping` | 数据类型映射优化 |
 | GaussDB | `batchSize` | 批量操作大小 |
 | GaussDB | `maxPoolSize` | 连接池最大连接数 |
-| QuestDB | `syncWal` | WAL 同步写入 |
-| QuestDB | `symbolOptimization` | Symbol 类型优化 |
-| QuestDB | `batchSize` | 批量插入大小 |
-| QuestDB | `partitionStrategy` | 分区策略（DAY/MONTH/YEAR） |
-| GBase | `batchPageSize` | 分页批量写入大小（不支持 BulkCopy，推荐 10-100） |
-| GBase | `enableBulkCopy` | 仅提示用，GBase ODBC 不支持 BulkCopy，保持 false |
-| GBase | `dbLocale` / `clientLocale` | 记录 Locale 编码，避免字符集不一致 |
-| GBase | `maxPoolSize` | 连接池最大连接数 |
 | OceanBase | `disablePooling` | 禁用连接池（部分租户不支持池化） |
 | OceanBase | `disableNvarchar` | 可选禁用 nvarchar（少数兼容模式需要） |
 | OceanBase | `enableHints` | 启用 Optimizer Hints 支持 |
@@ -268,18 +231,6 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 - ✅ Npgsql 兼容: 成熟稳定，生态丰富
 - ✅ 数据类型映射: JSON、Geometry 等
 - ✅ 批量操作优化: 大数据导入性能提升
-
-### GBase 8s
-- ✅ ODBC 驱动: 安装 `SqlSugar.GBaseCore` 并注册 `GBaseProvider`
-- ✅ 分页批量写入: 使用 `Insertable(...).PageSize(10-100)`（不支持 BulkCopy）
-- ✅ Locale 一致: `Db_locale` / `Client_locale` 保持相同编码
-- ✅ 连接池: 常见场景 `Max Pool Size` 建议 50 左右
-
-### QuestDB
-- ✅ WAL 异步写入: 写入性能提升 10-100 倍
-- ✅ Symbol 类型: 存储空间节省 50-90%
-- ✅ 批量插入: 大数据导入性能提升 10-50 倍
-- ✅ 时间分区: 查询性能提升 5-20 倍
 
 ### OceanBase
 - ✅ MySQL 模式: 默认支持 utf8mb4 与 MySQL 协议
@@ -353,10 +304,6 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 - 达梦数据库 → [DM.md](./DM.md)
 - 人大金仓 → [Kdbndp.md](./Kdbndp.md)
 - GaussDB/OpenGauss → [GaussDB.md](./GaussDB.md)
-- GBase 8s → [GBase.md](./GBase.md)
-
-**时序数据库**:
-- QuestDB → [QuestDB.md](./QuestDB.md)
 
 ### 2. 准备配置文件
 

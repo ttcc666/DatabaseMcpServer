@@ -17,7 +17,7 @@
     <PackageId>DatabaseMcpServer</PackageId>
     <PackageVersion>2.0.3</PackageVersion>
     <PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
-    <Description>一个功能强大的数据库操作 MCP 服务器，支持 34 种数据库类型，包括主流数据库、国产数据库、分布式数据库和时序数据库。</Description>
+    <Description>一个功能强大的数据库操作 MCP 服务器，聚焦 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB、SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA、达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）。</Description>
     <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/ttcc666/DatabaseMcpServer</PackageProjectUrl>
@@ -37,11 +37,8 @@
     <PackageReference Include="SqlSugarCore" Version="5.1.4.207" />
     <PackageReference Include="SqlSugar.OceanBaseForOracleCore" Version="5.1.4.145" />
     <PackageReference Include="SqlSugar.MongoDbCore" Version="5.1.4.207" />
-    <PackageReference Include="SqlSugar.TDengineCore" Version="4.18.46" />
-    <PackageReference Include="SqlSugar.GBaseCore" Version="5.1.4.216" />
     <PackageReference Include="SqlSugar.ClickHouseCore" Version="5.1.4.199" />
     <PackageReference Include="SqlSugar.GaussDBNativeCore" Version="5.1.4.189" />
-    <PackageReference Include="SqlSugar.XuguCoreNew" Version="5.1.4.198" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />

@@ -157,7 +157,6 @@ public class MySqlOptimizationStrategy : IDatabaseOptimizationStrategy
 **注册**:
 ```csharp
 [DbType.MySql] = () => new MySqlOptimizationStrategy(_logger),
-[DbType.MySqlConnector] = () => new MySqlOptimizationStrategy(_logger),
 [DbType.Tidb] = () => new MySqlOptimizationStrategy(_logger), // TiDB 兼容 MySQL
 ```
 
@@ -332,7 +331,6 @@ public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, str
 | 达梦数据库 | `DmOptimizationStrategy` | 表名处理 + Docker 模式兼容 + Clob 优化 |
 | 人大金仓 | `KdbndpOptimizationStrategy` | 多模式兼容 + 游标支持 + JSON/Geometry |
 | GaussDB/OpenGauss | `GaussDbOptimizationStrategy` | 原生驱动 + Schema 管理 + 类型映射 |
-| QuestDB | `QuestDbOptimizationStrategy` | WAL 异步写入 + Symbol 优化 + 时间分区 |
 
 ### 🔄 兼容策略
 
@@ -340,8 +338,6 @@ public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, str
 |--------|---------|------|
 | TiDB | `MySqlOptimizationStrategy` | 兼容 MySQL 协议 |
 | PolarDB | `MySqlOptimizationStrategy` | 兼容 MySQL 协议 |
-| Doris | `MySqlOptimizationStrategy` | 兼容 MySQL 协议 |
-| TDSQL | `MySqlOptimizationStrategy` | 兼容 MySQL 协议 |
 | OceanBase for Oracle | `OracleOptimizationStrategy` | 兼容 Oracle 协议 |
 
 ### 📦 默认策略
