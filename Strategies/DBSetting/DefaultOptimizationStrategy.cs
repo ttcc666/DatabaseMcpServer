@@ -17,12 +17,18 @@ public class DefaultOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用默认性能配置（无特定调优）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 使用默认配置，不做特殊优化
         _logger?.LogDebug("使用默认性能配置: {DbType}", _dbTypeName);
     }
 
+    /// <summary>
+    /// 获取默认策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return $"{_dbTypeName} 默认配置：通用性能优化";

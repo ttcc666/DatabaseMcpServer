@@ -15,6 +15,9 @@ public class ClickHouseOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 ClickHouse 优化配置（连接池等提示，默认保留 nvarchar）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 默认保留 nvarchar
@@ -43,6 +46,9 @@ public class ClickHouseOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 ClickHouse 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 ClickHouse 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "ClickHouse 优化：连接池提示";

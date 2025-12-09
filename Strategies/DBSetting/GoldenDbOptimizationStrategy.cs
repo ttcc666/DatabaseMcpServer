@@ -15,6 +15,9 @@ public class GoldenDbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 GoldenDB 优化配置（MySQL 兼容，连接池建议等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // MySQL 兼容，不禁用 nvarchar
@@ -55,6 +58,9 @@ public class GoldenDbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 GoldenDB 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 GoldenDB 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "GoldenDB 优化：MySQL 兼容 + 连接池提示";

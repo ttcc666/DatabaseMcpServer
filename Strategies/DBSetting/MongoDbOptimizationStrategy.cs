@@ -15,6 +15,9 @@ public class MongoDbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 MongoDB 优化配置（连接池提示，其他交由驱动管理）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 维持默认设置，Mongo 由驱动管理连接
@@ -43,6 +46,9 @@ public class MongoDbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 MongoDB 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 MongoDB 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "MongoDB 优化：连接池提示（其余由驱动管理）";

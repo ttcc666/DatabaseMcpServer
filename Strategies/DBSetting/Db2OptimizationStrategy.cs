@@ -15,6 +15,9 @@ public class Db2OptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 DB2 优化配置（默认保留 nvarchar，连接池提示）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         settings.DisableNvarchar = false;
@@ -42,6 +45,9 @@ public class Db2OptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 DB2 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 DB2 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "DB2 优化：连接池提示";

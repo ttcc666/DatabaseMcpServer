@@ -15,6 +15,9 @@ public class OscarOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用神通数据库优化配置（默认保留 nvarchar，连接池提示）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         settings.DisableNvarchar = false;
@@ -42,6 +45,9 @@ public class OscarOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用神通数据库性能优化配置");
     }
 
+    /// <summary>
+    /// 获取神通数据库优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "神通数据库优化：连接池提示";

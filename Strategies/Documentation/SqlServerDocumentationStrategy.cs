@@ -14,6 +14,9 @@ public class SqlServerDocumentationStrategy : DatabaseDocumentationStrategyBase
     {
     }
 
+    /// <summary>
+    /// 获取 SQL Server 外键信息（基于 sys.* 视图）。
+    /// </summary>
     public override IEnumerable<ForeignKeyDocumentation> GetForeignKeys(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         const string sql = @"
@@ -47,6 +50,9 @@ WHERE tp.name = @TableName
         }
     }
 
+    /// <summary>
+    /// 获取 SQL Server 表统计信息（行数/数据/索引/总大小）。
+    /// </summary>
     public override TableStatistics? GetTableStatistics(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         const string sql = @"

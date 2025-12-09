@@ -31,6 +31,9 @@ public class DocumentationTools
 
     [McpServerTool]
     [Description("Generate full database documentation (tables, columns, indexes, triggers, views) in a single call.")]
+    /// <summary>
+    /// 一次生成数据库文档（表/列/索引/触发器/视图），支持 markdown 或 json。
+    /// </summary>
     public string GenerateDatabaseDocumentation(
         [Description("Output format: markdown or json (default: markdown)")] string format = "markdown",
         [Description("Optional connection name from databases.json; defaults to the current connection.")] string? connectionName = null,

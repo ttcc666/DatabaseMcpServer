@@ -15,6 +15,9 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用人大金仓优化配置（多模式兼容、游标/JSON/几何/数组等开关）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 人大金仓数据库特定优化配置
@@ -127,6 +130,9 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用人大金仓数据库性能优化配置");
     }
 
+    /// <summary>
+    /// 获取人大金仓优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "人大金仓优化：多模式兼容（Oracle/MySQL/PostgreSQL/SqlServer） + 游标支持 + JSON/Geometry 类型 + 数组支持";

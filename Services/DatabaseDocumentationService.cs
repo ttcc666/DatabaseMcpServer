@@ -26,6 +26,9 @@ internal class DatabaseDocumentationService : IDatabaseDocumentationService
         _logger = logger;
     }
 
+    /// <summary>
+    /// 生成数据库文档，支持指定连接名和表过滤。
+    /// </summary>
     public DatabaseDocumentation GenerateDocumentation(string? connectionName = null, IReadOnlyCollection<string>? tableFilters = null)
     {
         var filterSet = CreateFilterSet(tableFilters);
@@ -64,6 +67,9 @@ internal class DatabaseDocumentationService : IDatabaseDocumentationService
         return documentation;
     }
 
+    /// <summary>
+    /// 构建表名过滤集合（忽略大小写）。
+    /// </summary>
     private static HashSet<string>? CreateFilterSet(IReadOnlyCollection<string>? tableFilters)
     {
         if (tableFilters == null || tableFilters.Count == 0)
@@ -74,6 +80,9 @@ internal class DatabaseDocumentationService : IDatabaseDocumentationService
         return new HashSet<string>(tableFilters.Where(t => !string.IsNullOrWhiteSpace(t)), StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 构建单表的文档信息（列/索引/外键/触发器/统计/DDL）。
+    /// </summary>
     private TableDocumentation BuildTableDocumentation(
         ISqlSugarClient db,
         IDatabaseDocumentationStrategy strategy,
@@ -104,6 +113,9 @@ internal class DatabaseDocumentationService : IDatabaseDocumentationService
         };
     }
 
+    /// <summary>
+    /// 将 SqlSugar 列信息映射为文档模型。
+    /// </summary>
     private static ColumnDocumentation MapColumn(DbColumnInfo column)
     {
         return new ColumnDocumentation
@@ -120,6 +132,9 @@ internal class DatabaseDocumentationService : IDatabaseDocumentationService
         };
     }
 
+    /// <summary>
+    /// 从对象中提取 DateTime/DateTimeOffset 属性值。
+    /// </summary>
     private static DateTime? GetDateTimeProperty(object instance, string propertyName)
     {
         var value = GetPropertyValue(instance, propertyName);
@@ -132,12 +147,18 @@ internal class DatabaseDocumentationService : IDatabaseDocumentationService
         };
     }
 
+    /// <summary>
+    /// 通过反射获取属性值（忽略大小写）。
+    /// </summary>
     private static object? GetPropertyValue(object instance, string propertyName)
     {
         var property = instance.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
         return property?.GetValue(instance);
     }
 
+    /// <summary>
+    /// 将空字符串标准化为 null。
+    /// </summary>
     private static string? NullIfEmpty(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value;

@@ -16,6 +16,9 @@ public class PostgreSqlOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 PostgreSQL 优化配置（表名小写、ILike、自增策略等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // PostgreSQL 表名自动转小写（默认启用，推荐）
@@ -65,6 +68,9 @@ public class PostgreSqlOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 PostgreSQL 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 PostgreSQL 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "PostgreSQL 性能优化：表名规范 + ILike 支持 + 自增策略 + JSON/数组类型";

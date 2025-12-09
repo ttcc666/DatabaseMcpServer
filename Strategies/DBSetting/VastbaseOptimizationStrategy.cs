@@ -15,6 +15,9 @@ public class VastbaseOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 Vastbase 优化配置（PG 兼容，小写表名、连接池提示、NoResetOnClose 建议）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 默认表名转小写，贴合 PG 生态
@@ -66,6 +69,9 @@ public class VastbaseOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 Vastbase 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 Vastbase 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "Vastbase 优化：PG 兼容表名小写 + 连接池提示";

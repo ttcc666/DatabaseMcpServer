@@ -8,6 +8,9 @@ namespace DatabaseMcpServer.Helpers;
 /// </summary>
 internal static class DocumentationMarkdownFormatter
 {
+    /// <summary>
+    /// 将数据库文档对象转换为 Markdown 字符串。
+    /// </summary>
     public static string ToMarkdown(DatabaseDocumentation documentation)
     {
         var sb = new StringBuilder();
@@ -65,6 +68,9 @@ internal static class DocumentationMarkdownFormatter
         return sb.ToString().TrimEnd();
     }
 
+    /// <summary>
+    /// 为单个表构建 Markdown 段落。
+    /// </summary>
     private static void AppendTableSection(StringBuilder sb, TableDocumentation table)
     {
         sb.AppendLine($"## 表 {table.Name}");

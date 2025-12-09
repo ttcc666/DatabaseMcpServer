@@ -441,6 +441,9 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private static readonly System.Text.RegularExpressions.Regex SensitiveInfoPattern =
         new(@"(?i)(password|pwd)=([^;]*)", System.Text.RegularExpressions.RegexOptions.Compiled);
 
+    /// <summary>
+    /// 脱敏连接字符串中的敏感信息（如密码）。
+    /// </summary>
     private static string MaskSensitiveInfo(string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))

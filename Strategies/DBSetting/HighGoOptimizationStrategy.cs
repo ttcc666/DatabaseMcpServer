@@ -15,6 +15,9 @@ public class HighGoOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用瀚高数据库优化配置（PG 兼容，小写表名、连接池提示）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // HighGo 基于 PostgreSQL，默认表名转小写
@@ -51,6 +54,9 @@ public class HighGoOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用瀚高数据库性能优化配置");
     }
 
+    /// <summary>
+    /// 获取瀚高数据库优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "瀚高数据库优化：PG 兼容表名小写 + 连接池提示";

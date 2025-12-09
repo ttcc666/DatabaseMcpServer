@@ -15,6 +15,9 @@ public class HanaOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 SAP HANA 优化配置（默认保留 nvarchar，连接池提示）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 默认保持 nvarchar 支持
@@ -43,6 +46,9 @@ public class HanaOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 SAP HANA 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 SAP HANA 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "SAP HANA 优化：连接池提示";

@@ -15,6 +15,9 @@ public class MySqlOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 MySQL/TiDB 的优化配置（连接池、BulkCopy 提示、字符集等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // MySQL 不需要禁用 nvarchar
@@ -75,6 +78,9 @@ public class MySqlOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 MySQL 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 MySQL 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "MySQL 性能优化：utf8mb4 字符集 + 连接池 + BulkCopy 提示 + SSL/用户变量配置记录";

@@ -16,6 +16,9 @@ public class OceanBaseOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 OceanBase 优化配置（MySQL 兼容，含连接池开关、Hints、批量、租户模式等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // OceanBase 兼容 MySQL，不需要禁用 nvarchar
@@ -85,6 +88,9 @@ public class OceanBaseOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 OceanBase 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 OceanBase 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "OceanBase 性能优化：MySQL 兼容 + 连接池开关 + Optimizer Hints + 租户模式 + 批量导入";

@@ -15,6 +15,9 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用达梦数据库优化配置（表名大小写、Docker/MySQL 模式、Schema、Clob 等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 达梦数据库特定优化配置
@@ -73,6 +76,9 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用达梦数据库性能优化配置");
     }
 
+    /// <summary>
+    /// 获取达梦数据库优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "达梦数据库优化：智能表名处理 + Docker 模式兼容 + Schema 支持 + Clob 类型优化";

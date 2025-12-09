@@ -16,6 +16,9 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 TiDB 优化配置（兼容 MySQL，支持 Hints/批量/悲观事务等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // TiDB 兼容 MySQL，不需要禁用 nvarchar
@@ -78,6 +81,9 @@ public class TidbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 TiDB 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 TiDB 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "TiDB 性能优化：MySQL 兼容 + Optimizer Hints + 悲观事务 + 批量导入 + 连接池管理";

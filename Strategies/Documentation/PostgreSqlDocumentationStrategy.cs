@@ -14,6 +14,9 @@ public class PostgreSqlDocumentationStrategy : DatabaseDocumentationStrategyBase
     {
     }
 
+    /// <summary>
+    /// 获取 PostgreSQL 外键信息（基于 pg_catalog）。
+    /// </summary>
     public override IEnumerable<ForeignKeyDocumentation> GetForeignKeys(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         const string sql = @"
@@ -61,6 +64,9 @@ WHERE con.contype = 'f'
         }
     }
 
+    /// <summary>
+    /// 获取 PostgreSQL 表统计信息（行数/数据/索引/总大小）。
+    /// </summary>
     public override TableStatistics? GetTableStatistics(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         const string sql = @"

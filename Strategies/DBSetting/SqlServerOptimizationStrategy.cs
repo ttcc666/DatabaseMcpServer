@@ -15,6 +15,9 @@ public class SqlServerOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 SQL Server 优化配置（NoLock/禁用 Nvarchar 等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 启用 NoLock 提高并发读取性能
@@ -39,6 +42,9 @@ public class SqlServerOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 SQL Server 性能优化配置（NoLock: {NoLock}）", settings.IsWithNoLockQuery);
     }
 
+    /// <summary>
+    /// 获取 SQL Server 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "SQL Server 性能优化：自动 NoLock + 连接池 + 可选禁用 nvarchar";

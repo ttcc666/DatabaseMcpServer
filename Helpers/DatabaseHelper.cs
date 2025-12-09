@@ -259,6 +259,9 @@ internal class DatabaseHelper : IDatabaseHelperService
         return rows;
     }
 
+    /// <summary>
+    /// 读取并编译 DDL 白名单正则表达式数组。
+    /// </summary>
     private static Regex[] LoadWhitelistPatterns()
     {
         var config = Environment.GetEnvironmentVariable("DB_DDL_WHITELIST");
@@ -267,12 +270,14 @@ internal class DatabaseHelper : IDatabaseHelperService
             return Array.Empty<Regex>();
         }
 
-        return config
+        return [.. config
             .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled))
-            .ToArray();
+            .Select(pattern => new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled))];
     }
 
+    /// <summary>
+    /// 判断给定 SQL 是否命中白名单。
+    /// </summary>
     private bool IsSqlWhitelisted(string sql)
     {
         if (_ddlWhitelistPatterns.Length == 0)
@@ -281,6 +286,9 @@ internal class DatabaseHelper : IDatabaseHelperService
         return _ddlWhitelistPatterns.Any(regex => regex.IsMatch(sql));
     }
 
+    /// <summary>
+    /// 截断 SQL 用于日志，避免日志过长。
+    /// </summary>
     private static string TruncateForLog(string sql)
     {
         const int maxLength = 200;

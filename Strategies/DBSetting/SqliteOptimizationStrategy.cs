@@ -16,6 +16,9 @@ public class SqliteOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 SQLite 优化配置（默认启用 CodeFirst 默认值/备注等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // SQLite CodeFirst 默认值支持（需要 SqlSugarCore 5.1.4.108-preview23+）
@@ -59,6 +62,9 @@ public class SqliteOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 SQLite 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 SQLite 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "SQLite 性能优化：共享缓存 + CodeFirst 增强 + 内存模式支持";

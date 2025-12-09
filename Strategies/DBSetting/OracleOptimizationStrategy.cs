@@ -15,6 +15,9 @@ public class OracleOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 Oracle 优化配置（表名大小写、自增、参数名长度等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // 默认转大写，可通过 JSON 配置覆盖
@@ -49,6 +52,9 @@ public class OracleOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 Oracle 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 Oracle 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "Oracle 性能优化：大连接池 + 智能表名处理 + 原生自增支持";

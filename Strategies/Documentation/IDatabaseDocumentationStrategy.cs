@@ -1,7 +1,7 @@
-using System.Reflection;
 using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
+using System.Reflection;
 
 namespace DatabaseMcpServer.Strategies;
 
@@ -10,11 +10,34 @@ namespace DatabaseMcpServer.Strategies;
 /// </summary>
 public interface IDatabaseDocumentationStrategy
 {
+    /// <summary>
+    /// 获取表的索引文档信息。
+    /// </summary>
     IEnumerable<IndexDocumentation> GetIndexes(ISqlSugarClient db, string tableName, IReadOnlyList<DbColumnInfo> columns, List<string> warnings);
+
+    /// <summary>
+    /// 获取表的外键文档信息。
+    /// </summary>
     IEnumerable<ForeignKeyDocumentation> GetForeignKeys(ISqlSugarClient db, string tableName, List<string> warnings);
+
+    /// <summary>
+    /// 获取表的统计/容量信息。
+    /// </summary>
     TableStatistics? GetTableStatistics(ISqlSugarClient db, string tableName, List<string> warnings);
+
+    /// <summary>
+    /// 获取表的 DDL 文本（如支持）。
+    /// </summary>
     string? GetTableDdl(ISqlSugarClient db, string tableName, List<string> warnings);
+
+    /// <summary>
+    /// 获取表的触发器列表。
+    /// </summary>
     IEnumerable<string> GetTriggers(ISqlSugarClient db, string tableName, List<string> warnings);
+
+    /// <summary>
+    /// 获取数据库视图文档信息。
+    /// </summary>
     IEnumerable<ViewDocumentation> GetViews(ISqlSugarClient db, List<string> warnings);
 }
 
@@ -30,6 +53,9 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         Logger = logger;
     }
 
+    /// <summary>
+    /// 默认从 SqlSugar 获取索引信息并合并重复项。
+    /// </summary>
     public virtual IEnumerable<IndexDocumentation> GetIndexes(ISqlSugarClient db, string tableName, IReadOnlyList<DbColumnInfo> columns, List<string> warnings)
     {
         try
@@ -46,24 +72,36 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         }
     }
 
+    /// <summary>
+    /// 默认不支持外键，记录警告并返回空。
+    /// </summary>
     public virtual IEnumerable<ForeignKeyDocumentation> GetForeignKeys(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         AddWarningOnce(warnings, $"数据库类型 {GetDbTypeName(db)} 暂不支持外键信息提取，已跳过。");
         return Enumerable.Empty<ForeignKeyDocumentation>();
     }
 
+    /// <summary>
+    /// 默认不支持统计信息，记录警告并返回 null。
+    /// </summary>
     public virtual TableStatistics? GetTableStatistics(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         AddWarningOnce(warnings, $"数据库类型 {GetDbTypeName(db)} 暂不支持统计/容量信息提取，已跳过。");
         return null;
     }
 
+    /// <summary>
+    /// 默认不支持 DDL 提取，记录警告并返回 null。
+    /// </summary>
     public virtual string? GetTableDdl(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         AddWarningOnce(warnings, $"数据库类型 {GetDbTypeName(db)} 暂不支持 DDL 摘要提取，已跳过。");
         return null;
     }
 
+    /// <summary>
+    /// 默认通过 SqlSugar 获取触发器列表。
+    /// </summary>
     public virtual IEnumerable<string> GetTriggers(ISqlSugarClient db, string tableName, List<string> warnings)
     {
         try
@@ -132,6 +170,9 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
             });
     }
 
+    /// <summary>
+    /// 将原始索引对象映射为标准索引文档模型。
+    /// </summary>
     protected static IndexDocumentation MapIndex(object index)
     {
         if (index is string nameString)
@@ -161,6 +202,9 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         };
     }
 
+    /// <summary>
+    /// 合并重复索引，补齐列信息并推断主键唯一性。
+    /// </summary>
     protected static IEnumerable<IndexDocumentation> MergeIndexes(IEnumerable<IndexDocumentation> indexes, IReadOnlyList<DbColumnInfo> columns)
     {
         var primaryKeyColumns = columns
@@ -195,6 +239,9 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
             });
     }
 
+    /// <summary>
+    /// 将原始视图对象映射为视图文档模型。
+    /// </summary>
     protected static ViewDocumentation MapView(object view)
     {
         var name = GetStringProperty(view, "Name")
@@ -209,11 +256,17 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         };
     }
 
+    /// <summary>
+    /// 获取当前连接的数据库类型名称。
+    /// </summary>
     protected static string GetDbTypeName(ISqlSugarClient db)
     {
         return db.CurrentConnectionConfig?.DbType.ToString() ?? "Unknown";
     }
 
+    /// <summary>
+    /// 去重添加警告消息。
+    /// </summary>
     protected static void AddWarningOnce(List<string> warnings, string message)
     {
         if (!warnings.Contains(message))
@@ -222,6 +275,9 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         }
     }
 
+    /// <summary>
+    /// 标准化索引列字段为列表。
+    /// </summary>
     private static List<string> NormalizeColumns(object? columnsRaw)
     {
         if (columnsRaw == null)
@@ -256,18 +312,27 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
             : new List<string> { single };
     }
 
+    /// <summary>
+    /// 判断索引名是否可能为主键。
+    /// </summary>
     private static bool IsPrimaryKeyName(string name)
     {
         return name.Equals("PRIMARY", StringComparison.OrdinalIgnoreCase)
                || name.StartsWith("PK", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 读取属性并转为字符串。
+    /// </summary>
     private static string? GetStringProperty(object instance, string propertyName)
     {
         var value = GetPropertyValue(instance, propertyName);
         return value?.ToString();
     }
 
+    /// <summary>
+    /// 读取属性并尝试转换为布尔值。
+    /// </summary>
     private static bool? GetBoolProperty(object instance, string propertyName)
     {
         var value = GetPropertyValue(instance, propertyName);
@@ -281,12 +346,18 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         };
     }
 
+    /// <summary>
+    /// 读取对象属性值（忽略大小写）。
+    /// </summary>
     private static object? GetPropertyValue(object instance, string propertyName)
     {
         var property = instance.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
         return property?.GetValue(instance);
     }
 
+    /// <summary>
+    /// 规范化外键规则文本。
+    /// </summary>
     private static string? NormalizeRule(string? rule)
     {
         if (string.IsNullOrWhiteSpace(rule))
@@ -306,6 +377,9 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
         };
     }
 
+    /// <summary>
+    /// 将空字符串转换为 null。
+    /// </summary>
     private static string? NullIfEmpty(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value;

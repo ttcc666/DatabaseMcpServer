@@ -15,6 +15,9 @@ public class GaussDbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger = logger;
     }
 
+    /// <summary>
+    /// 应用 GaussDB/OpenGauss 优化配置（驱动模式、Schema、类型映射、批量等）。
+    /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         // GaussDB/OpenGauss 数据库特定优化配置
@@ -98,6 +101,9 @@ public class GaussDbOptimizationStrategy : IDatabaseOptimizationStrategy
         _logger?.LogDebug("应用 GaussDB/OpenGauss 性能优化配置");
     }
 
+    /// <summary>
+    /// 获取 GaussDB/OpenGauss 优化策略描述。
+    /// </summary>
     public string GetDescription()
     {
         return "GaussDB/OpenGauss 优化：原生驱动支持 + Schema 管理 + 数据类型映射 + 批量操作优化";
