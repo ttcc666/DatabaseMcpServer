@@ -20,21 +20,24 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
     /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
-        // 达梦数据库特定优化配置
-
-        // 1. 表名大小写处理（默认转大写，可通过 JSON 配置覆盖）
+        // 默认配置：表名转大写、不禁用 nvarchar
         settings.IsAutoToUpper = true;
-
-        // 6. 禁用 nvarchar（达梦数据库默认使用 varchar）
         settings.DisableNvarchar = false;
 
-        if (optimizationSettings == null) return;
+        if (optimizationSettings == null)
+        {
+            _logger?.LogDebug("应用达梦默认性能优化配置（表名转大写，Nvarchar 启用）");
+            return;
+        }
+
+        var appliedOptions = new List<string>();
 
         // 检查是否使用小写表名
         if (optimizationSettings.TryGetValue("lowercaseTables", out var lowercaseTablesStr) &&
             bool.TryParse(lowercaseTablesStr, out var lowercaseTables))
         {
             settings.IsAutoToUpper = !lowercaseTables;
+            appliedOptions.Add($"lowercaseTables={lowercaseTables}");
             _logger?.LogDebug("达梦数据库使用小写表名: {LowerCase}", lowercaseTables);
         }
 
@@ -45,6 +48,7 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
             if (dockerMysqlMode)
             {
                 settings.DatabaseModel = DbType.MySql;
+                appliedOptions.Add("dockerMysqlMode=true");
                 _logger?.LogDebug("达梦数据库启用 MySQL 兼容模式（Docker）");
             }
         }
@@ -52,6 +56,7 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
         // 3. Schema 支持
         if (optimizationSettings.TryGetValue("schema", out var schemaName))
         {
+            appliedOptions.Add($"schema={schemaName}");
             _logger?.LogDebug("达梦数据库使用 Schema: {Schema}", schemaName);
             // Schema 通常在连接字符串中配置
         }
@@ -62,6 +67,7 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             if (clobOptimization)
             {
+                appliedOptions.Add("clobOptimization=true");
                 _logger?.LogInformation("达梦数据库 Clob 类型优化已启用：确保使用 SqlSugarCore.Dm 1.3.0+ 版本");
             }
         }
@@ -70,7 +76,13 @@ public class DmOptimizationStrategy : IDatabaseOptimizationStrategy
         if (optimizationSettings.TryGetValue("maxPoolSize", out var maxPoolSizeStr) &&
             int.TryParse(maxPoolSizeStr, out var maxPoolSize))
         {
+            appliedOptions.Add($"maxPoolSize={maxPoolSize}");
             _logger?.LogDebug("达梦数据库连接池大小: {PoolSize}", maxPoolSize);
+        }
+
+        if (appliedOptions.Count > 0)
+        {
+            _logger?.LogDebug("达梦优化配置选项: {Options}", string.Join(", ", appliedOptions));
         }
 
         _logger?.LogDebug("应用达梦数据库性能优化配置");

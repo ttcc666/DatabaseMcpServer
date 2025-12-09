@@ -1,6 +1,6 @@
 # 人大金仓数据库配置指南
 
-本文档详细说明人大金仓数据库（Kingbase / Kdbndp）的配置方法和性能优化策略。
+本文档详细说明人大金仓数据库（Kingbase / Kdbndp）的配置方法和性能优化策略，涵盖 R6 多模式（Oracle/MySQL/PostgreSQL/SqlServer）、表名大小写、游标/JSON/数组/Geometry、Schema、R3 兼容等要点。
 
 ---
 
@@ -21,7 +21,9 @@
       "isDefault": true,
       "optimizationSettings": {
         "mode": "Oracle",
-        "enableJson": true
+        "camelCase": false,
+        "enableJson": true,
+        "disableNvarchar": false
       }
     }
   ]
@@ -66,6 +68,7 @@
 | `Maximum Pool Size` | 最大连接数 | `100` | 防止连接耗尽 |
 | `Connection Timeout` | 连接超时（秒） | `30` | 避免长时间等待 |
 | `Command Timeout` | 命令超时（秒） | `30` | 避免长查询阻塞 |
+| `CursorAsDataRead` | 游标读取 | `true` | 游标参数（5.1.4.149+） |
 
 ### 可选参数
 
@@ -90,6 +93,7 @@ DatabaseMcpServer 自动为人大金仓应用以下优化：
 | Geometry 支持 | 支持 Geometry/Postgis | 地理信息系统 |
 | 数组类型 | 支持数组类型 | 复杂数据结构 |
 | 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
+| 可选禁用 Nvarchar | 兼容特殊模式/索引需求 | 避免参数类型影响索引 |
 
 ---
 
@@ -257,6 +261,23 @@ DatabaseMcpServer 自动为人大金仓应用以下优化：
 
 ---
 
+### disableNvarchar
+
+**说明**: 可选禁用 nvarchar 参数，适用于部分模式（如 MySQL/PostgreSQL 兼容）避免索引问题。
+
+**类型**: `boolean`
+
+**默认值**: `false`
+
+**示例**:
+```json
+"optimizationSettings": {
+  "disableNvarchar": true
+}
+```
+
+---
+
 ## 📝 完整配置示例
 
 ### Oracle 兼容模式（生产环境）
@@ -274,7 +295,8 @@ DatabaseMcpServer 自动为人大金仓应用以下优化：
         "mode": "Oracle",
         "enableCursor": true,
         "enableJson": true,
-        "maxPoolSize": 200
+        "maxPoolSize": 200,
+        "disableNvarchar": false
       }
     }
   ]
@@ -318,7 +340,8 @@ DatabaseMcpServer 自动为人大金仓应用以下优化：
         "mode": "PostgreSQL",
         "camelCase": true,
         "enableJson": true,
-        "enableArray": true
+        "enableArray": true,
+        "disableNvarchar": true
       }
     }
   ]
@@ -358,7 +381,8 @@ DatabaseMcpServer 自动为人大金仓应用以下优化：
       "description": "人大金仓 MySQL 模式测试环境",
       "isDefault": true,
       "optimizationSettings": {
-        "mode": "MySQL"
+        "mode": "MySQL",
+        "disableNvarchar": false
       }
     }
   ]
@@ -400,7 +424,8 @@ DatabaseMcpServer 自动为人大金仓应用以下优化：
       "optimizationSettings": {
         "mode": "PostgreSQL",
         "enableGeometry": true,
-        "enableJson": true
+        "enableJson": true,
+        "disableNvarchar": true
       }
     }
   ]
@@ -645,4 +670,4 @@ CREATE TABLE user_info (
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

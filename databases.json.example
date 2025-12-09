@@ -4,14 +4,19 @@
       "name": "mysql-main",
       "connectionString": "Server=localhost;Port=3306;Database=myapp;User=root;Password=123456;Charset=utf8mb4;AllowLoadLocalInfile=true;Min Pool Size=1;Max Pool Size=100;Allow User Variables=True;Pooling=true;",
       "dbType": "MySql",
-      "description": "MySQL 主库（性能优化：utf8mb4 字符集 + 连接池 + 批量导入支持）",
-      "isDefault": true
+      "description": "MySQL 主库（utf8mb4 + 连接池 + BulkCopy）",
+      "isDefault": true,
+      "optimizationSettings": {
+        "enableBulkCopy": "true",
+        "maxPoolSize": "100",
+        "charset": "utf8mb4"
+      }
     },
     {
       "name": "postgres-analytics",
       "connectionString": "Host=localhost;Port=5432;Database=analytics;Username=postgres;Password=123456;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=100;Timeout=30;Command Timeout=30;",
       "dbType": "PostgreSQL",
-      "description": "PostgreSQL 分析库（性能优化：连接池 + 表名规范 + ILike 支持）",
+      "description": "PostgreSQL 分析库（表名小写 + ILIKE）",
       "optimizationSettings": {
         "autoToLower": "true",
         "enableILike": "true",
@@ -22,26 +27,90 @@
       "name": "sqlserver-crm",
       "connectionString": "Server=localhost;Database=crm;User Id=sa;Password=123456;Encrypt=True;TrustServerCertificate=True;Min Pool Size=1;Max Pool Size=100;",
       "dbType": "SqlServer",
-      "description": "SQL Server CRM 库（性能优化：自动 NoLock + 连接池）",
+      "description": "SQL Server CRM（NoLock + 可禁用 nvarchar）",
       "optimizationSettings": {
-        "disableNvarchar": "true"
+        "disableNvarchar": "true",
+        "enableNoLock": "true",
+        "disableNoLockWithTran": "true"
       }
     },
     {
       "name": "oracle-erp",
       "connectionString": "Data Source=localhost/orcl;User ID=system;Password=oracle123;Pooling=true;Min Pool Size=5;Max Pool Size=150;",
       "dbType": "Oracle",
-      "description": "Oracle ERP 系统（性能优化：大连接池 + 原生自增支持）",
+      "description": "Oracle ERP（大连接池 + 自增）",
       "optimizationSettings": {
         "enableIdentity": "true",
-        "maxParamLength": "30"
+        "maxParamLength": "30",
+        "camelCase": "false"
+      }
+    },
+    {
+      "name": "sqlite-local",
+      "connectionString": "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;",
+      "dbType": "Sqlite",
+      "description": "SQLite 本地库（共享缓存 + CodeFirst 增强）",
+      "optimizationSettings": {
+        "enableDefaultValue": "true",
+        "enableDescription": "true",
+        "enableDropColumn": "true"
+      }
+    },
+    {
+      "name": "mongodb-doc",
+      "connectionString": "mongodb://root:123456@localhost:27017/mydb?authSource=admin",
+      "dbType": "MongoDb",
+      "description": "MongoDB 文档库（单表 CRUD/分页/简单联表）"
+    },
+    {
+      "name": "clickhouse-olap",
+      "connectionString": "Host=localhost;Port=8123;User=default;Password=;Database=default",
+      "dbType": "ClickHouse",
+      "description": "ClickHouse 分析库（列式/批量写入）",
+      "optimizationSettings": {
+        "maxPoolSize": "50"
+      }
+    },
+    {
+      "name": "tidb-bigdata",
+      "connectionString": "Server=localhost;Port=4000;Database=bigdata;User=root;Password=123456;Charset=utf8mb4;Pooling=true;Min Pool Size=1;Max Pool Size=50;",
+      "dbType": "Tidb",
+      "description": "TiDB 分布式数据库（Hints + 悲观事务可选）",
+      "optimizationSettings": {
+        "enableHints": "true",
+        "pessimisticTxn": "true",
+        "enableBulkCopy": "true",
+        "maxPoolSize": "50",
+        "disableNvarchar": "false"
+      }
+    },
+    {
+      "name": "oceanbase-mysql",
+      "connectionString": "Server=localhost;Port=2881;Database=test;User=root@sys;Password=password;Charset=utf8mb4;Pooling=true;",
+      "dbType": "OceanBase",
+      "description": "OceanBase MySQL 模式（租户隔离 + 可选禁用连接池）",
+      "optimizationSettings": {
+        "tenantMode": "mysql",
+        "enableHints": "true",
+        "disablePooling": "false",
+        "maxPoolSize": "100"
+      }
+    },
+    {
+      "name": "oceanbase-oracle",
+      "connectionString": "Driver={OceanBase ODBC 2.0 Driver};Server=172.19.9.9;Port=2883;Database=XIR_TRD;User=XIR_TRD@TENANT#CLUSTER:1650773680;Password=strong_pwd;Option=3;",
+      "dbType": "OceanBaseForOracle",
+      "description": "OceanBase Oracle 模式（ODBC + Oracle 兼容）",
+      "optimizationSettings": {
+        "camelCase": "false",
+        "enableIdentity": "true"
       }
     },
     {
       "name": "dm-finance",
       "connectionString": "Server=localhost;Port=5236;Database=finance;User=SYSDBA;Password=SYSDBA001;",
-      "dbType": "dm",
-      "description": "达梦数据库 - 财务系统（性能优化：Clob 优化 + Schema 隔离）",
+      "dbType": "Dm",
+      "description": "达梦数据库（Schema/Clob 优化）",
       "optimizationSettings": {
         "lowercaseTables": "false",
         "dockerMysqlMode": "false",
@@ -54,43 +123,122 @@
       "name": "kdbndp-crm",
       "connectionString": "Server=localhost;Port=54321;Database=crm;User=SYSTEM;Password=system123;",
       "dbType": "Kdbndp",
-      "description": "人大金仓 - CRM 系统（Oracle 兼容模式 + JSON 支持）",
+      "description": "人大金仓（Oracle 兼容 + JSON/数组/游标）",
       "optimizationSettings": {
         "mode": "Oracle",
         "camelCase": "false",
         "enableCursor": "true",
         "enableJson": "true",
-        "schema": "crm"
+        "enableArray": "true"
       }
     },
     {
       "name": "gaussdb-analytics",
-      "connectionString": "PORT=5432;DATABASE=analytics;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;",
+      "connectionString": "PORT=5432;DATABASE=analytics;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;No Reset On Close=true;",
       "dbType": "GaussDBNative",
-      "description": "GaussDB - 分析库（原生驱动 + 类型映射优化）",
+      "description": "GaussDB 原生驱动（类型映射 + 批量）",
       "optimizationSettings": {
         "nativeDriver": "true",
         "typeMapping": "true",
         "batchSize": "5000",
-        "maxPoolSize": "200"
+        "maxPoolSize": "200",
+        "noResetOnClose": "true"
       }
     },
     {
-      "name": "tidb-bigdata",
-      "connectionString": "Server=localhost;Port=4000;Database=bigdata;User=root;Password=123456;Charset=utf8mb4;Pooling=true;Min Pool Size=1;Max Pool Size=50;",
-      "dbType": "tidb",
-      "description": "TiDB 分布式数据库 - 大数据分析（性能优化：连接池配置）"
-    },
-    {
-      "name": "sqlite-local",
-      "connectionString": "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;",
-      "dbType": "Sqlite",
-      "description": "SQLite 本地数据库（性能优化：共享缓存 + CodeFirst 增强）",
+      "name": "opengauss-tenant",
+      "connectionString": "PORT=5432;DATABASE=tenant;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;No Reset On Close=true;",
+      "dbType": "OpenGauss",
+      "description": "OpenGauss 租户库（PG 兼容）",
       "optimizationSettings": {
-        "enableDefaultValue": "true",
-        "enableDescription": "true",
-        "enableDropColumn": "true"
+        "isOpenGauss": "true",
+        "noResetOnClose": "true",
+        "maxPoolSize": "100"
       }
+    },
+    {
+      "name": "polardb-app",
+      "connectionString": "Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;Pooling=false;",
+      "dbType": "PolarDB",
+      "description": "PolarDB MySQL 兼容（建议禁用连接池）",
+      "optimizationSettings": {
+        "disablePooling": "true",
+        "enableBulkCopy": "true",
+        "charset": "utf8mb4"
+      }
+    },
+    {
+      "name": "vastbase-report",
+      "connectionString": "PORT=5432;DATABASE=report;HOST=localhost;USER ID=postgres;PASSWORD=pass;No Reset On Close=true",
+      "dbType": "Vastbase",
+      "description": "Vastbase 报表库（PG 兼容）",
+      "optimizationSettings": {
+        "autoToLower": "true",
+        "noResetOnClose": "true",
+        "maxPoolSize": "100",
+        "disableNvarchar": "false"
+      }
+    },
+    {
+      "name": "highgo-app",
+      "connectionString": "Server=27.151.1.54;Port=5866;UId=design;Password=000;Database=design;searchpath=design;Pooling=false;",
+      "dbType": "HG",
+      "description": "瀚高数据库（建议 Pooling=false）",
+      "optimizationSettings": {
+        "autoToLower": "true",
+        "disablePooling": "true",
+        "maxPoolSize": "50"
+      }
+    },
+    {
+      "name": "goldendb-core",
+      "connectionString": "Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;Pooling=false;",
+      "dbType": "GoldenDB",
+      "description": "GoldenDB（MySQL 兼容，必须 Pooling=false）",
+      "optimizationSettings": {
+        "disablePooling": "true",
+        "maxPoolSize": "50"
+      }
+    },
+    {
+      "name": "gbase-core",
+      "connectionString": "Host=localhost;Service=19088;Server=gbase01;Database=testdb;Protocol=onsoctcp;Uid=gbasedbt;Pwd=GBase123;Db_locale=zh_CN.utf8;Client_locale=zh_CN.utf8",
+      "dbType": "GBase",
+      "description": "GBase 8s（ODBC 驱动）"
+    },
+    {
+      "name": "doris-olap",
+      "connectionString": "Server=localhost;Database=mydb;Uid=root;Pwd=123456;Pooling=false;",
+      "dbType": "Doris",
+      "description": "Doris OLAP（建议 Pooling=false）",
+      "optimizationSettings": {
+        "disablePooling": "true",
+        "disableNvarchar": "true"
+      }
+    },
+    {
+      "name": "tdengine-iot",
+      "connectionString": "Host=localhost;Port=6030;Username=root;Password=taosdata;Database=power",
+      "dbType": "TDengine",
+      "description": "TDengine 物联网库（ms/us/ns 精度，需 SDK）"
+    },
+    {
+      "name": "duckdb-local",
+      "connectionString": "DataSource=./duck.db",
+      "dbType": "DuckDB",
+      "description": "DuckDB 本地 OLAP（嵌入式）"
+    },
+    {
+      "name": "questdb-log",
+      "connectionString": "host=localhost;port=8812;username=admin;password=quest;database=qdb;ServerCompatibilityMode=NoTypeLoading;",
+      "dbType": "QuestDB",
+      "description": "QuestDB 时序库（追加写入 + 聚合）"
+    },
+    {
+      "name": "oscar-erp",
+      "connectionString": "Data Source=localhost;User Id=sysdba;Password=oscar;",
+      "dbType": "Oscar",
+      "description": "神通数据库（Oracle 兼容）"
     }
   ]
 }

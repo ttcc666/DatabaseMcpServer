@@ -1,6 +1,6 @@
 # MySQL / MariaDB / TiDB 数据库配置指南
 
-本文档详细说明 MySQL 系列数据库（MySQL、MariaDB、TiDB、PolarDB）的配置方法。
+本文档详细说明 MySQL 系列数据库（MySQL、MariaDB、TiDB、PolarDB 等兼容 MySQL 协议产品）的配置方法，并给出常见性能/兼容性选项（含禁用 Nvarchar）。
 
 ---
 
@@ -21,7 +21,8 @@
       "isDefault": true,
       "optimizationSettings": {
         "enableBulkCopy": "true",
-        "maxPoolSize": "100"
+        "maxPoolSize": "100",
+        "disableNvarchar": "false"
       }
     }
   ]
@@ -78,6 +79,9 @@
 | `Convert Zero Datetime` | 转换零日期 | `false` | 处理 `0000-00-00` 日期 |
 | `Allow Zero Datetime` | 允许零日期 | `false` | 兼容旧数据 |
 | `TreatTinyAsBoolean` | tinyint(1) 作为布尔 | `true` | 设为 `false` 保持数值 |
+| `AllowLoadLocalInfile` | BulkCopy 需要 | `false` | 批量导入开启 |
+| `Allow User Variables` | 用户变量 | `false` | 需要用户变量时开启 |
+| `Pooling` | 连接池开关 | `true` | 特殊服务器不兼容时可设 `false` |
 
 ---
 
@@ -124,6 +128,34 @@ DatabaseMcpServer 自动为 MySQL 应用以下优化：
 - `false`: 使用普通插入
 
 **注意**: 需要在连接字符串中添加 `AllowLoadLocalInfile=true`，并在服务器执行 `SET GLOBAL local_infile=1`
+
+---
+
+### disableNvarchar
+
+**说明**: 某些改造版 MySQL / 兼容库不支持 `N''` 语法，可选择禁用 Nvarchar 写入。
+
+**类型**: `boolean`
+
+**默认值**: `false`
+
+**示例**:
+```json
+{
+  "databases": [
+    {
+      "name": "mysql-main",
+      "optimizationSettings": {
+        "disableNvarchar": "true"
+      }
+    }
+  ]
+}
+```
+
+**效果**:
+- `true`: 禁用 `N''` 前缀，避免特殊服务器报错
+- `false`: 保持默认写入
 
 ---
 
@@ -263,7 +295,8 @@ DatabaseMcpServer 自动为 MySQL 应用以下优化：
         "maxPoolSize": "200",
         "charset": "utf8mb4",
         "enableSsl": "true",
-        "allowUserVariables": "true"
+        "allowUserVariables": "true",
+        "disableNvarchar": "false"
       }
     }
   ]
@@ -520,7 +553,7 @@ AllowLoadLocalInfile=true
 ### 3. 查询优化
 
 避免大数据量联表查询:
-- ✅ 使用导航查询 `Includes`
+- ✅ 使用导航查询 `Includes`（拆分算法，减少联表 Count/分页开销）
 - ✅ 分页查询
 - ❌ 避免 `SELECT *`
 - ❌ 避免大表联表 Count
@@ -537,7 +570,9 @@ AllowLoadLocalInfile=true
 | MariaDB | `MySql` | MySQL 分支 |
 | TiDB | `tidb` | 分布式数据库 |
 | PolarDB | `polardb` | 阿里云数据库 |
+| Percona / Aurora / Azure MySQL / GCP MySQL | `MySql` | 云上 MySQL 兼容 |
+| 部分定制 MySQL (需禁用 Nvarchar 时) | `MySql` | 配合 `disableNvarchar` |
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

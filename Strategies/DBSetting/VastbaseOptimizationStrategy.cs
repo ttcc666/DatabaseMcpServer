@@ -22,6 +22,8 @@ public class VastbaseOptimizationStrategy : IDatabaseOptimizationStrategy
     {
         // 默认表名转小写，贴合 PG 生态
         settings.PgSqlIsAutoToLower = true;
+        // 默认不禁用 nvarchar，可按需关闭
+        settings.DisableNvarchar = false;
 
         if (optimizationSettings == null)
         {
@@ -38,6 +40,15 @@ public class VastbaseOptimizationStrategy : IDatabaseOptimizationStrategy
             settings.PgSqlIsAutoToLower = autoToLower;
             _logger?.LogDebug("Vastbase 表名自动转小写: {Enabled}", autoToLower);
             applied.Add($"autoToLower={autoToLower}");
+        }
+
+        // 可选禁用 nvarchar（少数版本需要）
+        if (optimizationSettings.TryGetValue("disableNvarchar", out var disableNvarcharStr) &&
+            bool.TryParse(disableNvarcharStr, out var disableNvarchar))
+        {
+            settings.DisableNvarchar = disableNvarchar;
+            _logger?.LogDebug("Vastbase 禁用 Nvarchar: {Disabled}", disableNvarchar);
+            applied.Add($"disableNvarchar={disableNvarchar}");
         }
 
         if (optimizationSettings.TryGetValue("maxPoolSize", out var maxPoolSizeStr) &&

@@ -15,6 +15,7 @@
 | **Oracle** | [Oracle.md](./Oracle.md) | Oracle 数据库配置指南 |
 | **PostgreSQL** | [PostgreSQL.md](./PostgreSQL.md) | PostgreSQL 数据库配置指南 |
 | **SQLite** | [SQLite.md](./SQLite.md) | SQLite 数据库配置指南 |
+| **MongoDB** | [MongoDB.md](./MongoDB.md) | 文档型数据库 |
 
 ### 🇨🇳 国产数据库
 
@@ -27,6 +28,8 @@
 | **瀚高数据库** | [HighGo.md](./HighGo.md) | 瀚高数据库（PG 衍生） |
 | **Vastbase** | [Vastbase.md](./Vastbase.md) | PostgreSQL 衍生，建议 `No Reset On Close=true` |
 | **GoldenDB** | [GoldenDB.md](./GoldenDB.md) | MySQL 兼容，推荐禁用连接池 |
+| **GBase 8s** | [GBase.md](./GBase.md) | 南大通用，ODBC 驱动 |
+| **PolarDB** | [PolarDB.md](./PolarDB.md) | MySQL 兼容 |
 
 ### ☁️ 分布式数据库
 
@@ -34,22 +37,20 @@
 |--------|------|------|
 | **OceanBase** | [OceanBase.md](./OceanBase.md) | MySQL/Oracle 双模式，租户隔离 |
 | **TiDB** | [TiDB.md](./TiDB.md) | MySQL 兼容分布式数据库 |
-| **PolarDB** | [PolarDB.md](./PolarDB.md) | MySQL 兼容分布式库 |
 
 ### 📊 分析型数据库
 
 | 数据库 | 文档 | 说明 |
 |--------|------|------|
 | **ClickHouse** | [ClickHouse.md](./ClickHouse.md) | 列式/分析型数据库 |
-| **MongoDB** | [MongoDB.md](./MongoDB.md) | 文档型数据库 |
+| **QuestDB** | [QuestDb.md](./QuestDb.md) | 时序数据库，追加写入 + 聚合场景 |
+| **DuckDB** | [DuckDB.md](./DuckDB.md) | 嵌入式列式 OLAP |
+| **TDengine** | [TDengine.md](./TDengine.md) | 时序库，ms/us/ns 精度 |
 
 ### 🏢 企业级数据库
 
 | 数据库 | 文档 | 说明 |
 |--------|------|------|
-| **DB2** | [DB2.md](./DB2.md) | IBM DB2 连接指南 |
-| **Hana** | [Hana.md](./Hana.md) | SAP HANA 连接指南 |
-
 ---
 
 ## 🔧 配置方式

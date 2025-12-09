@@ -20,7 +20,7 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
     /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
-        // 人大金仓数据库特定优化配置
+        var appliedOptions = new List<string>();
 
         // 1. 数据库模式配置（Oracle/MySQL/PostgreSQL/SqlServer）
         // 默认使用 Oracle 模式，可通过 JSON 配置覆盖
@@ -31,23 +31,27 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
                 case "ORACLE":
                     settings.DatabaseModel = DbType.Oracle;
                     settings.IsAutoToUpper = true; // Oracle 模式默认转大写
+                    appliedOptions.Add("mode=Oracle");
                     _logger?.LogDebug("人大金仓使用 Oracle 兼容模式");
                     break;
 
                 case "MYSQL":
                     settings.DatabaseModel = DbType.MySql;
                     settings.DisableNvarchar = false;
+                    appliedOptions.Add("mode=MySql");
                     _logger?.LogDebug("人大金仓使用 MySQL 兼容模式");
                     break;
 
                 case "POSTGRESQL":
                     settings.DatabaseModel = DbType.PostgreSQL;
                     settings.DisableNvarchar = true;
+                    appliedOptions.Add("mode=PostgreSQL");
                     _logger?.LogDebug("人大金仓使用 PostgreSQL 兼容模式");
                     break;
 
                 case "SQLSERVER":
                     settings.DatabaseModel = DbType.SqlServer;
+                    appliedOptions.Add("mode=SqlServer");
                     _logger?.LogDebug("人大金仓使用 SQL Server 兼容模式");
                     break;
 
@@ -64,14 +68,28 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
             _logger?.LogDebug("人大金仓使用默认 Oracle 兼容模式");
         }
 
-        if (optimizationSettings == null) return;
+        if (optimizationSettings == null)
+        {
+            _logger?.LogDebug("应用人大金仓默认性能优化配置（Oracle 模式，表名转大写）");
+            return;
+        }
 
         // 2. 表名大小写处理
         if (optimizationSettings.TryGetValue("camelCase", out var camelCaseStr) &&
             bool.TryParse(camelCaseStr, out var camelCase))
         {
             settings.IsAutoToUpper = !camelCase;
+            appliedOptions.Add($"camelCase={camelCase}");
             _logger?.LogDebug("人大金仓使用驼峰表名: {CamelCase}", camelCase);
+        }
+
+        // 可选禁用 nvarchar
+        if (optimizationSettings.TryGetValue("disableNvarchar", out var disableNvarcharStr) &&
+            bool.TryParse(disableNvarcharStr, out var disableNvarchar))
+        {
+            settings.DisableNvarchar = disableNvarchar;
+            appliedOptions.Add($"disableNvarchar={disableNvarchar}");
+            _logger?.LogDebug("人大金仓禁用 Nvarchar: {Disabled}", disableNvarchar);
         }
 
         // 3. 游标参数支持
@@ -80,6 +98,7 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             if (enableCursor)
             {
+                appliedOptions.Add("enableCursor=true");
                 _logger?.LogInformation("人大金仓游标参数支持已启用");
             }
         }
@@ -90,6 +109,7 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             if (enableJson)
             {
+                appliedOptions.Add("enableJson=true");
                 _logger?.LogInformation("人大金仓 JSON 类型支持已启用");
             }
         }
@@ -100,6 +120,7 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             if (enableGeometry)
             {
+                appliedOptions.Add("enableGeometry=true");
                 _logger?.LogInformation("人大金仓 Geometry/Postgis 支持已启用");
             }
         }
@@ -110,6 +131,7 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             if (enableArray)
             {
+                appliedOptions.Add("enableArray=true");
                 _logger?.LogInformation("人大金仓数组类型支持已启用");
             }
         }
@@ -118,13 +140,20 @@ public class KdbndpOptimizationStrategy : IDatabaseOptimizationStrategy
         if (optimizationSettings.TryGetValue("maxPoolSize", out var maxPoolSizeStr) &&
             int.TryParse(maxPoolSizeStr, out var maxPoolSize))
         {
+            appliedOptions.Add($"maxPoolSize={maxPoolSize}");
             _logger?.LogDebug("人大金仓连接池大小: {PoolSize}", maxPoolSize);
         }
 
         // 8. Schema 支持
         if (optimizationSettings.TryGetValue("schema", out var schemaName))
         {
+            appliedOptions.Add($"schema={schemaName}");
             _logger?.LogDebug("人大金仓使用 Schema: {Schema}", schemaName);
+        }
+
+        if (appliedOptions.Count > 0)
+        {
+            _logger?.LogDebug("人大金仓优化配置选项: {Options}", string.Join(", ", appliedOptions));
         }
 
         _logger?.LogDebug("应用人大金仓数据库性能优化配置");

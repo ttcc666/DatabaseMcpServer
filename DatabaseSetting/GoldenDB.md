@@ -51,6 +51,18 @@ GoldenDB 兼容 MySQL 协议，但官方建议禁用连接池（`Pooling=false`�
 - 若未显式设置 `disablePooling=true`，策略会发出警告，提醒在连接字符串关闭连接池。
 - 记录 `maxPoolSize` 便于日志与调优。
 
+### 客户端示例（必须禁用连接池）
+
+```csharp
+var db = new SqlSugarClient(new ConnectionConfig
+{
+    DbType = DbType.GoldenDB,
+    ConnectionString = "Server=localhost;Database=SqlSugar4xTest;Uid=root;Pwd=haosql;Pooling=false;",
+    IsAutoCloseConnection = true
+    // 特殊环境如需禁用 Nvarchar，可在 optimizationSettings 配置 disableNvarchar
+});
+```
+
 ---
 
 ## 📦 依赖要求
@@ -76,3 +88,4 @@ GoldenDB 兼容 MySQL 协议，但官方建议禁用连接池（`Pooling=false`�
 ---
 
 **最后更新**: 2025-12-08
+**最后更新**: 2025-12-10

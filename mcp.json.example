@@ -78,11 +78,26 @@
     "PostgreSQL": "Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;",
     "Oracle": "Data Source=localhost/orcl;User ID=system;Password=oracle123;",
     "SQLite": "Data Source=mydb.db;",
+    "MongoDB": "mongodb://root:123456@localhost:27017/mydb?authSource=admin",
+    "TiDB": "Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;Pooling=true;",
+    "OceanBase (MySQL)": "Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;",
+    "OceanBase (Oracle)": "Driver={OceanBase ODBC 2.0 Driver};Server=172.19.9.9;Port=2883;Database=TRD;User=USER@TENANT#CLUSTER:xxx;Password=123456;Option=3;",
+    "QuestDB": "host=localhost;port=8812;username=admin;password=quest;database=qdb;ServerCompatibilityMode=NoTypeLoading;",
+    "TDengine": "Host=localhost;Port=6030;Username=root;Password=taosdata;Database=power",
+    "DuckDB": "DataSource=train_services.db",
+    "Doris": "Server=localhost;Database=mydb;Uid=root;Pwd=123456;Pooling=false;",
+    "ClickHouse": "Host=localhost;Port=8123;User=default;Password=;Database=default",
+    "GBase 8s": "Host=localhost;Service=19088;Server=gbase01;Database=testdb;Protocol=onsoctcp;Uid=gbasedbt;Pwd=GBase123;Db_locale=zh_CN.utf8;Client_locale=zh_CN.utf8",
+    "PolarDB": "Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;Pooling=false;",
+    "GaussDB/OpenGauss": "PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;No Reset On Close=true;",
     "达梦数据库": "Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;",
     "人大金仓": "Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;",
-    "GaussDB": "PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;",
-    "TiDB": "Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;",
-    "OceanBase": "Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;",
+    "瀚高数据库": "Server=27.151.1.54;Port=5866;UId=design;Password=000;Database=design;searchpath=design;Pooling=false;",
+    "Vastbase": "PORT=5432;DATABASE=demo;HOST=localhost;USER ID=postgres;PASSWORD=pass;No Reset On Close=true",
+    "GoldenDB": "Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;Pooling=false;",
+    "Oscar": "Data Source=localhost;User Id=sysdba;Password=oscar;",
+    "Kdbndp (KingbaseES)": "Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;",
+    "GBase": "Host=localhost;Service=19088;Server=gbase01;Database=testdb;Protocol=onsoctcp;Uid=gbasedbt;Pwd=GBase123;Db_locale=zh_CN.utf8;Client_locale=zh_CN.utf8",
     "详细配置": "请参考 DatabaseSetting/ 目录下的各数据库配置文档"
   },
 
@@ -95,29 +110,45 @@
 
   "// 优化配置选项 (optimizationSettings)": {
     "说明": "从 2.0.0 版本开始，所有数据库特定优化配置都在 databases.json 的 optimizationSettings 中设置",
-    "MySQL": {
-      "enableBulkCopy": "启用批量导入优化",
+    "MySQL/兼容 (MySql/Tidb/PolarDB/Doris/GBase/GoldenDB/OceanBase-MySQL)": {
+      "enableBulkCopy": "启用批量导入优化（需 AllowLoadLocalInfile=true）",
       "maxPoolSize": "连接池最大连接数",
-      "charset": "字符集配置"
+      "charset": "字符集配置",
+      "disableNvarchar": "少数兼容场景禁用 N'' 前缀",
+      "disablePooling": "特殊网络/兼容问题时设为 true（Pooling=false）"
     },
     "SQL Server": {
-      "disableNvarchar": "禁用 nvarchar（性能优化）"
+      "disableNvarchar": "禁用 nvarchar（性能优化）",
+      "enableNoLock": "自动 WITH(NOLOCK)",
+      "disableNoLockWithTran": "事务内禁用 NoLock"
     },
-    "PostgreSQL": {
+    "PostgreSQL/兼容 (PostgreSQL/Vastbase/HighGo/Kdbndp-PG/ GaussDB/OpenGauss)": {
       "autoToLower": "自动转小写表名",
-      "enableILike": "启用 ILIKE 支持"
+      "enableILike": "启用 ILIKE 支持",
+      "identityStrategy": "Serial 或 Identity",
+      "noResetOnClose": "建议 true (No Reset On Close=true)"
     },
-    "Oracle": {
+    "Oracle/OceanBase-Oracle": {
       "camelCase": "使用驼峰表名",
       "enableIdentity": "启用原生自增",
-      "maxParamLength": "参数名最大长度"
+      "maxParamLength": "参数名最大长度",
+      "disableNvarchar": "特殊字符/索引问题时可禁用"
     },
     "SQLite": {
       "enableDefaultValue": "启用默认值支持",
       "enableDescription": "启用描述支持",
       "enableDropColumn": "启用删除列支持"
     },
-    "详细配置": "请参考 DatabaseSetting/ 目录下的各数据库配置文档"
+    "ClickHouse": {
+      "maxPoolSize": "连接池提示（非事务）"
+    },
+    "TDengine/DuckDB/QuestDB": {
+      "说明": "主要依赖驱动/连接串，无额外可调项"
+    },
+    "MongoDB": {
+      "说明": "无导航/子查询，支持 CRUD/分页/简单联表/事务（副本集）"
+    },
+    "其他": "请参考 DatabaseSetting/ 目录下的各数据库配置文档"
   },
 
   "// 使用说明": {

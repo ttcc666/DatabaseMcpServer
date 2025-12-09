@@ -1,6 +1,6 @@
 # SQLite 数据库配置指南
 
-本文档详细说明 SQLite 数据库的配置方法。
+本文档详细说明 SQLite 数据库的配置方法，涵盖路径/加密/缓存模式、CodeFirst 增强及并发注意事项。
 
 ---
 
@@ -80,6 +80,9 @@ var connStr = $"Data Source={dbPath}";
 |------|------|--------|---------|
 | `Cache` | 缓存模式 | `Shared` | 多连接性能提升 **30-50%** |
 | `Mode` | 打开模式 | `ReadWriteCreate` | 自动创建数据库 |
+| `Journal Mode` | 日志模式 | `WAL` | 读写并发性能提升 |
+| `Synchronous` | 同步模式 | `Normal` | 性能/安全平衡 |
+| `Foreign Keys` | 外键约束 | `true` | 数据完整性 |
 
 ### 可选参数
 
@@ -102,6 +105,7 @@ DatabaseMcpServer 自动为 SQLite 应用以下优化：
 | **CodeFirst 备注** | 支持字段备注 | 文档化提升 |
 | **CodeFirst 删除列** | 支持删除列（.NET Core） | DDL 完整性 |
 | 共享缓存 | 多连接共享缓存 | 性能提升 30-50% |
+| 可选 WAL/同步模式 | 连接串配置 | 读写并发提升 |
 
 ---
 
@@ -391,7 +395,7 @@ public class User
 
 **要求**: 安装 `SQLitePCLRaw.bundle_e_sqlcipher`
 
-**性能**: 加密打开较慢，建议使用单例模式
+**性能**: 加密打开较慢，建议使用单例模式（`IsAutoCloseConnection=false`）+ `lock(db)` 保证线程安全
 
 ---
 
@@ -437,6 +441,12 @@ await db.CopyNew().Updateable<Order>()
     .SetColumns(o => o.Name == "2")
     .Where(o => o.Id == 1)
     .ExecuteCommandAsync();
+
+// 加密场景（打开慢，不推荐高并发）
+lock(dbInstance)
+{
+    dbInstance.Insertable(data).ExecuteCommand();
+}
 ```
 
 ### 问题 3: 文件占用无法删除
@@ -576,6 +586,7 @@ public static SqlSugarClient GetInstance()
     return _instance;
 }
 ```
+> 加密打开慢，建议 `IsAutoCloseConnection=false`，并在并发时用 `lock` 保护。
 
 ### 备份数据库
 
@@ -590,3 +601,4 @@ db.DbMaintenance.BackupDataBase(null, "backup.db");
 ---
 
 **最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

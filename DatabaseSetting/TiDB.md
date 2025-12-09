@@ -290,6 +290,29 @@ catch
 
 ---
 
+## 🔧 其他可选参数
+
+### disableNvarchar
+
+**说明**: 少数兼容场景不支持 `N''` 前缀时可禁用 Nvarchar。
+
+**类型**: `boolean`
+
+**默认值**: `false`
+
+**示例**:
+```json
+{
+  "optimizationSettings": {
+    "disableNvarchar": "true"
+  }
+}
+```
+
+**使用场景**: 遇到 `N''` 语法或索引问题时开启。
+
+---
+
 ## 🔗 相关资源
 
 - [TiDB 官方文档](https://docs.pingcap.com/zh/tidb/stable)

@@ -10,7 +10,7 @@
 
 ## ✨ 核心特性
 
-- 🗄️ **多数据库支持** - 覆盖 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA + 达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）
+- 🗄️ **多数据库支持** - 覆盖 17 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase + 达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）
 - 🔄 **单实例多数据库** - 一个 MCP Server 实例可配置和动态切换多个数据库连接
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优
@@ -34,8 +34,8 @@
 - **ClickHouse**
 - **TiDB**
 - **OceanBase**
-- **IBM DB2**
-- **SAP HANA**
+- ~~IBM DB2~~（已移除）
+- ~~SAP HANA~~（已移除）
 
 ### 🇨🇳 国产化/信创
 - **达梦数据库** (dm)
@@ -270,8 +270,6 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 - [ClickHouse 配置指南](DatabaseSetting/ClickHouse.md)
 - [TiDB 配置指南](DatabaseSetting/TiDB.md)
 - [OceanBase 配置指南](DatabaseSetting/OceanBase.md)
-- [DB2 配置指南](DatabaseSetting/DB2.md)
-- [SAP HANA 配置指南](DatabaseSetting/Hana.md)
 - [达梦数据库配置指南](DatabaseSetting/DM.md)
 - [人大金仓配置指南](DatabaseSetting/Kdbndp.md)
 - [GaussDB 配置指南](DatabaseSetting/GaussDB.md)
@@ -377,13 +375,16 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 | **ClickHouse** | `Host=localhost;Port=8123;User=default;Password=;Database=default;` | [ClickHouse.md](DatabaseSetting/ClickHouse.md) |
 | **TiDB** | `Server=localhost;Port=4000;Database=mydb;User=root;Password=123456;` | [TiDB.md](DatabaseSetting/TiDB.md) |
 | **OceanBase** | `Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;` | [OceanBase.md](DatabaseSetting/OceanBase.md) |
-| **IBM DB2** | `Server=localhost:50000;Database=mydb;UID=db2;PWD=123456;` | [DB2.md](DatabaseSetting/DB2.md) |
-| **SAP HANA** | `ServerNode=localhost:39015;UserID=SYSTEM;Password=hana123;` | [Hana.md](DatabaseSetting/Hana.md) |
+| **OceanBase (Oracle 模式)** | `Driver={OceanBase ODBC 2.0 Driver};Server=172.19.9.9;Port=2883;Database=TRD;User=USER@TENANT#CLUSTER:1650773680;Password=123456;Option=3;` | [OceanBase.md](DatabaseSetting/OceanBase.md) |
+| **QuestDB** | `host=localhost;port=8812;username=admin;password=quest;database=qdb;ServerCompatibilityMode=NoTypeLoading;` | [QuestDb.md](DatabaseSetting/QuestDb.md) |
+| **DuckDB** | `DataSource=train_services.db` | [DuckDB.md](DatabaseSetting/DuckDB.md) |
 | **达梦数据库** | `Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;` | [DM.md](DatabaseSetting/DM.md) |
 | **人大金仓** | `Server=localhost;Port=54321;Database=mydb;User=SYSTEM;Password=system123;` | [Kdbndp.md](DatabaseSetting/Kdbndp.md) |
+| **GBase 8s** | `Host=localhost;Service=19088;Server=gbase01;Database=testdb;Protocol=onsoctcp;Uid=gbasedbt;Pwd=GBase123;Db_locale=zh_CN.utf8;Client_locale=zh_CN.utf8` | [GBase.md](DatabaseSetting/GBase.md) |
 | **GaussDB / OpenGauss** | `PORT=5432;DATABASE=mydb;HOST=localhost;PASSWORD=Gauss@123;USER ID=gaussdb;` | [GaussDB.md](DatabaseSetting/GaussDB.md) |
 | **PolarDB** | `Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;` | [PolarDB.md](DatabaseSetting/PolarDB.md) |
 | **Vastbase** | `Host=localhost;Port=5432;Database=mydb;Username=vastbase;Password=123456;` | [Vastbase.md](DatabaseSetting/Vastbase.md) |
+| **TDengine** | `Host=localhost;Port=6030;Username=root;Password=taosdata;Database=power` | [TDengine.md](DatabaseSetting/TDengine.md) |
 | **瀚高数据库** | `Server=localhost;Port=5866;Database=mydb;Uid=highgo;Pwd=123456;` | [HighGo.md](DatabaseSetting/HighGo.md) |
 | **神通数据库** | `Data Source=localhost;User Id=sysdba;Password=oracle;` | [Oscar.md](DatabaseSetting/Oscar.md) |
 | **GoldenDB** | `Server=localhost;Port=1888;Database=mydb;Uid=golden;Pwd=123456;` | [GoldenDB.md](DatabaseSetting/GoldenDB.md) |

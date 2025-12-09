@@ -1,6 +1,6 @@
 # Oracle 数据库配置指南
 
-本文档详细说明 Oracle 数据库的配置方法。
+本文档详细说明 Oracle 数据库的配置方法，并补充新版驱动（5.1.4.197+ 真异步）与表名大小写、原生自增、Nvarchar 兼容等注意事项。
 
 ---
 
@@ -22,7 +22,8 @@
       "optimizationSettings": {
         "camelCase": "false",
         "enableIdentity": "true",
-        "maxParamLength": "30"
+        "maxParamLength": "30",
+        "disableNvarchar": "false"
       }
     }
   ]
@@ -79,6 +80,11 @@ Data Source=(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=150.158.57.1
 
 **重要**: Oracle 连接建立开销大，连接池是**必需**的，否则性能极差。
 
+### 驱动/版本提示
+
+- **真异步驱动**: 5.1.4.197+ 引入最新 Oracle 驱动，支持真异步；请确保线程安全，推荐使用 `SqlSugarScope` 单例。
+- **连接串格式**: 简单格式和完整描述符均可；简单格式连不上可尝试完整描述符。
+
 ### 可选参数
 
 | 参数 | 说明 | 默认值 | 使用场景 |
@@ -99,6 +105,7 @@ DatabaseMcpServer 自动为 Oracle 应用以下优化：
 | 表名大小写处理 | 智能转换 | 避免表名找不到 |
 | 原生自增支持 | Oracle 12C+ | 简化自增列使用 |
 | 参数名长度限制 | Oracle 11 | 避免参数名过长错误 |
+| 可选禁用 nvarchar | 通过 `disableNvarchar` 配置 | 兼容特殊字符/索引需求 |
 
 ---
 
@@ -234,6 +241,34 @@ ORA-01745: invalid host/bind variable name
 ```
 
 **原因**: Oracle 11 参数名限制 30 字符
+
+---
+
+### disableNvarchar
+
+**说明**: 可选禁用 nvarchar 参数，适用于个别字符/索引兼容场景。
+
+**类型**: `boolean`
+
+**默认值**: `false`
+
+**示例**:
+```json
+{
+  "databases": [
+    {
+      "name": "oracle-main",
+      "optimizationSettings": {
+        "disableNvarchar": "true"
+      }
+    }
+  ]
+}
+```
+
+**效果**:
+- `true`: 使用 varchar 参数，规避部分特殊字符/索引问题
+- `false`: 默认使用 nvarchar
 
 ---
 
@@ -531,4 +566,4 @@ db.Ado.ExecuteCommand("EXEC sp_name @cursor", param);
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

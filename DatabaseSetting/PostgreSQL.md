@@ -1,6 +1,6 @@
 # PostgreSQL 数据库配置指南
 
-本文档详细说明 PostgreSQL 数据库的配置方法。
+本文档详细说明 PostgreSQL 数据库的配置方法，包含大小写规范、ILike、Schema、数组/JSON/PostGIS、自增策略等实战要点。
 
 ---
 
@@ -21,6 +21,7 @@
       "isDefault": true,
       "optimizationSettings": {
         "autoToLower": "true",
+        "autoToLowerCodeFirst": "true",
         "enableILike": "true",
         "identityStrategy": "Serial"
       }
@@ -67,6 +68,8 @@
 | `Maximum Pool Size` | 最大连接数 | `100` | 防止连接耗尽 |
 | `Timeout` | 连接超时（秒） | `30` | 避免长时间等待 |
 | `Command Timeout` | 命令超时（秒） | `30` | 避免长查询阻塞 |
+| `Search Path` | 架构搜索路径 | `public` | 多 schema: `app,public` |
+| `MaxPoolSize` | 连接池大小（兼容写法） | - | 也可用 `Maximum Pool Size` |
 
 ### 可选参数
 
@@ -76,6 +79,7 @@
 | `Search Path` | 架构搜索路径 | `public` | 多 schema：`schema1,schema2` |
 | `Application Name` | 应用程序名称 | - | 便于监控和调试 |
 | `Keepalive` | 保持连接活跃（秒） | `0` | 长连接：`60` |
+| `MaxPoolSize` | 连接池大小 | - | 驱动兼容写法，等同 Maximum Pool Size |
 
 ---
 
@@ -86,6 +90,7 @@ DatabaseMcpServer 自动为 PostgreSQL 应用以下优化：
 | 优化项 | 说明 | 效果 |
 |--------|------|------|
 | **表名自动转小写** | 规范化表名 | 避免大小写问题 |
+| **CodeFirst 表名自动转小写** | 可独立控制 | 便于迁移旧库 |
 | ILike 支持 | 不区分大小写查询 | 查询灵活性提升 |
 | 自增策略 | Serial/Identity 可选 | 兼容不同版本 |
 | 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
@@ -98,7 +103,7 @@ DatabaseMcpServer 自动为 PostgreSQL 应用以下优化：
 
 ### autoToLower
 
-**说明**: 表名自动转小写（规范化）
+**说明**: 查询/操作时表名自动转小写（规范化）
 
 **类型**: `boolean`
 
@@ -220,6 +225,34 @@ CREATE TABLE users (
 
 ---
 
+### autoToLowerCodeFirst
+
+**说明**: CodeFirst 时表名自动转小写（与查询分开控制）。
+
+**类型**: `boolean`
+
+**默认值**: `false`（继承驱动默认行为）
+
+**示例**:
+```json
+{
+  "databases": [
+    {
+      "name": "postgres-main",
+      "optimizationSettings": {
+        "autoToLowerCodeFirst": "true"
+      }
+    }
+  ]
+}
+```
+
+**使用场景**:
+- 旧库保留大小写：`autoToLower=true`，`autoToLowerCodeFirst=false`
+- 新库全规范化：两者都设为 `true`（推荐）
+
+---
+
 ## 📝 完整配置示例
 
 ### 生产环境配置
@@ -235,6 +268,7 @@ CREATE TABLE users (
       "isDefault": true,
       "optimizationSettings": {
         "autoToLower": "true",
+        "autoToLowerCodeFirst": "true",
         "enableILike": "true",
         "identityStrategy": "Identity"
       }
@@ -277,7 +311,8 @@ CREATE TABLE users (
       "description": "PostgreSQL 开发环境",
       "isDefault": true,
       "optimizationSettings": {
-        "autoToLower": "true"
+        "autoToLower": "true",
+        "autoToLowerCodeFirst": "true"
       }
     }
   ]
@@ -318,6 +353,7 @@ CREATE TABLE users (
       "isDefault": true,
       "optimizationSettings": {
         "autoToLower": "true",
+        "autoToLowerCodeFirst": "true",
         "enableILike": "true"
       }
     }
@@ -515,4 +551,4 @@ public Point Location { get; set; }
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

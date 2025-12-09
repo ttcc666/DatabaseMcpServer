@@ -34,6 +34,7 @@ public class DatabaseOptimizationStrategyFactory
 
             // Oracle
             [DbType.Oracle] = () => new OracleOptimizationStrategy(_logger),
+            [DbType.OceanBaseForOracle] = () => new OracleOptimizationStrategy(_logger),
 
             // PostgreSQL
             [DbType.PostgreSQL] = () => new PostgreSqlOptimizationStrategy(_logger),
@@ -52,15 +53,18 @@ public class DatabaseOptimizationStrategyFactory
             // 分布式数据库
             [DbType.OceanBase] = () => new OceanBaseOptimizationStrategy(_logger),
             [DbType.Tidb] = () => new TidbOptimizationStrategy(_logger),
-            [DbType.PolarDB] = () => new MySqlOptimizationStrategy(_logger), // PolarDB 兼容 MySQL
+            [DbType.PolarDB] = () => new PolarDbOptimizationStrategy(_logger),
 
             // 时序数据库
             [DbType.ClickHouse] = () => new ClickHouseOptimizationStrategy(_logger),
 
             // 其他数据库
-            [DbType.HANA] = () => new HanaOptimizationStrategy(_logger),
-            [DbType.DB2] = () => new Db2OptimizationStrategy(_logger),
             [DbType.MongoDb] = () => new MongoDbOptimizationStrategy(_logger),
+            [DbType.QuestDB] = () => new QuestDbOptimizationStrategy(_logger),
+            [DbType.GBase] = () => new GBaseOptimizationStrategy(_logger),
+            [DbType.TDengine] = () => new TdengineOptimizationStrategy(_logger),
+            [DbType.DuckDB] = () => new DuckDbOptimizationStrategy(_logger),
+            [DbType.Doris] = () => new DorisOptimizationStrategy(_logger),
 
             // 特定版本和变体
             [DbType.OpenGauss] = () => new GaussDbOptimizationStrategy(_logger),

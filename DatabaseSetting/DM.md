@@ -1,6 +1,6 @@
 # 达梦数据库配置指南
 
-本文档详细说明达梦数据库（DM Database）的配置方法和性能优化策略。
+本文档详细说明达梦数据库（DM Database）的配置方法和性能优化策略，涵盖表名大小写、Schema、Docker/MySQL 模式兼容、Clob 优化及驱动/版本提示。
 
 ---
 
@@ -21,7 +21,8 @@
       "isDefault": true,
       "optimizationSettings": {
         "lowercaseTables": "false",
-        "clobOptimization": "true"
+        "clobOptimization": "true",
+        "dockerMysqlMode": "false"
       }
     }
   ]
@@ -65,6 +66,7 @@
 | `Min Pool Size` | 最小连接数 | `1` | 保持最小连接，快速响应 |
 | `Max Pool Size` | 最大连接数 | `100` | 防止连接耗尽 |
 | `Connection Timeout` | 连接超时（秒） | `30` | 避免长时间等待 |
+| `DatabaseModel` | Docker/MySQL 兼容 | `MySql` | Docker 误装 MySQL 模式时 |
 
 ### 可选参数
 
@@ -87,6 +89,7 @@ DatabaseMcpServer 自动为达梦数据库应用以下优化：
 | Clob 类型优化 | 大文本字段优化 | 避免插入空白问题 |
 | Schema 支持 | 多租户隔离 | 提高安全性和组织性 |
 | 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
+| 连接串兼容提示 | 支持新旧格式 | 降低迁移成本 |
 
 ---
 
@@ -147,6 +150,8 @@ DatabaseMcpServer 自动为达梦数据库应用以下优化：
 **效果**:
 - `true`: 启用 MySQL 兼容模式（解决 Docker 部署分页等问题）
 - `false`: 使用标准达梦模式
+
+**提示**: 对应 `ConnMoreSettings.DatabaseModel = DbType.MySql`，需 SqlSugarCore 5.1.4.157-preview09+。
 
 ---
 
@@ -244,7 +249,8 @@ DatabaseMcpServer 自动为达梦数据库应用以下优化：
       "optimizationSettings": {
         "clobOptimization": "true",
         "maxPoolSize": "200",
-        "schema": "prod_schema"
+        "schema": "prod_schema",
+        "dockerMysqlMode": "false"
       }
     }
   ]
@@ -563,7 +569,9 @@ Server=localhost:5236;User Id=SYSDBA;PWD=SYSDBA;SCHEMA=myschema;DATABASE=DAMENG
 4. **Clob 优化**: 大文本字段启用 Clob 优化
 5. **Docker 部署**: 注意 MySQL 兼容模式配置
 6. **驱动版本**: 使用最新版本驱动（SqlSugarCore.Dm 1.3.0+）
+7. **Schema 创建**: 使用 `db.DbMaintenance.CreateDatabase()` 仅创建 Schema，数据库需已存在（5.1.4.199-preview30+）
+8. **varchar(36) 转 GUID**: 若需禁用，连接字符串配置 `varchar36ToGuid=false`
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

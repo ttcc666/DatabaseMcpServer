@@ -1,6 +1,6 @@
 # SQL Server 数据库配置指南
 
-本文档详细说明 Microsoft SQL Server 数据库的配置方法。
+本文档详细说明 Microsoft SQL Server 数据库的配置方法，涵盖新版驱动所需的加密参数、.NET 8 全球化配置、NoLock 规范、禁用 nvarchar 等实战要点。
 
 ---
 
@@ -20,6 +20,8 @@
       "description": "SQL Server 主库（性能优化配置）",
       "isDefault": true,
       "optimizationSettings": {
+        "enableNoLock": "true",
+        "disableNoLockWithTran": "true",
         "disableNvarchar": "true"
       }
     }
@@ -62,7 +64,16 @@
 | `Encrypt` | 启用加密 | `True` | 新版驱动必需 |
 | `TrustServerCertificate` | 信任服务器证书 | `True` | 开发环境推荐 |
 
-**注意**: SqlSugarCore 5.1.4.169+ 版本必须添加这两个参数，否则连接失败。
+**注意**: SqlSugarCore 5.1.4.169+ 版本必须添加这两个参数，否则连接失败；部分旧版可省略但不推荐。
+
+### .NET 8 全球化配置
+
+如出现 `Only the invariant globalization mode is supported`，在启动项目的 `.csproj` 中设置：
+```xml
+<PropertyGroup>
+  <InvariantGlobalization>false</InvariantGlobalization>
+</PropertyGroup>
+```
 
 ### 性能优化参数（推荐）
 
@@ -80,6 +91,7 @@
 | `MultipleActiveResultSets` | 多活动结果集 | `false` | 复杂查询设为 `true` |
 | `Application Name` | 应用程序名称 | - | 便于监控和调试 |
 | `Integrated Security` | Windows 身份验证 | `false` | 设为 `true` 使用 Windows 认证 |
+| `Encrypt` / `TrustServerCertificate` | 加密/信任证书 | `True` / `True|False` | 新版驱动必需，云上建议关闭信任 |
 
 ---
 
@@ -89,10 +101,11 @@ DatabaseMcpServer 自动为 SQL Server 应用以下优化：
 
 | 优化项 | 说明 | 效果 |
 |--------|------|------|
-| **NoLock 查询** | 自动添加 `WITH(NOLOCK)` | 并发读取性能提升 **60-70%** |
-| 事务中禁用 NoLock | 保证事务一致性 | 避免脏读 |
+| **NoLock 查询** | 自动添加 `WITH(NOLOCK)`（可用 `enableNoLock` 关闭） | 并发读取性能提升 **60-70%** |
+| 事务中禁用 NoLock | 默认开启，可用 `disableNoLockWithTran` 调整 | 避免脏读 |
 | 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
-| 可选禁用 nvarchar | 通过 optimizationSettings 配置 | 索引性能提升 **20-30%** |
+| 可选禁用 nvarchar | 通过 `disableNvarchar` 配置 | 索引性能提升 **20-30%** |
+| 原生连通性验证 | 建议失败时使用 `new SqlConnection(...).Open()` | 快速判定驱动/配置问题 |
 
 ---
 
@@ -140,6 +153,54 @@ WHERE name = N'张三'  -- 索引可能失效
 
 -- 优化后（使用 varchar 参数）
 WHERE name = '张三'   -- 索引正常使用
+```
+
+---
+
+### enableNoLock
+
+**说明**: 控制是否为查询自动添加 `WITH(NOLOCK)`（默认 `true`）。
+
+**类型**: `boolean`
+
+**默认值**: `true`
+
+**示例**:
+```json
+{
+  "databases": [
+    {
+      "name": "sqlserver-main",
+      "optimizationSettings": {
+        "enableNoLock": "false"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### disableNoLockWithTran
+
+**说明**: 控制事务内是否禁用 NoLock（默认 `true`，保证事务一致性）。
+
+**类型**: `boolean`
+
+**默认值**: `true`
+
+**示例**:
+```json
+{
+  "databases": [
+    {
+      "name": "sqlserver-main",
+      "optimizationSettings": {
+        "disableNoLockWithTran": "true"
+      }
+    }
+  ]
+}
 ```
 
 ---
@@ -241,6 +302,16 @@ A connection was successfully established with the server, but then an error occ
 "connectionString": "...;Encrypt=True;TrustServerCertificate=True;..."
 ```
 
+### 问题 1.1: 连接不上/偶发现象
+
+**排查步骤**:
+1) 使用原生方式验证：
+```csharp
+new SqlConnection("Server=...;...").Open();
+```
+2) 如偶发，使用 `SqlSugarScope` 单例模式提升线程安全。
+3) 再检查连接字符串是否含必需的 `Encrypt=True;TrustServerCertificate=True;`。
+
 ### 问题 2: 查询慢 - 索引失效
 
 **现象**: 查询慢，执行计划显示索引扫描而非索引查找
@@ -293,9 +364,14 @@ Only the invariant globalization mode is supported
 在项目 `.csproj` 文件中添加:
 ```xml
 <PropertyGroup>
-  <InvariantGlobalization>false</InvariantGlobalization>
+<InvariantGlobalization>false</InvariantGlobalization>
 </PropertyGroup>
 ```
+
+### 问题 5: NoLock 规范
+
+- 非事务读查询建议使用 `WITH(NOLOCK)`（默认已开启）。
+- 事务内自动禁用以保证一致性，如需手动禁用：`db.CurrentConnectionConfig.MoreSettings.IsWithNoLockQuery = false;`
 
 ---
 
@@ -403,4 +479,4 @@ db.Ado.ExecuteCommand("EXEC sp_name @p", param);
 
 ---
 
-**最后更新**: 2025-12-01
+**最后更新**: 2025-12-10

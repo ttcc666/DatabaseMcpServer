@@ -31,6 +31,8 @@
 
 ### 2. OceanBase Oracle 模式
 
+> **提示**：Oracle 模式需要单独配置，不要复用 MySQL 模式的连接串或 `dbType`。
+
 #### 完整配置示例
 
 ```json
@@ -49,6 +51,33 @@
   ]
 }
 ```
+
+#### 🔢 Oracle 模式快速步骤
+
+1. **NuGet 升级**：`SqlSugar.OceanBaseForOracleCore` 升级到 `5.1.4.92-preview14+`（项目已内置 5.1.4.205），同时保留 `SqlSugarCore`。
+2. **安装 ODBC 驱动**：`ob-connector-odbc-2.0.8.2-win64.msi`。
+3. **创建连接串**（Oracle/ODBC）：  
+   `Driver={OceanBase ODBC 2.0 Driver};Server=172.19.9.9;Port=2883;Database=XIR_TRD;User=XIR_TRD@Xpia2C6G#obtest:1650773680;Password=aaAA11%%;Option=3;`
+4. **程序启动预热一次**：
+   ```csharp
+   InstanceFactory.CustomAssemblies = new System.Reflection.Assembly[]
+   {
+       typeof(OceanBaseForOracleProvider).Assembly
+   };
+   ```
+5. **构建客户端**：
+   ```csharp
+   SqlSugarClient db = new SqlSugarClient(new ConnectionConfig()
+   {
+       DbType = DbType.OceanBaseForOracle,
+       ConnectionString = "Driver={OceanBase ODBC 2.0 Driver};Server=172.19.9.9;Port=2883;Database=XIR_TRD;User=XIR_TRD@Xpia2C6G#obtest:1650773680;Password=aaAA11%%;Option=3;",
+       IsAutoCloseConnection = true
+       // 个别环境如需可禁用 Nvarchar
+       // MoreSettings = new ConnMoreSettings { DisableNvarchar = true }
+   });
+   ```
+6. **自增策略**：建议使用雪花 ID；如必须用 Oracle 自增，参考 [Oracle 自增文档](https://www.donet5.com/Home/Doc?typeId=1220)（并发高需自行加锁）。
+7. **字段类型**：ODBC 无法声明 `varchar2` 类型，建议表字段使用 `varchar`。
 
 #### MCP 配置
 

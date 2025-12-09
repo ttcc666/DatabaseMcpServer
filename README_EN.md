@@ -10,7 +10,7 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 
 ## ✨ Core Features
 
-- 🗄️ **Multi-Database Support** - Covers 19 commonly used databases (MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA + DM/Kingbase/GaussDB/PolarDB/Vastbase/HighGo/Oscar/GoldenDB)
+- 🗄️ **Multi-Database Support** - Covers 17 commonly used databases (MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase + DM/Kingbase/GaussDB/PolarDB/Vastbase/HighGo/Oscar/GoldenDB)
 - 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
 - ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
@@ -36,8 +36,8 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 - **ClickHouse**
 - **TiDB**
 - **OceanBase**
-- **IBM DB2**
-- **SAP HANA**
+- ~~IBM DB2~~ (removed)
+- ~~SAP HANA~~ (removed)
 
 ### 🇨🇳 Domestic / Compliance
 
@@ -280,8 +280,6 @@ Starting from version 2.0.0, all database-specific optimization configurations a
 - [ClickHouse Configuration Guide](DatabaseSetting/ClickHouse.md)
 - [TiDB Configuration Guide](DatabaseSetting/TiDB.md)
 - [OceanBase Configuration Guide](DatabaseSetting/OceanBase.md)
-- [DB2 Configuration Guide](DatabaseSetting/DB2.md)
-- [SAP HANA Configuration Guide](DatabaseSetting/Hana.md)
 - [DaMeng Database Configuration Guide](DatabaseSetting/DM.md)
 - [KingbaseES Configuration Guide](DatabaseSetting/Kdbndp.md)
 - [GaussDB Configuration Guide](DatabaseSetting/GaussDB.md)
@@ -381,6 +379,12 @@ If you are still using old environment variable configuration, DatabaseMcpServer
 | **MySQL** | `Server=localhost;Port=3306;Database=mydb;User=root;Password=123456;` | [MySQL.md](DatabaseSetting/MySQL.md) |
 | **SQL Server** | `Server=localhost;Database=mydb;User Id=sa;Password=123456;` | [SQLServer.md](DatabaseSetting/SQLServer.md) |
 | **PostgreSQL** | `Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;` | [PostgreSQL.md](DatabaseSetting/PostgreSQL.md) |
+| **OceanBase (MySQL mode)** | `Server=localhost;Port=2881;Database=mydb;User=root@sys;Password=123456;` | [OceanBase.md](DatabaseSetting/OceanBase.md) |
+| **OceanBase (Oracle mode)** | `Driver={OceanBase ODBC 2.0 Driver};Server=172.19.9.9;Port=2883;Database=TRD;User=USER@TENANT#CLUSTER:1650773680;Password=123456;Option=3;` | [OceanBase.md](DatabaseSetting/OceanBase.md) |
+| **QuestDB** | `host=localhost;port=8812;username=admin;password=quest;database=qdb;ServerCompatibilityMode=NoTypeLoading;` | [QuestDb.md](DatabaseSetting/QuestDb.md) |
+| **GBase 8s** | `Host=localhost;Service=19088;Server=gbase01;Database=testdb;Protocol=onsoctcp;Uid=gbasedbt;Pwd=GBase123;Db_locale=zh_CN.utf8;Client_locale=zh_CN.utf8` | [GBase.md](DatabaseSetting/GBase.md) |
+| **DuckDB** | `DataSource=train_services.db` | [DuckDB.md](DatabaseSetting/DuckDB.md) |
+| **TDengine** | `Host=localhost;Port=6030;Username=root;Password=taosdata;Database=power` | [TDengine.md](DatabaseSetting/TDengine.md) |
 | **Oracle** | `Data Source=localhost/orcl;User ID=system;Password=oracle123;` | [Oracle.md](DatabaseSetting/Oracle.md) |
 | **SQLite** | `Data Source=mydb.db;` | [SQLite.md](DatabaseSetting/SQLite.md) |
 | **DaMeng Database** | `Server=localhost;Port=5236;Database=mydb;User=SYSDBA;Password=SYSDBA001;` | [DM.md](DatabaseSetting/DM.md) |

@@ -21,12 +21,15 @@ public class PostgreSqlOptimizationStrategy : IDatabaseOptimizationStrategy
     /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
+        var appliedOptions = new List<string>();
+
         // PostgreSQL 表名自动转小写（默认启用，推荐）
         if (optimizationSettings != null &&
             optimizationSettings.TryGetValue("autoToLower", out var autoToLowerStr) &&
             bool.TryParse(autoToLowerStr, out var autoToLower))
         {
             settings.PgSqlIsAutoToLower = autoToLower;
+            appliedOptions.Add($"autoToLower={autoToLower}");
             _logger?.LogDebug("PostgreSQL 表名自动转小写: {Enabled}", autoToLower);
         }
         else
@@ -35,13 +38,28 @@ public class PostgreSqlOptimizationStrategy : IDatabaseOptimizationStrategy
             settings.PgSqlIsAutoToLower = true;
         }
 
-        if (optimizationSettings == null) return;
+        // CodeFirst 表名自动转小写（与查询分开控制）
+        if (optimizationSettings != null &&
+            optimizationSettings.TryGetValue("autoToLowerCodeFirst", out var autoToLowerCodeFirstStr) &&
+            bool.TryParse(autoToLowerCodeFirstStr, out var autoToLowerCodeFirst))
+        {
+            settings.PgSqlIsAutoToLowerCodeFirst = autoToLowerCodeFirst;
+            appliedOptions.Add($"autoToLowerCodeFirst={autoToLowerCodeFirst}");
+            _logger?.LogDebug("PostgreSQL CodeFirst 表名自动转小写: {Enabled}", autoToLowerCodeFirst);
+        }
+
+        if (optimizationSettings == null)
+        {
+            _logger?.LogDebug("应用 PostgreSQL 默认性能优化配置（autoToLower=true, identity=Serial）");
+            return;
+        }
 
         // PostgreSQL ILike 不区分大小写查询
         if (optimizationSettings.TryGetValue("enableILike", out var enableILikeStr) &&
             bool.TryParse(enableILikeStr, out var enableILike))
         {
             settings.EnableILike = enableILike;
+            appliedOptions.Add($"enableILike={enableILike}");
             _logger?.LogDebug("PostgreSQL 启用 ILike: {Enabled}", enableILike);
         }
 
@@ -51,11 +69,13 @@ public class PostgreSqlOptimizationStrategy : IDatabaseOptimizationStrategy
             if (identityStrategy.Equals("Identity", StringComparison.OrdinalIgnoreCase))
             {
                 settings.PostgresIdentityStrategy = PostgresIdentityStrategy.Identity;
+                appliedOptions.Add("identityStrategy=Identity");
                 _logger?.LogDebug("PostgreSQL 使用 Identity 自增策略（高版本）");
             }
             else if (identityStrategy.Equals("Serial", StringComparison.OrdinalIgnoreCase))
             {
                 settings.PostgresIdentityStrategy = PostgresIdentityStrategy.Serial;
+                appliedOptions.Add("identityStrategy=Serial");
                 _logger?.LogDebug("PostgreSQL 使用 Serial 自增策略（兼容低版本）");
             }
         }
@@ -63,6 +83,11 @@ public class PostgreSqlOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             // 默认使用 Serial（兼容低版本）
             settings.PostgresIdentityStrategy = PostgresIdentityStrategy.Serial;
+        }
+
+        if (appliedOptions.Count > 0)
+        {
+            _logger?.LogDebug("PostgreSQL 优化配置选项: {Options}", string.Join(", ", appliedOptions));
         }
 
         _logger?.LogDebug("应用 PostgreSQL 性能优化配置");

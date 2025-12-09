@@ -20,7 +20,8 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
       "optimizationSettings": {
         "enableBulkCopy": "true",
         "maxPoolSize": "100",
-        "charset": "utf8mb4"
+        "charset": "utf8mb4",
+        "disableNvarchar": "false"
       }
     }
   ]
@@ -48,6 +49,8 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 
 - 复用 `MySqlOptimizationStrategy`：字符集/池化/BulkCopy/SSL/用户变量提示。
 - 若需 BulkCopy，连接串需 `AllowLoadLocalInfile=true`。
+- 若出现 `Unsupported command`，可在连接串设置 `Pooling=false`（禁用连接池）。
+- 少数兼容场景可选 `disableNvarchar=true` 规避 `N''` 相关语法/索引问题。
 
 ---
 
@@ -66,6 +69,7 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 | `charset` | string | 字符集，默认 utf8mb4 |
 | `enableSsl` | bool | 启用 SSL |
 | `allowUserVariables` | bool | 允许用户变量 |
+| `disableNvarchar` | bool | 特殊环境禁用 `N''` 前缀时设为 `true` |
 
 ---
 
@@ -75,4 +79,4 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 
 ---
 
-**最后更新**: 2025-12-08
+**最后更新**: 2025-12-10
