@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
-namespace DatabaseMcpServer.Strategies;
+namespace DatabaseMcpServer.Strategies.DBSetting;
 
 /// <summary>
 /// 达梦数据库性能优化策略

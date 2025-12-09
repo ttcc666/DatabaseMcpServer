@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
-namespace DatabaseMcpServer.Strategies;
+namespace DatabaseMcpServer.Strategies.DBSetting;
 
 /// <summary>
 /// 瀚高数据库（HighGo）性能优化策略

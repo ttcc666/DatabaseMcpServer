@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
-namespace DatabaseMcpServer.Strategies;
+namespace DatabaseMcpServer.Strategies.DBSetting;
 
 /// <summary>
 /// Vastbase（PostgreSQL 衍生）性能优化策略

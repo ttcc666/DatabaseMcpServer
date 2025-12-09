@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
-namespace DatabaseMcpServer.Strategies;
+namespace DatabaseMcpServer.Strategies.DBSetting;
 
 /// <summary>
 /// 默认数据库性能优化策略（用于未特别配置的数据库类型）

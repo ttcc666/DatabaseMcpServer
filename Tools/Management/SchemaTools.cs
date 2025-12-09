@@ -165,42 +165,6 @@ internal class SchemaTools
     }
 
     [McpServerTool]
-    [Description("Return isPrimary to indicate whether the given tableName.columnName participates in the primary key definition.")]
-    public string IsPrimaryKey(
-        [Description("Table name")] string tableName,
-        [Description("Column name")] string columnName)
-    {
-        try
-        {
-            using var db = _databaseConfig.CreateClient();
-            var isPrimary = db.DbMaintenance.IsPrimaryKey(tableName, columnName);
-            return _databaseHelper.SerializeResult(new { success = true, isPrimary });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
-    }
-
-    [McpServerTool]
-    [Description("Return isIdentity to indicate whether tableName.columnName is configured as an identity column.")]
-    public string IsIdentity(
-        [Description("Table name")] string tableName,
-        [Description("Column name")] string columnName)
-    {
-        try
-        {
-            using var db = _databaseConfig.CreateClient();
-            var isIdentity = db.DbMaintenance.IsIdentity(tableName, columnName);
-            return _databaseHelper.SerializeResult(new { success = true, isIdentity });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
-    }
-
-    [McpServerTool]
     [Description("Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean.")]
     public string IsAnyConstraint(
         [Description("Constraint name")] string constraintName)
@@ -469,23 +433,6 @@ internal class SchemaTools
             using var db = _databaseConfig.CreateClient();
             var result = db.DbMaintenance.CreateIndex(tableName, new string[] { columnName }, indexName, isUnique);
             return _databaseHelper.SerializeResult(new { success = result });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
-    }
-
-    [McpServerTool]
-    [Description("Check whether indexName already exists and return an exists boolean.")]
-    public string IsAnyIndex(
-        [Description("Index name")] string indexName)
-    {
-        try
-        {
-            using var db = _databaseConfig.CreateClient();
-            var exists = db.DbMaintenance.IsAnyIndex(indexName);
-            return _databaseHelper.SerializeResult(new { success = true, exists });
         }
         catch (Exception ex)
         {
@@ -775,22 +722,6 @@ internal class SchemaTools
     #endregion 存储过程、函数、视图操作
 
     #region 其他工具
-
-    [McpServerTool]
-    [Description("Return the DbType values supported by the current SqlSugar build so callers know which engines are available.")]
-    public string GetDbTypes()
-    {
-        try
-        {
-            using var db = _databaseConfig.CreateClient();
-            var dbTypes = db.DbMaintenance.GetDbTypes();
-            return _databaseHelper.SerializeResult(new { success = true, data = dbTypes });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
-    }
 
     [McpServerTool]
     [Description("List every trigger defined on tableName to expose side effects that may fire on DML.")]

@@ -194,7 +194,7 @@ internal class DatabaseHelper : IDatabaseHelperService
         };
 
         // 使用策略工厂获取对应数据库的优化策略
-        var strategyFactory = new Strategies.DatabaseOptimizationStrategyFactory(_logger);
+        var strategyFactory = new Strategies.DBSetting.DatabaseOptimizationStrategyFactory(_logger);
         var strategy = strategyFactory.GetStrategy(dbType);
 
         // 应用数据库特定的优化配置（DatabaseHelper 不使用 JSON 配置，传递 null）

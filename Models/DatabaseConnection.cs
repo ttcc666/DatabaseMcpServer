@@ -8,17 +8,17 @@ public class DatabaseConnection
     /// <summary>
     /// 数据库连接名称（唯一标识）
     /// </summary>
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// 数据库连接字符串
     /// </summary>
-    public string ConnectionString { get; set; }
+    public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
     /// 数据库类型
     /// </summary>
-    public string DbType { get; set; }
+    public string DbType { get; set; } = string.Empty;
 
     /// <summary>
     /// 连接描述

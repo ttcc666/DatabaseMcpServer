@@ -8,5 +8,5 @@ public class DatabasesConfig
     /// <summary>
     /// 数据库连接列表
     /// </summary>
-    public List<DatabaseConnection> Databases { get; set; }
+    public List<DatabaseConnection> Databases { get; set; } = [];
 }

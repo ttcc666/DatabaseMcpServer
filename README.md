@@ -15,7 +15,7 @@
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优
 - 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
-- 💾 **完整功能** - 55+ MCP 工具，涵盖查询、操作、架构管理、健康检查等
+- 💾 **完整功能** - 50+ MCP 工具（当前约 57 个），涵盖查询、操作、架构管理、健康检查等
 - 🚀 **生产就绪** - 支持事务、批量操作、存储过程、自动重连
 - 📦 **.NET Global Tool** - 简单安装，一键部署
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
@@ -392,9 +392,9 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 ---
 
-## 📋 完整功能清单（55+ 工具）
+## 📋 完整功能清单（约 57 个工具）
 
-### 🔌 一、连接与配置管理（9 个工具）
+### 🔌 一、连接与配置管理
 
 **基础连接管理**:
 - **test_connection** - 测试当前数据库连接
@@ -411,7 +411,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - **health_check** - 对所有数据库连接执行健康检查（响应时间、连接状态）
 - **test_connection_with_retry** - 带自动重试的连接测试（指数退避策略）
 
-### 🔍 二、数据库架构查询（12 个工具）
+### 🔍 二、数据库架构查询
 
 - **get_data_base_list** - 获取所有数据库名称
 - **get_table_info_list** - 获取所有表名
@@ -424,52 +424,36 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - **get_proc_list** - 获取存储过程名字集合
 - **get_func_list** - 获取函数集合
 - **get_trigger_names** - 根据表名获取触发器集合
-- **get_db_types** - 获取数据库类型集合
 
-### 🔎 三、存在性检查（7 个工具）
+### 🔎 三、存在性检查
 
 - **is_any_table** - 判断表是否存在
 - **is_any_column** - 判断列是否存在
-- **is_primary_key** - 判断主键是否存在
-- **is_identity** - 判断自增是否存在
 - **is_any_constraint** - 判断约束是否存在
-- **is_any_index** - 判断索引是否存在
 - **is_any_table_remark** - 判断是否存在表描述
 
-### 📊 四、数据查询工具（17 个工具）
+### 📊 四、数据查询工具
 
 **基础查询：**
 - **sql_query** - 执行 SQL 查询并返回强类型实体集合（支持参数化查询）
 - **sql_query_single** - 执行 SQL 查询并返回单条记录
-- **get_data_reader** - 获取 DataReader 数据（自动处理释放）
 
 **高级查询：**
 - **get_data_set_all** - 获取多个结果集，支持一次执行多个查询
-- **sql_query_multiple** - 执行查询并返回两个结果集
 - **sql_query_with_in_parameter** - 处理 IN 参数查询，支持数组参数
 
 **标量值查询：**
 - **get_scalar** - 获取首行首列的值（标量值）
-- **get_string** - 获取首行首列的字符串值
-- **get_int** - 获取首行首列的整数值
-- **get_long** - 获取首行首列的长整数值
-- **get_double** - 获取首行首列的双精度浮点数值
-- **get_decimal** - 获取首行首列的十进制数值
-- **get_date_time** - 获取首行首列的日期时间值
 
-### ✏️ 五、数据操作工具（9 个工具）
+### ✏️ 五、数据操作工具
 
 - **execute_command** - 执行 SQL 命令（INSERT、UPDATE、DELETE）
-- **insert_data** - 向表中插入数据
-- **update_data** - 更新表中的数据
-- **delete_data** - 从表中删除数据
-- **execute_transaction** - 执行包含多条 SQL 命令的事务
 - **batch_execute_commands** - 批量执行 SQL 命令（性能优化）
 - **call_stored_procedure** - 调用存储过程（简单用法）
 - **call_stored_procedure_with_output** - 调用带有输出参数的存储过程
 - **execute_command_with_go** - 执行包含 GO 语句的 SQL Server 脚本
 
-### 🛠️ 六、数据库架构操作（高风险）（6 个核心工具）
+### 🛠️ 六、数据库架构操作（高风险）
 
 **表操作：**
 - **drop_table** - 删除表
@@ -492,6 +476,8 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - **add_default_value** - 添加默认值
 - **add_table_remark** - 添加表描述
 - **add_column_remark** - 添加列描述
+- **delete_table_remark** - 删除表描述
+- **delete_column_remark** - 删除列描述
 
 *完整工具列表请参考 [.mcp/server.json](.mcp/server.json)*
 

@@ -15,7 +15,7 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
 - ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
-- 💾 **Complete Functionality** - 55+ MCP tools, covering queries, operations, schema management, health checks, etc.
+- 💾 **Complete Functionality** - 50+ MCP tools (about 57 currently), covering queries, operations, schema management, health checks, etc.
 - 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
 - 📦 **.NET Global Tool** - Simple installation, one-click deployment
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
@@ -391,9 +391,9 @@ For more connection strings and optimization configurations, please refer to the
 
 ---
 
-## 📋 Complete Feature List (55+ Tools)
+## 📋 Complete Feature List (about 57 tools)
 
-### 🔌 1. Connection and Configuration Management (9 tools)
+### 🔌 1. Connection and Configuration Management
 
 **Basic Connection Management**:
 - **test_connection** - Test current database connection
@@ -410,7 +410,7 @@ For more connection strings and optimization configurations, please refer to the
 - **health_check** - Perform health checks on all database connections (response time, connection status)
 - **test_connection_with_retry** - Connection test with automatic retry (exponential backoff strategy)
 
-### 🔍 2. Database Schema Queries (12 tools)
+### 🔍 2. Database Schema Queries
 
 - **get_data_base_list** - Get all database names
 - **get_table_info_list** - Get all table names
@@ -423,55 +423,39 @@ For more connection strings and optimization configurations, please refer to the
 - **get_proc_list** - Get stored procedure name collections
 - **get_func_list** - Get function collections
 - **get_trigger_names** - Get trigger collections by table name
-- **get_db_types** - Get database type collections
 
-### 🔎 3. Existence Checks (7 tools)
+### 🔎 3. Existence Checks
 
 - **is_any_table** - Check if table exists
 - **is_any_column** - Check if column exists
-- **is_primary_key** - Check if primary key exists
-- **is_identity** - Check if identity exists
 - **is_any_constraint** - Check if constraint exists
-- **is_any_index** - Check if index exists
 - **is_any_table_remark** - Check if table description exists
 
-### 📊 4. Data Query Tools (17 tools)
+### 📊 4. Data Query Tools
 
 **Basic Queries:**
 
 - **sql_query** - Execute SQL query and return strongly typed entity collection (supports parameterized queries)
 - **sql_query_single** - Execute SQL query and return single record
-- **get_data_reader** - Get DataReader data (automatically handles disposal)
 
 **Advanced Queries:**
 
 - **get_data_set_all** - Get multiple result sets, supports executing multiple queries at once
-- **sql_query_multiple** - Execute query and return two result sets
 - **sql_query_with_in_parameter** - Handle IN parameter queries, supports array parameters
 
 **Scalar Value Queries:**
 
 - **get_scalar** - Get first row first column value (scalar value)
-- **get_string** - Get first row first column string value
-- **get_int** - Get first row first column integer value
-- **get_long** - Get first row first column long integer value
-- **get_double** - Get first row first column double precision floating point value
-- **get_decimal** - Get first row first column decimal value
-- **get_date_time** - Get first row first column datetime value
 
-### ✏️ 5. Data Operation Tools (9 tools)
+### ✏️ 5. Data Operation Tools
 
 - **execute_command** - Execute SQL commands (INSERT, UPDATE, DELETE)
-- **insert_data** - Insert data into table
-- **update_data** - Update data in table
-- **delete_data** - Delete data from table
-- **execute_transaction** - Execute transaction containing multiple SQL commands
 - **batch_execute_commands** - Batch execute SQL commands (performance optimized)
 - **call_stored_procedure** - Call stored procedure (simple usage)
 - **call_stored_procedure_with_output** - Call stored procedure with output parameters
 - **execute_command_with_go** - Execute SQL Server script containing GO statements
 
-### 🛠️ 6. Database Schema Operations (High Risk) (6 core tools)
+### 🛠️ 6. Database Schema Operations (High Risk)
 
 **Table Operations:**
 
@@ -498,6 +482,8 @@ For more connection strings and optimization configurations, please refer to the
 - **add_default_value** - Add default value
 - **add_table_remark** - Add table description
 - **add_column_remark** - Add column description
+- **delete_table_remark** - Delete table description
+- **delete_column_remark** - Delete column description
 
 *For complete tool list, please refer to [.mcp/server.json](.mcp/server.json)*
 

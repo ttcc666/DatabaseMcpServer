@@ -28,11 +28,10 @@
       "数据库连接管理（连接测试、健康检查、自动重连）",
       "数据库架构查询（数据库列表、表列表、视图列表、表结构、列信息、主键、索引等）",
       "数据库架构操作（创建/删除/重命名表、添加/删除/修改列、索引管理、约束管理等）",
-      "基础查询（SqlQuery、SqlQuerySingle、GetDataReader）",
-      "高级查询（多结果集、标量值、类型化查询、IN参数查询）",
-      "数据操作（插入、更新、删除）",
+      "基础查询（SqlQuery、SqlQuerySingle）",
+      "高级查询（多结果集、标量值、IN参数查询）",
+      "数据操作（参数化执行 DML）",
       "存储过程调用（简单调用、带输出参数）",
-      "事务支持",
       "批量操作（批量执行命令）",
       "SQL Server 特殊支持（GO 语句执行）",
       "参数化查询防止 SQL 注入",
@@ -156,14 +155,6 @@
       "description": "Check whether columnName exists on tableName and return an exists boolean."
     },
     {
-      "name": "is_primary_key",
-      "description": "Return isPrimary to indicate whether the given tableName.columnName participates in the primary key definition."
-    },
-    {
-      "name": "is_identity",
-      "description": "Return isIdentity to indicate whether tableName.columnName is configured as an identity column."
-    },
-    {
       "name": "is_any_constraint",
       "description": "Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean."
     },
@@ -210,10 +201,6 @@
     {
       "name": "create_index",
       "description": "Create an index named indexName for tableName.columnName; set isUnique to true to build a unique index and return success."
-    },
-    {
-      "name": "is_any_index",
-      "description": "Check whether indexName already exists and return an exists boolean."
     },
     {
       "name": "get_index_list",
@@ -264,10 +251,6 @@
       "description": "Drop the stored procedure identified by procedureName and return success."
     },
     {
-      "name": "get_db_types",
-      "description": "Return the DbType values supported by the current SqlSugar build so callers know which engines are available."
-    },
-    {
       "name": "get_trigger_names",
       "description": "List every trigger defined on tableName to expose side effects that may fire on DML."
     },
@@ -284,10 +267,6 @@
       "description": "Execute a read-only SQL statement and return only the first row (or null) with the same optional JSON parameters."
     },
     {
-      "name": "get_data_reader",
-      "description": "Execute SQL, stream the results through a DataReader, convert each row to a dictionary, and return the full list after disposing the reader."
-    },
-    {
       "name": "get_data_set_all",
       "description": "Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets."
     },
@@ -296,56 +275,12 @@
       "description": "Return the first-row, first-column value from the SQL statement—ideal for COUNT/SUM scalar queries."
     },
     {
-      "name": "get_string",
-      "description": "Return the first-row, first-column value as a string."
-    },
-    {
-      "name": "get_int",
-      "description": "Return the first-row, first-column value converted to an integer (throws if conversion fails)."
-    },
-    {
-      "name": "get_long",
-      "description": "Return the first-row, first-column value converted to a long integer."
-    },
-    {
-      "name": "get_double",
-      "description": "Return the first-row, first-column value converted to a double."
-    },
-    {
-      "name": "get_decimal",
-      "description": "Return the first-row, first-column value converted to a decimal."
-    },
-    {
-      "name": "get_date_time",
-      "description": "Return the first-row, first-column value converted to a DateTime, useful for timestamps."
-    },
-    {
-      "name": "sql_query_multiple",
-      "description": "Execute SQL that must return two result sets (separated by a semicolon) and return firstResultSet/secondResultSet with row counts and data."
-    },
-    {
       "name": "sql_query_with_in_parameter",
       "description": "Bind a JSON array to an IN parameter (inParameterName) plus optional otherParameters to safely execute IN-clause queries and return the rows."
     },
     {
       "name": "execute_command",
       "description": "Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, optionally binding JSON parameters, and return affectedRows."
-    },
-    {
-      "name": "insert_data",
-      "description": "Insert a single row into tableName by passing a JSON object whose properties match column names; returns affectedRows."
-    },
-    {
-      "name": "update_data",
-      "description": "Update rows in tableName using a JSON object of column values plus a whereClause filter; returns affectedRows."
-    },
-    {
-      "name": "delete_data",
-      "description": "Delete rows from tableName that satisfy whereClause and return affectedRows."
-    },
-    {
-      "name": "execute_transaction",
-      "description": "Execute an array of SQL commands inside one transaction (each command is checked for dangerous operations) and return success plus any error."
     },
     {
       "name": "call_stored_procedure",

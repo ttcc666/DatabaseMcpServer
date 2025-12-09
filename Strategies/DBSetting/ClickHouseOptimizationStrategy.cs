@@ -1,27 +1,28 @@
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
-namespace DatabaseMcpServer.Strategies;
+namespace DatabaseMcpServer.Strategies.DBSetting;
 
 /// <summary>
-/// IBM DB2 性能优化策略（轻量提示）
+/// ClickHouse 性能优化策略（轻量提示）
 /// </summary>
-public class Db2OptimizationStrategy : IDatabaseOptimizationStrategy
+public class ClickHouseOptimizationStrategy : IDatabaseOptimizationStrategy
 {
     private readonly ILogger? _logger;
 
-    public Db2OptimizationStrategy(ILogger? logger = null)
+    public ClickHouseOptimizationStrategy(ILogger? logger = null)
     {
         _logger = logger;
     }
 
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
+        // 默认保留 nvarchar
         settings.DisableNvarchar = false;
 
         if (optimizationSettings == null)
         {
-            _logger?.LogDebug("应用 DB2 默认性能优化配置");
+            _logger?.LogDebug("应用 ClickHouse 默认性能优化配置");
             return;
         }
 
@@ -30,20 +31,20 @@ public class Db2OptimizationStrategy : IDatabaseOptimizationStrategy
         if (optimizationSettings.TryGetValue("maxPoolSize", out var maxPoolSizeStr) &&
             int.TryParse(maxPoolSizeStr, out var maxPoolSize))
         {
-            _logger?.LogDebug("DB2 最大连接池: {MaxPoolSize}", maxPoolSize);
+            _logger?.LogDebug("ClickHouse 最大连接池: {MaxPoolSize}", maxPoolSize);
             applied.Add($"maxPoolSize={maxPoolSize}");
         }
 
         if (applied.Count > 0)
         {
-            _logger?.LogDebug("DB2 优化配置选项: {Options}", string.Join(", ", applied));
+            _logger?.LogDebug("ClickHouse 优化配置选项: {Options}", string.Join(", ", applied));
         }
 
-        _logger?.LogDebug("应用 DB2 性能优化配置");
+        _logger?.LogDebug("应用 ClickHouse 性能优化配置");
     }
 
     public string GetDescription()
     {
-        return "DB2 优化：连接池提示";
+        return "ClickHouse 优化：连接池提示";
     }
 }
