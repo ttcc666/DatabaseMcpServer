@@ -28,9 +28,6 @@ internal class CommandTools
 
     [McpServerTool]
     [Description("Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, optionally binding JSON parameters, and return affectedRows.")]
-    /// <summary>
-    /// 执行 DML（增删改）语句，含危险操作检测，支持 JSON 参数。
-    /// </summary>
     public string ExecuteCommand(
         [Description("SQL command to execute")] string sql,
         [Description("Optional JSON parameters")] string? parameters = null)
@@ -55,9 +52,6 @@ internal class CommandTools
 
     [McpServerTool]
     [Description("Invoke the specified stored procedure with optional JSON parameters and return the resulting rows and rowCount.")]
-    /// <summary>
-    /// 调用存储过程（可选参数），返回结果集与行数。
-    /// </summary>
     public string CallStoredProcedure(
         [Description("Stored procedure name")] string procedureName,
         [Description("JSON object of stored procedure parameters")] string? parameters = null)
@@ -107,9 +101,6 @@ internal class CommandTools
 
     [McpServerTool]
     [Description("Invoke a stored procedure with JSON input parameters and a list of output parameter names; return rows plus the output parameter values.")]
-    /// <summary>
-    /// 调用存储过程，支持输入参数与输出参数列表，返回结果集与输出值。
-    /// </summary>
     public string CallStoredProcedureWithOutput(
         [Description("Stored procedure name")] string procedureName,
         [Description("JSON object of input parameters")] string? inputParameters = null,
@@ -167,9 +158,6 @@ internal class CommandTools
 
     [McpServerTool]
     [Description("Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows.")]
-    /// <summary>
-    /// 执行包含 GO 语句的 SQL Server 脚本，自动拆分并汇总影响行数。
-    /// </summary>
     public string ExecuteCommandWithGo(
         [Description("SQL script containing GO statements")] string sql)
     {
@@ -193,9 +181,6 @@ internal class CommandTools
 
     [McpServerTool]
     [Description("Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command.")]
-    /// <summary>
-    /// 在单连接上批量执行 SQL 数组（可按条传参），逐条返回成功与影响行数。
-    /// </summary>
     public string BatchExecuteCommands(
         [Description("JSON array of SQL commands")] string commands,
         [Description("JSON array of parameter objects for each command (optional)")] string? parametersArray = null)

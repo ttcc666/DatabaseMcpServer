@@ -31,9 +31,6 @@ public class ExcelExportTools
 
     [McpServerTool]
     [Description("Export SQL query results to Excel file with formatting options")]
-    /// <summary>
-    /// 导出查询结果到 Excel，支持格式化和返回 base64/路径。
-    /// </summary>
     public string ExportQueryToExcel(
         [Description("SQL query to execute and export")] string sql,
         [Description("Output Excel file path (optional, will generate temp file if not provided)")] string? filePath = null,
@@ -102,9 +99,6 @@ public class ExcelExportTools
 
     [McpServerTool]
     [Description("Export entire table data to Excel file with schema information")]
-    /// <summary>
-    /// 导出整表数据到 Excel，可选附带 Schema 工作表。
-    /// </summary>
     public string ExportTableToExcel(
         [Description("Table name to export")] string tableName,
         [Description("Output Excel file path (optional, will generate temp file if not provided)")] string? filePath = null,
@@ -181,9 +175,6 @@ public class ExcelExportTools
 
     [McpServerTool]
     [Description("Export multiple SQL queries to separate worksheets in the same Excel file")]
-    /// <summary>
-    /// 将多个查询结果导出到同一 Excel 的不同工作表，可选汇总页。
-    /// </summary>
     public string ExportMultipleQueriesToExcel(
         [Description("Dictionary of query names and SQL statements")] string queriesJson,
         [Description("Output Excel file path (optional, will generate temp file if not provided)")] string? filePath = null,

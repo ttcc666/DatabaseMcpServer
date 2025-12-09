@@ -1,5 +1,5 @@
-using System.Text;
 using DatabaseMcpServer.Models;
+using System.Text;
 
 namespace DatabaseMcpServer.Helpers;
 
