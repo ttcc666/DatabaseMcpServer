@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -139,7 +139,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.0.5 --yes
+dnx DatabaseMcpServer@2.0.6 --yes
 ```
 
 **MCP 配置**：
@@ -148,7 +148,7 @@ dnx DatabaseMcpServer@2.0.5 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.5", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.6", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -631,8 +631,8 @@ dotnet pack -c Release
 
 ## 🆕 版本发布
 
-- **2.0.5**
-  - 版本号统一至 2.0.5（徽标/示例命令/配置）
+- **2.0.6**
+  - 版本号统一至 2.0.6（徽标/示例命令/配置）
   - 为工具、服务、策略等补充中文 XML 注释，便于智能提示与维护
   - 精简冗余工具接口（多型标量/重复查询/重复 DML 包装），保持核心能力
   - 修复模型非空属性警告，构建无警告
@@ -739,7 +739,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.0.5 正式版本
+- 本项目已发布 2.0.6 正式版本
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据

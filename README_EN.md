@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@2.0.5 --yes
+dnx DatabaseMcpServer@2.0.6 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@2.0.5 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.5", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.6", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -661,8 +661,8 @@ dotnet pack -c Release
 
 ## 🆕 Release Notes
 
-- **2.0.5**
-  - Align version to 2.0.5 (badges/example commands/config)
+- **2.0.6**
+  - Align version to 2.0.6 (badges/example commands/config)
   - Add Chinese XML summaries for tools, services, and strategies to improve IntelliSense/maintenance
   - Trim redundant tool APIs (multi-type scalar wrappers/redundant queries/redundant DML wrappers); keep core capabilities
   - Fix non-nullable model warnings; build is clean
@@ -773,7 +773,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 2.0.5
+- This project has released version 2.0.6
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data
