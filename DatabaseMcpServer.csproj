@@ -1,21 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- 多目标：同时支持 .NET 9 / 10 -->
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Set up the NuGet package to be an MCP server and .NET Global Tool -->
+    <!-- 作为 .NET Global Tool & MCP Server 发布 -->
     <PackAsTool>true</PackAsTool>
     <PackageType>McpServer</PackageType>
     <ToolCommandName>DatabaseMcpServer</ToolCommandName>
 
-    <!-- Set recommended package metadata -->
+    <!-- NuGet 元数据 -->
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageId>DatabaseMcpServer</PackageId>
-    <PackageVersion>2.0.6</PackageVersion>
+    <!-- 记得发布新包时改版本号 -->
+    <PackageVersion>2.0.7</PackageVersion>
     <PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
     <Description>一个功能强大的数据库操作 MCP 服务器，聚焦 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB、SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA、达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）。</Description>
     <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
