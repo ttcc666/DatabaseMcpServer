@@ -1,9 +1,10 @@
-using DatabaseMcpServer.Filters;
+﻿using DatabaseMcpServer.Filters;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
+using System.Diagnostics;
 
 namespace DatabaseMcpServer.Tools.Management;
 
@@ -97,15 +98,31 @@ internal class ConnectionTools
     [Description("Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome.")]
     public string ValidateConfiguration()
     {
-        var isValid = _databaseConfig.ValidateConfiguration();
-        return _databaseHelper.SerializeResult(new
+        try
         {
-            success = isValid,
-            configured = isValid,
-            currentDatabase = _databaseConfig.GetCurrentDatabaseName(),
-            databaseType = _databaseConfig.GetDatabaseType(),
-            message = isValid ? "配置有效" : "配置无效,请检查 MCP 配置文件中的环境变量",
-        });
+            var isValid = _databaseConfig.ValidateConfiguration();
+            string? currentDatabase = null;
+            string? databaseType = null;
+
+            if (isValid)
+            {
+                currentDatabase = _databaseConfig.GetCurrentDatabaseName();
+                databaseType = _databaseConfig.GetDatabaseType();
+            }
+
+            return _databaseHelper.SerializeResult(new
+            {
+                success = isValid,
+                configured = isValid,
+                currentDatabase,
+                databaseType,
+                message = isValid ? "配置有效" : "配置无效,请检查 MCP 配置文件中的环境变量"
+            });
+        }
+        catch (Exception ex)
+        {
+            return McpExceptionFilter.HandleException(ex, _logger);
+        }
     }
 
     [McpServerTool]
@@ -200,41 +217,45 @@ internal class ConnectionTools
         try
         {
             var connections = _databaseConfig.GetAllConnections();
-            var healthResults = new List<object>();
+            var healthResults = new List<HealthCheckResult>();
 
             foreach (var conn in connections)
             {
-                var startTime = DateTime.UtcNow;
-                bool isHealthy = false;
-                string errorMessage = string.Empty;
-                long responseTimeMs = 0;
+                var stopwatch = Stopwatch.StartNew();
+                var checkedAt = DateTime.UtcNow;
 
                 try
                 {
                     using var db = _databaseConfig.CreateClient(conn.Name);
                     var result = db.Ado.GetDataTable("SELECT 1");
-                    isHealthy = result.Rows.Count > 0;
-                    responseTimeMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
+
+                    healthResults.Add(new HealthCheckResult
+                    {
+                        Name = conn.Name,
+                        DbType = conn.DbType,
+                        IsHealthy = result.Rows.Count > 0,
+                        ResponseTimeMs = stopwatch.ElapsedMilliseconds,
+                        ErrorMessage = string.Empty,
+                        CheckedAt = checkedAt
+                    });
                 }
                 catch (Exception ex)
                 {
-                    errorMessage = ex.Message;
-                    responseTimeMs = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
                     _logger.LogWarning(ex, "数据库 {Name} 健康检查失败", conn.Name);
-                }
 
-                healthResults.Add(new
-                {
-                    name = conn.Name,
-                    dbType = conn.DbType,
-                    isHealthy,
-                    responseTimeMs,
-                    errorMessage,
-                    checkedAt = DateTime.UtcNow
-                });
+                    healthResults.Add(new HealthCheckResult
+                    {
+                        Name = conn.Name,
+                        DbType = conn.DbType,
+                        IsHealthy = false,
+                        ResponseTimeMs = stopwatch.ElapsedMilliseconds,
+                        ErrorMessage = ex.Message,
+                        CheckedAt = checkedAt
+                    });
+                }
             }
 
-            var totalHealthy = healthResults.Count(r => ((dynamic)r).isHealthy);
+            var totalHealthy = healthResults.Count(r => r.IsHealthy);
             var overallHealth = totalHealthy == connections.Count;
 
             _logger.LogInformation("健康检查完成: {Healthy}/{Total} 连接正常", totalHealthy, connections.Count);
@@ -257,63 +278,94 @@ internal class ConnectionTools
 
     [McpServerTool]
     [Description("Test connection with automatic retry mechanism. Attempts to reconnect up to maxRetries times with exponential backoff.")]
-    public string TestConnectionWithRetry(
+    public async Task<string> TestConnectionWithRetry(
         [Description("Maximum number of retry attempts (default: 3)")] int maxRetries = 3,
         [Description("Initial retry delay in milliseconds (default: 1000)")] int initialDelayMs = 1000)
     {
-        _logger.LogInformation("开始测试数据库连接（带重试机制）: 最大重试次数={MaxRetries}", maxRetries);
-
-        var attempts = 0;
-        var currentDelay = initialDelayMs;
-        Exception? lastException = null;
-
-        while (attempts <= maxRetries)
+        try
         {
-            try
+            if (maxRetries < 0 || maxRetries > 10)
             {
-                attempts++;
-                _logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "maxRetries 必须在 0-10 之间");
+            }
 
-                using var db = _databaseConfig.CreateClient();
-                var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
+            if (initialDelayMs <= 0 || initialDelayMs > 60000)
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "initialDelayMs 必须在 1-60000 之间");
+            }
 
-                if (isConnected)
+            _logger.LogInformation("开始测试数据库连接（带重试机制）: 最大重试次数={MaxRetries}", maxRetries);
+
+            var attempts = 0;
+            var currentDelay = initialDelayMs;
+            Exception? lastException = null;
+
+            while (attempts <= maxRetries)
+            {
+                try
                 {
-                    _logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
-                    return _databaseHelper.SerializeResult(new
+                    attempts++;
+                    _logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
+
+                    using var db = _databaseConfig.CreateClient();
+                    var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
+
+                    if (isConnected)
                     {
-                        success = true,
-                        message = "连接成功",
-                        connected = true,
-                        attempts,
-                        currentDatabase = _databaseConfig.GetCurrentDatabaseName(),
-                        databaseType = _databaseConfig.GetDatabaseType()
-                    });
+                        _logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
+                        return _databaseHelper.SerializeResult(new
+                        {
+                            success = true,
+                            message = "连接成功",
+                            connected = true,
+                            attempts,
+                            currentDatabase = _databaseConfig.GetCurrentDatabaseName(),
+                            databaseType = _databaseConfig.GetDatabaseType()
+                        });
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                lastException = ex;
-                _logger.LogWarning(ex, "连接尝试 {Attempt} 失败", attempts);
-
-                if (attempts <= maxRetries)
+                catch (Exception ex)
                 {
-                    _logger.LogInformation("等待 {Delay}ms 后重试...", currentDelay);
-                    Thread.Sleep(currentDelay);
-                    currentDelay *= 2; // 指数退避
+                    lastException = ex;
+                    _logger.LogWarning(ex, "连接尝试 {Attempt} 失败", attempts);
+
+                    if (attempts <= maxRetries)
+                    {
+                        _logger.LogInformation("等待 {Delay}ms 后重试...", currentDelay);
+                        await Task.Delay(currentDelay);
+                        currentDelay *= 2;
+                    }
                 }
             }
-        }
 
-        // 所有重试都失败
-        _logger.LogError(lastException, "数据库连接失败，已达到最大重试次数 {MaxRetries}", maxRetries);
-        return _databaseHelper.SerializeResult(new
+            _logger.LogError(lastException, "数据库连接失败，已达到最大重试次数 {MaxRetries}", maxRetries);
+            return _databaseHelper.SerializeResult(new
+            {
+                success = false,
+                message = $"连接失败，已尝试 {attempts} 次",
+                connected = false,
+                attempts,
+                error = lastException?.Message ?? "未知错误"
+            });
+        }
+        catch (Exception ex)
         {
-            success = false,
-            message = $"连接失败，已尝试 {attempts} 次",
-            connected = false,
-            attempts,
-            error = lastException?.Message ?? "未知错误"
-        });
+            return McpExceptionFilter.HandleException(ex, _logger);
+        }
+    }
+
+    private sealed class HealthCheckResult
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string DbType { get; set; } = string.Empty;
+
+        public bool IsHealthy { get; set; }
+
+        public long ResponseTimeMs { get; set; }
+
+        public string ErrorMessage { get; set; } = string.Empty;
+
+        public DateTime CheckedAt { get; set; }
     }
 }

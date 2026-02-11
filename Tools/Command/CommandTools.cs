@@ -182,21 +182,14 @@ internal class CommandTools
     [McpServerTool]
     [Description("Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command.")]
     public string BatchExecuteCommands(
-        [Description("JSON array of SQL commands")] string commands,
-        [Description("JSON array of parameter objects for each command (optional)")] string? parametersArray = null)
+        [Description("SQL commands: JSON array, single SQL string, or JSON-stringified array")] JsonElement commands,
+        [Description("Optional parameters per command: JSON array/object, or JSON-stringified array/object")] JsonElement? parametersArray = null)
     {
         try
         {
             using var db = _databaseConfig.CreateClient();
-            var commandList = JsonSerializer.Deserialize<string[]>(commands);
-            if (commandList == null || commandList.Length == 0)
-                throw new ArgumentException("无效的命令数组");
-
-            List<Dictionary<string, JsonElement>>? paramsList = null;
-            if (!string.IsNullOrWhiteSpace(parametersArray))
-            {
-                paramsList = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(parametersArray);
-            }
+            var commandList = ParseCommandList(commands);
+            var paramsList = ParseParametersArray(parametersArray);
 
             var results = new List<object>();
 
@@ -216,7 +209,8 @@ internal class CommandTools
                         int affectedRows;
                         if (paramsList != null && i < paramsList.Count && paramsList[i] != null)
                         {
-                            var sugarParams = paramsList[i].Select(p =>
+                            var currentParams = paramsList[i]!;
+                            var sugarParams = currentParams.Select(p =>
                                 new SugarParameter(p.Key, ConvertJsonElementToValue(p.Value))).ToArray();
                             affectedRows = db.Ado.ExecuteCommand(cmd, sugarParams);
                         }
@@ -245,6 +239,136 @@ internal class CommandTools
         {
             return McpExceptionFilter.HandleException(ex, _logger);
         }
+    }
+
+    private static string[] ParseCommandList(JsonElement commands)
+    {
+        if (commands.ValueKind == JsonValueKind.Array)
+        {
+            var commandList = commands
+                .EnumerateArray()
+                .Select(item =>
+                {
+                    if (item.ValueKind != JsonValueKind.String)
+                    {
+                        throw new ArgumentException("commands 数组中的每一项必须是字符串 SQL");
+                    }
+
+                    var sql = item.GetString();
+                    if (string.IsNullOrWhiteSpace(sql))
+                    {
+                        throw new ArgumentException("commands 数组中包含空 SQL");
+                    }
+
+                    return sql;
+                })
+                .ToArray();
+
+            if (commandList.Length == 0)
+            {
+                throw new ArgumentException("命令数组不能为空");
+            }
+
+            return commandList;
+        }
+
+        if (commands.ValueKind == JsonValueKind.String)
+        {
+            var raw = commands.GetString();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                throw new ArgumentException("commands 不能为空");
+            }
+
+            var trimmed = raw.Trim();
+
+            if (trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                var parsedList = JsonSerializer.Deserialize<string[]>(trimmed);
+                if (parsedList == null || parsedList.Length == 0 || parsedList.Any(string.IsNullOrWhiteSpace))
+                {
+                    throw new ArgumentException("无效的命令数组");
+                }
+
+                return parsedList;
+            }
+
+            return [trimmed];
+        }
+
+        throw new ArgumentException("commands 参数必须是 SQL 字符串数组，或其 JSON 字符串表示");
+    }
+
+    private static List<Dictionary<string, JsonElement>?>? ParseParametersArray(JsonElement? parametersArray)
+    {
+        if (parametersArray == null ||
+            parametersArray.Value.ValueKind == JsonValueKind.Null ||
+            parametersArray.Value.ValueKind == JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        var value = parametersArray.Value;
+
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            return value
+                .EnumerateArray()
+                .Select(ParseSingleParameterObject)
+                .ToList();
+        }
+
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            return [ParseSingleParameterObject(value)];
+        }
+
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            var raw = value.GetString();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            var trimmed = raw.Trim();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                var parsedList = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>?>>(trimmed);
+                if (parsedList == null)
+                {
+                    throw new ArgumentException("无效的 parametersArray 数组");
+                }
+
+                return parsedList;
+            }
+
+            if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                var single = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(trimmed);
+                if (single == null)
+                {
+                    throw new ArgumentException("无效的 parametersArray 对象");
+                }
+
+                return [single];
+            }
+
+            throw new ArgumentException("parametersArray 字符串必须是 JSON 对象或 JSON 数组");
+        }
+
+        throw new ArgumentException("parametersArray 必须是对象、对象数组，或其 JSON 字符串表示");
+    }
+
+    private static Dictionary<string, JsonElement>? ParseSingleParameterObject(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Null => null,
+            JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(element.GetRawText())
+                ?? throw new ArgumentException("无效的参数对象"),
+            _ => throw new ArgumentException("parametersArray 数组中的每一项必须是对象或 null")
+        };
     }
 
     private void EnsureSafeSql(string sql)

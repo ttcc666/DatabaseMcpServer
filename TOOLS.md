@@ -33,9 +33,9 @@
 
 | 工具名称 | 功能描述 |
 |---------|---------|
-| `SqlQuery` | 执行只读 SQL，检测危险操作并支持 JSON 参数，返回行数与数据 |
-| `SqlQuerySingle` | 执行只读 SQL，仅返回首行（或 null） |
-| `GetDataSetAll` | 执行包含多个查询的 SQL，返回各结果集及行数 |
+| `SqlQuery` | 执行单条只读 SQL（SELECT/WITH/SHOW 等），检测危险操作并支持 JSON 参数，返回行数与数据 |
+| `SqlQuerySingle` | 执行单条只读 SQL，仅返回首行（或 null） |
+| `GetDataSetAll` | 执行多条只读 SQL（以分号分隔），返回各结果集及行数 |
 | `GetScalar` | 返回首行首列值，适用于 COUNT/SUM 等标量查询 |
 | `SqlQueryWithInParameter` | 绑定 JSON 数组到 IN 参数并可附加其他参数，安全执行 IN 查询 |
 
@@ -136,7 +136,7 @@
 | 工具名称 | 功能描述 |
 |---------|---------|
 | `ExportQueryToExcel` | 将查询结果导出为 Excel；支持自动筛选、列宽、冻结表头、base64 或路径返回 |
-| `ExportTableToExcel` | 导出整表数据（可带 WHERE），可选附带 Schema 工作表，支持 base64 或路径返回 |
+| `ExportTableToExcel` | 导出整表数据（可带安全 WHERE 过滤），会校验表名存在性；可选附带 Schema 工作表，支持 base64 或路径返回 |
 | `ExportMultipleQueriesToExcel` | 多查询多工作表导出，可选汇总页，支持 base64 或路径返回 |
 
 ---
@@ -177,3 +177,4 @@
 - [README.md](README.md) - 项目概述与快速开始
 - [AGENTS.md](AGENTS.md) - 开发指南与规范
 - [DatabaseSetting/](DatabaseSetting/) - 数据库配置示例
+

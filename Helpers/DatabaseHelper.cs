@@ -1,4 +1,4 @@
-using DatabaseMcpServer.Interfaces;
+﻿using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 using System.Data;
@@ -168,16 +168,16 @@ internal class DatabaseHelper : IDatabaseHelperService
         // 配置 SQL 执行日志
         client.Aop.OnLogExecuting = (sql, pars) =>
         {
-            var parameters = pars?.Length > 0 ?
-                string.Join(", ", pars.Select(p => $"{p.ParameterName}={p.Value}")) :
-                "无参数";
-            _logger.LogInformation("执行SQL: {Sql} | 参数: {Parameters}", sql, parameters);
+            var safeSql = SqlLogSanitizer.SanitizeSqlForLog(sql);
+            var safeParameters = SqlLogSanitizer.FormatParametersForLog(pars);
+            _logger.LogInformation("执行SQL: {Sql} | 参数: {Parameters}", safeSql, safeParameters);
         };
 
         // 配置错误日志
         client.Aop.OnError = (exp) =>
         {
-            _logger.LogError(exp.Sql, "SQL执行错误: {Message}", exp.Message);
+            var safeSql = SqlLogSanitizer.SanitizeSqlForLog(exp.Sql);
+            _logger.LogError("SQL执行错误: {Message} | SQL: {Sql}", exp.Message, safeSql);
         };
 
         return client;

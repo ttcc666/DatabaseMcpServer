@@ -1,4 +1,5 @@
-using DatabaseMcpServer.Filters;
+﻿using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
@@ -34,10 +35,6 @@ internal class QueryTools
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(sql))
-            {
-                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 查询不能为空");
-            }
             EnsureSafeSql(sql);
 
             using var db = _databaseConfig.CreateClient();
@@ -96,7 +93,7 @@ internal class QueryTools
     {
         try
         {
-            EnsureSafeSql(sql);
+            EnsureSafeSql(sql, allowMultipleStatements: true);
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
 
@@ -116,7 +113,7 @@ internal class QueryTools
             {
                 success = true,
                 resultSetCount = resultSets.Count,
-                resultSets = resultSets
+                resultSets
             });
         }
         catch (Exception ex)
@@ -164,15 +161,28 @@ internal class QueryTools
         try
         {
             EnsureSafeSql(sql);
+
+            if (string.IsNullOrWhiteSpace(inParameterName))
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "inParameterName 不能为空");
+            }
+
+            if (string.IsNullOrWhiteSpace(inValues))
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "inValues 不能为空");
+            }
+
             using var db = _databaseConfig.CreateClient();
 
             var inArray = JsonSerializer.Deserialize<object[]>(inValues);
             if (inArray == null)
+            {
                 throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的 IN 参数值数组");
+            }
 
             var sugarParams = new List<SugarParameter>
             {
-                new SugarParameter($"@{inParameterName.TrimStart('@')}", inArray)
+                new($"@{inParameterName.TrimStart('@')}", inArray)
             };
 
             if (!string.IsNullOrWhiteSpace(otherParameters))
@@ -199,11 +209,8 @@ internal class QueryTools
         }
     }
 
-    private void EnsureSafeSql(string sql)
+    private void EnsureSafeSql(string sql, bool allowMultipleStatements = false)
     {
-        if (_databaseHelper.DetectDangerousOperation(sql))
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到潜在危险操作，请使用 Schema 工具执行结构变更。");
-        }
+        SqlSafetyGuard.EnsureReadOnlySql(sql, _databaseHelper, allowMultipleStatements);
     }
 }

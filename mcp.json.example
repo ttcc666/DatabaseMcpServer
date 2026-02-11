@@ -17,10 +17,17 @@
       }
     },
 
-    "// 方式 3: 本地开发 - 使用源码运行": "",
+    "// 方式 3: 本地开发 - 使用源码运行（多目标项目请指定 --framework）": "",
     "database-dev": {
       "command": "dotnet",
-      "args": ["run", "--project", "path/to/DatabaseMcpServer"],
+      "args": ["run", "--framework", "net9.0", "--project", "path/to/DatabaseMcpServer"],
+      "env": {
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
+      }
+    },
+    "database-dev-net10": {
+      "command": "dotnet",
+      "args": ["run", "--framework", "net10.0", "--project", "path/to/DatabaseMcpServer"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }

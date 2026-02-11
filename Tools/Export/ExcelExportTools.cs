@@ -1,5 +1,6 @@
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ using SqlSugar;
 using System.ComponentModel;
 using System.Data;
 using System.Text.Json;
+using DbType = SqlSugar.DbType;
 
 namespace DatabaseMcpServer.Tools.Export;
 
@@ -48,20 +50,19 @@ public class ExcelExportTools
         {
             ValidateExportParameters(sql, filePath, batchSize);
 
-            // 生成文件路径
             var actualFilePath = string.IsNullOrWhiteSpace(filePath)
                 ? GenerateTempFilePath(worksheetName)
                 : filePath;
 
             using var db = _databaseConfig.CreateClient();
             var parsedParams = _databaseHelper.ParseParameters(parameters);
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add(SanitizeWorksheetName(worksheetName));
 
             _logger?.LogInformation("开始导出 SQL 查询结果到 Excel: {FilePath}", actualFilePath);
 
-            // 执行查询获取数据
-            var dataTable = GetQueryData(db, sql, parsedParams);
-
-            if (dataTable.Rows.Count == 0)
+            var totalRows = PopulateWorksheetFromQuery(worksheet, db, sql, parsedParams, batchSize);
+            if (totalRows == 0)
             {
                 return _databaseHelper.SerializeResult(new
                 {
@@ -71,23 +72,18 @@ public class ExcelExportTools
                 });
             }
 
-            // 导出到 Excel
-            ExportDataTableToExcel(dataTable, actualFilePath, worksheetName, autoFilter, autoSizeColumns, freezeHeader);
+            ApplyWorksheetFormatting(worksheet, autoFilter, autoSizeColumns, freezeHeader);
+            workbook.SaveAs(actualFilePath);
 
             var processingTime = DateTime.UtcNow - startTime;
-            var totalRows = dataTable.Rows.Count;
-
-            // 准备返回结果
             var result = GenerateExportResponse(actualFilePath, returnFormat.ToLower(), totalRows, worksheetName, processingTime);
 
-            // 如果是临时文件，安排清理
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 ScheduleFileCleanup(actualFilePath);
             }
 
             _logger?.LogInformation("Excel 导出完成: {TotalRows} 行, 耗时 {ElapsedMs}ms", totalRows, processingTime.TotalMilliseconds);
-
             return result;
         }
         catch (Exception ex)
@@ -112,39 +108,36 @@ public class ExcelExportTools
 
         try
         {
-            ValidateTableExportParameters(tableName, filePath, batchSize);
+            ValidateTableExportParameters(tableName, whereClause, filePath, batchSize);
 
             var actualFilePath = string.IsNullOrWhiteSpace(filePath)
                 ? GenerateTempFilePath($"{worksheetPrefix}{tableName}")
                 : filePath;
 
             using var db = _databaseConfig.CreateClient();
+            ValidateTableExists(db, tableName);
+
             var worksheetName = string.IsNullOrWhiteSpace(worksheetPrefix) ? tableName : $"{worksheetPrefix}_{tableName}";
+            using var workbook = new XLWorkbook();
 
             _logger?.LogInformation("开始导出表 {TableName} 到 Excel: {FilePath}", tableName, actualFilePath);
 
-            // 构建查询语句
-            var sql = BuildTableExportSql(tableName, whereClause);
-            var dataTable = GetQueryData(db, sql, null);
+            var sql = BuildTableExportSql(db.CurrentConnectionConfig.DbType, tableName, whereClause);
+            var dataSheet = workbook.Worksheets.Add(SanitizeWorksheetName(worksheetName));
+            var totalRows = PopulateWorksheetFromQuery(dataSheet, db, sql, null, batchSize);
 
-            if (dataTable.Rows.Count == 0)
+            if (totalRows == 0)
             {
                 return _databaseHelper.SerializeResult(new
                 {
                     success = false,
                     message = $"表 {tableName} 中没有数据",
-                    tableName = tableName
+                    tableName
                 });
             }
 
-            using var workbook = new XLWorkbook();
-
-            // 添加数据工作表
-            var dataSheet = workbook.Worksheets.Add(worksheetName);
-            PopulateWorksheetFromDataTable(dataSheet, dataTable);
             ApplyWorksheetFormatting(dataSheet, autoFilter: true, autoSizeColumns: true, freezeHeader: true);
 
-            // 可选：添加模式工作表
             if (includeSchema)
             {
                 AddSchemaWorksheet(workbook, tableName, db);
@@ -153,8 +146,6 @@ public class ExcelExportTools
             workbook.SaveAs(actualFilePath);
 
             var processingTime = DateTime.UtcNow - startTime;
-            var totalRows = dataTable.Rows.Count;
-
             var result = GenerateExportResponse(actualFilePath, returnFormat.ToLower(), totalRows, worksheetName, processingTime);
 
             if (string.IsNullOrWhiteSpace(filePath))
@@ -163,7 +154,6 @@ public class ExcelExportTools
             }
 
             _logger?.LogInformation("表导出完成: {TableName}, {TotalRows} 行, 耗时 {ElapsedMs}ms", tableName, totalRows, processingTime.TotalMilliseconds);
-
             return result;
         }
         catch (Exception ex)
@@ -188,12 +178,7 @@ public class ExcelExportTools
         {
             ValidateMultipleExportParameters(queriesJson, filePath, batchSize);
 
-            var queries = JsonSerializer.Deserialize<Dictionary<string, string>>(queriesJson);
-            if (queries == null || queries.Count == 0)
-            {
-                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "查询列表不能为空");
-            }
-
+            var queries = ParseAndValidateQueries(queriesJson);
             var actualFilePath = string.IsNullOrWhiteSpace(filePath)
                 ? GenerateTempFilePath("MultiQueryExport")
                 : filePath;
@@ -201,44 +186,38 @@ public class ExcelExportTools
             using var db = _databaseConfig.CreateClient();
             using var workbook = new XLWorkbook();
 
-            var exportResults = new List<object>();
+            var exportResults = new List<QueryExportResult>();
 
-            foreach (var kvp in queries)
+            foreach (var (queryName, sql) in queries)
             {
-                var queryName = kvp.Key;
-                var sql = kvp.Value;
-
                 _logger?.LogInformation("导出查询 {QueryName}: {SqlSample}", queryName, sql.TruncateForLog());
 
                 try
                 {
-                    var dataTable = GetQueryData(db, sql, null);
                     var worksheet = workbook.Worksheets.Add(SanitizeWorksheetName(queryName));
-                    PopulateWorksheetFromDataTable(worksheet, dataTable);
+                    var rowCount = PopulateWorksheetFromQuery(worksheet, db, sql, null, batchSize);
                     ApplyWorksheetFormatting(worksheet, autoFilter: true, autoSizeColumns: true, freezeHeader: true);
 
-                    exportResults.Add(new
+                    exportResults.Add(new QueryExportResult
                     {
-                        queryName = queryName,
-                        rowCount = dataTable.Rows.Count,
-                        success = true,
-                        error = (string?)null
+                        QueryName = queryName,
+                        RowCount = rowCount,
+                        Success = true
                     });
                 }
                 catch (Exception ex)
                 {
                     _logger?.LogError(ex, "导出查询 {QueryName} 失败", queryName);
-                    exportResults.Add(new
+                    exportResults.Add(new QueryExportResult
                     {
-                        queryName = queryName,
-                        rowCount = 0,
-                        success = false,
-                        error = ex.Message
+                        QueryName = queryName,
+                        RowCount = 0,
+                        Success = false,
+                        Error = ex.Message
                     });
                 }
             }
 
-            // 添加汇总工作表
             if (includeSummary)
             {
                 AddSummaryWorksheet(workbook, exportResults);
@@ -247,7 +226,7 @@ public class ExcelExportTools
             workbook.SaveAs(actualFilePath);
 
             var processingTime = DateTime.UtcNow - startTime;
-            var totalRows = exportResults.Sum(r => ((dynamic)r).rowCount);
+            var totalRows = exportResults.Sum(result => result.RowCount);
 
             var result = GenerateExportResponse(actualFilePath, returnFormat.ToLower(), totalRows, "MultipleQueries", processingTime);
 
@@ -272,16 +251,7 @@ public class ExcelExportTools
 
     private void ValidateExportParameters(string sql, string? filePath, int batchSize)
     {
-        if (string.IsNullOrWhiteSpace(sql))
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 查询不能为空");
-        }
-
-        if (_databaseHelper.DetectDangerousOperation(sql))
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
-                "检测到潜在危险操作，只允许 SELECT 查询导出");
-        }
+        SqlSafetyGuard.EnsureReadOnlySql(sql, _databaseHelper);
 
         if (batchSize <= 0 || batchSize > 50000)
         {
@@ -295,12 +265,10 @@ public class ExcelExportTools
         }
     }
 
-    private void ValidateTableExportParameters(string tableName, string? filePath, int batchSize)
+    private void ValidateTableExportParameters(string tableName, string? whereClause, string? filePath, int batchSize)
     {
-        if (string.IsNullOrWhiteSpace(tableName))
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "表名不能为空");
-        }
+        SqlSafetyGuard.EnsureSafeTableName(tableName);
+        SqlSafetyGuard.EnsureSafeWhereClause(whereClause);
 
         if (batchSize <= 0 || batchSize > 50000)
         {
@@ -333,13 +301,60 @@ public class ExcelExportTools
         }
     }
 
-    private DataTable GetQueryData(ISqlSugarClient db, string sql, SugarParameter[]? parameters)
+    private Dictionary<string, string> ParseAndValidateQueries(string queriesJson)
     {
         try
         {
-            return parameters != null
-                ? db.Ado.GetDataTable(sql, parameters)
-                : db.Ado.GetDataTable(sql);
+            var queries = JsonSerializer.Deserialize<Dictionary<string, string>>(queriesJson);
+            if (queries == null || queries.Count == 0)
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "查询列表不能为空");
+            }
+
+            foreach (var (queryName, sql) in queries)
+            {
+                if (string.IsNullOrWhiteSpace(queryName))
+                {
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "查询名称不能为空");
+                }
+
+                if (string.IsNullOrWhiteSpace(sql))
+                {
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, $"查询 '{queryName}' 的 SQL 不能为空");
+                }
+
+                SqlSafetyGuard.EnsureReadOnlySql(sql, _databaseHelper);
+            }
+
+            return queries;
+        }
+        catch (JsonException ex)
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "queriesJson 不是有效的 JSON 对象", ex);
+        }
+    }
+
+    private int PopulateWorksheetFromQuery(
+        IXLWorksheet worksheet,
+        ISqlSugarClient db,
+        string sql,
+        SugarParameter[]? parameters,
+        int batchSize)
+    {
+        using var reader = GetQueryReader(db, sql, parameters);
+        return PopulateWorksheetFromDataReader(worksheet, reader, batchSize);
+    }
+
+    private IDataReader GetQueryReader(ISqlSugarClient db, string sql, SugarParameter[]? parameters)
+    {
+        try
+        {
+            if (parameters != null && parameters.Length > 0)
+            {
+                return db.Ado.GetDataReader(sql, parameters);
+            }
+
+            return db.Ado.GetDataReader(sql, (object?)null);
         }
         catch (Exception ex)
         {
@@ -348,57 +363,51 @@ public class ExcelExportTools
         }
     }
 
-    private void ExportDataTableToExcel(DataTable dataTable, string filePath, string worksheetName,
-        bool autoFilter, bool autoSizeColumns, bool freezeHeader)
+    private int PopulateWorksheetFromDataReader(IXLWorksheet worksheet, IDataReader reader, int batchSize)
     {
-        try
+        var fieldCount = reader.FieldCount;
+        if (fieldCount == 0)
         {
-            using var workbook = new XLWorkbook();
-            var worksheet = workbook.Worksheets.Add(SanitizeWorksheetName(worksheetName));
-
-            PopulateWorksheetFromDataTable(worksheet, dataTable);
-            ApplyWorksheetFormatting(worksheet, autoFilter, autoSizeColumns, freezeHeader);
-
-            workbook.SaveAs(filePath);
+            return 0;
         }
-        catch (Exception ex)
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.ExcelExportFailed,
-                $"Excel 文件生成失败: {ex.Message}", ex);
-        }
-    }
 
-    private void PopulateWorksheetFromDataTable(IXLWorksheet worksheet, DataTable dataTable)
-    {
-        // 添加表头
-        for (int col = 0; col < dataTable.Columns.Count; col++)
+        for (var col = 0; col < fieldCount; col++)
         {
             var cell = worksheet.Cell(1, col + 1);
-            cell.Value = dataTable.Columns[col].ColumnName;
+            cell.Value = reader.GetName(col);
             cell.Style.Font.Bold = true;
             cell.Style.Fill.BackgroundColor = XLColor.LightGray;
             cell.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
         }
 
-        // 添加数据
-        for (int row = 0; row < dataTable.Rows.Count; row++)
-        {
-            for (int col = 0; col < dataTable.Columns.Count; col++)
-            {
-                var value = dataTable.Rows[row][col];
-                var cell = worksheet.Cell(row + 2, col + 1);
+        var rowIndex = 2;
+        var rowCount = 0;
 
-                if (value == DBNull.Value || value == null)
+        while (reader.Read())
+        {
+            for (var col = 0; col < fieldCount; col++)
+            {
+                var cell = worksheet.Cell(rowIndex, col + 1);
+                if (reader.IsDBNull(col))
                 {
-                    cell.Value = "";
+                    cell.Value = string.Empty;
                 }
                 else
                 {
-                    // 根据数据类型设置单元格值
-                    cell.Value = ConvertToXLCellValue(value);
+                    cell.Value = ConvertToXLCellValue(reader.GetValue(col));
                 }
             }
+
+            rowIndex++;
+            rowCount++;
+
+            if (rowCount % batchSize == 0)
+            {
+                _logger?.LogDebug("工作表 {Worksheet} 已写入 {RowCount} 行", worksheet.Name, rowCount);
+            }
         }
+
+        return rowCount;
     }
 
     private XLCellValue ConvertToXLCellValue(object value)
@@ -567,23 +576,43 @@ public class ExcelExportTools
         return name;
     }
 
-    private string BuildTableExportSql(string tableName, string? whereClause)
+    private string BuildTableExportSql(DbType dbType, string tableName, string? whereClause)
     {
-        var sql = $"SELECT * FROM {tableName}";
+        var quotedTableName = SqlSafetyGuard.QuoteTableName(tableName, dbType);
+        var sql = $"SELECT * FROM {quotedTableName}";
 
         if (!string.IsNullOrWhiteSpace(whereClause))
         {
-            if (!whereClause.TrimStart().ToUpper().StartsWith("WHERE"))
+            var normalizedWhereClause = whereClause.Trim();
+            if (!normalizedWhereClause.StartsWith("WHERE", StringComparison.OrdinalIgnoreCase))
             {
-                sql += $" WHERE {whereClause}";
+                sql += $" WHERE {normalizedWhereClause}";
             }
             else
             {
-                sql += $" {whereClause}";
+                sql += $" {normalizedWhereClause}";
             }
         }
 
         return sql;
+    }
+
+    private void ValidateTableExists(ISqlSugarClient db, string tableName)
+    {
+        var simpleTableName = tableName
+            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault() ?? tableName;
+
+        var tableInfos = db.DbMaintenance.GetTableInfoList(false) ?? [];
+        var exists = tableInfos.Any(table =>
+            string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(table.Name, simpleTableName, StringComparison.OrdinalIgnoreCase));
+
+        if (!exists)
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters,
+                $"表 '{tableName}' 不存在，请先检查表名是否正确。");
+        }
     }
 
     private void AddSchemaWorksheet(XLWorkbook workbook, string tableName, ISqlSugarClient db)
@@ -630,7 +659,7 @@ public class ExcelExportTools
         }
     }
 
-    private void AddSummaryWorksheet(XLWorkbook workbook, List<object> exportResults)
+    private void AddSummaryWorksheet(XLWorkbook workbook, IReadOnlyCollection<QueryExportResult> exportResults)
     {
         var summarySheet = workbook.Worksheets.Add("Summary");
 
@@ -645,28 +674,31 @@ public class ExcelExportTools
         summarySheet.Range(1, 1, 1, 4).Style.Fill.BackgroundColor = XLColor.LightGray;
 
         // 填充数据
-        int row = 2;
-        foreach (dynamic result in exportResults)
+        var row = 2;
+        foreach (var result in exportResults)
         {
-            summarySheet.Cell(row, 1).Value = result.queryName;
-            summarySheet.Cell(row, 2).Value = result.rowCount;
-            summarySheet.Cell(row, 3).Value = result.success ? "Success" : "Failed";
-            summarySheet.Cell(row, 4).Value = result.error ?? "-";
+            summarySheet.Cell(row, 1).Value = result.QueryName;
+            summarySheet.Cell(row, 2).Value = result.RowCount;
+            summarySheet.Cell(row, 3).Value = result.Success ? "Success" : "Failed";
+            summarySheet.Cell(row, 4).Value = result.Error ?? "-";
 
             // 根据状态设置颜色
-            if (result.success)
-            {
-                summarySheet.Cell(row, 3).Style.Font.FontColor = XLColor.Green;
-            }
-            else
-            {
-                summarySheet.Cell(row, 3).Style.Font.FontColor = XLColor.Red;
-            }
-
+            summarySheet.Cell(row, 3).Style.Font.FontColor = result.Success ? XLColor.Green : XLColor.Red;
             row++;
         }
 
         summarySheet.Columns().AdjustToContents();
+    }
+
+    private sealed class QueryExportResult
+    {
+        public string QueryName { get; set; } = string.Empty;
+
+        public int RowCount { get; set; }
+
+        public bool Success { get; set; }
+
+        public string? Error { get; set; }
     }
 
     #endregion 私有方法

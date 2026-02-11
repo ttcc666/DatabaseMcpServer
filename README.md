@@ -163,16 +163,27 @@ dnx DatabaseMcpServer@2.0.7 --yes
 ```bash
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
-dotnet run
+# .NET 9
+dotnet run --framework net9.0
+
+# .NET 10
+dotnet run --framework net10.0
 ```
 
 **MCP 配置**：
 ```json
 {
   "mcpServers": {
-    "database": {
+    "database-net9": {
       "command": "dotnet",
-      "args": ["run", "--project", "path/to/DatabaseMcpServer"],
+      "args": ["run", "--framework", "net9.0", "--project", "path/to/DatabaseMcpServer"],
+      "env": {
+        "DB_CONFIG_PATH": "D:\\config\\databases.json"
+      }
+    },
+    "database-net10": {
+      "command": "dotnet",
+      "args": ["run", "--framework", "net10.0", "--project", "path/to/DatabaseMcpServer"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -617,7 +628,10 @@ git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
 
 # 创建配置文件 databases.json 后运行
-DB_CONFIG_PATH="path/to/databases.json" dotnet run
+DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net9.0
+
+# 或使用 .NET 10
+DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net10.0
 
 # 构建项目
 dotnet build

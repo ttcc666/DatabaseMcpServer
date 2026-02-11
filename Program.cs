@@ -1,4 +1,4 @@
-using DatabaseMcpServer.Helpers;
+﻿using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Strategies;
@@ -66,7 +66,7 @@ static void WarmupSqlSugarProviders(Serilog.ILogger? logger)
     {
         ("SqlSugar.ClickHouseCore", "ClickHouseProvider"),
         ("SqlSugar.MongoDbCore", "MongoDbProvider"),
-        ("SqlSugar.GaussDBCore", "GaussDBProvider"),
+        ("SqlSugar.GaussDBNativeCore", "GaussDBProvider"),
         ("SqlSugar.OceanBaseForOracleCore", "OceanBaseForOracleProvider")
     };
 

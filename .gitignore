@@ -364,3 +364,4 @@ FodyWeavers.xsd
 /mcp.json.local
 
 databases.json
+.ace-tool/
