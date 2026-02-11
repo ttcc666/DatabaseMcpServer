@@ -11,7 +11,7 @@
     "// 方式 2: dnx 命令": "",
     "database-dnx": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.7", "--yes"],
+      "args": ["DatabaseMcpServer@2.0.8", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
