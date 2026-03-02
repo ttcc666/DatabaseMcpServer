@@ -11,6 +11,7 @@ namespace DatabaseMcpServer.Tools.Management;
 /// <summary>
 /// 数据库连接与配置管理工具类
 /// </summary>
+[McpServerToolType]
 internal class ConnectionTools
 {
     private readonly IDatabaseConfigService _databaseConfig;

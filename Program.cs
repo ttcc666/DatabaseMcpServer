@@ -2,11 +2,6 @@
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Strategies;
-using DatabaseMcpServer.Tools.Command;
-using DatabaseMcpServer.Tools.Documentation;
-using DatabaseMcpServer.Tools.Export;
-using DatabaseMcpServer.Tools.Management;
-using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -50,12 +45,7 @@ builder.Services.AddSingleton<IDatabaseDocumentationService, DatabaseDocumentati
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<ConnectionTools>()
-    .WithTools<SchemaTools>()
-    .WithTools<QueryTools>()
-    .WithTools<CommandTools>()
-    .WithTools<ExcelExportTools>()
-    .WithTools<DocumentationTools>();
+    .WithToolsFromAssembly(Assembly.GetExecutingAssembly());
 
 await builder.Build().RunAsync();
 

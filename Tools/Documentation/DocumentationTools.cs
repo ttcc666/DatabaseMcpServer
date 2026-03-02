@@ -13,6 +13,7 @@ namespace DatabaseMcpServer.Tools.Documentation;
 /// <summary>
 /// 一步生成数据库文档的工具
 /// </summary>
+[McpServerToolType]
 public class DocumentationTools
 {
     private readonly IDatabaseDocumentationService _documentationService;

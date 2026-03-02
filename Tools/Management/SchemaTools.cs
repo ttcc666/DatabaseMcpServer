@@ -11,6 +11,7 @@ namespace DatabaseMcpServer.Tools.Management;
 /// <summary>
 /// 数据库架构管理工具类，用于执行数据库架构相关操作。
 /// </summary>
+[McpServerToolType]
 internal class SchemaTools
 {
     private readonly IDatabaseConfigService _databaseConfig;

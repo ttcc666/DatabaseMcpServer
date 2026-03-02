@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.8-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.1.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@2.0.8 --yes
+dnx DatabaseMcpServer@2.1.0 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@2.0.8 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.8", "--yes"],
+      "args": ["DatabaseMcpServer@2.1.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -675,8 +675,8 @@ dotnet pack -c Release
 
 ## 🆕 Release Notes
 
-- **2.0.8**
-  - Align version to 2.0.8 (badges/example commands/config)
+- **2.1.0**
+  - Align version to 2.1.0 (badges/example commands/config)
   - Add Chinese XML summaries for tools, services, and strategies to improve IntelliSense/maintenance
   - Trim redundant tool APIs (multi-type scalar wrappers/redundant queries/redundant DML wrappers); keep core capabilities
   - Fix non-nullable model warnings; build is clean
@@ -701,6 +701,7 @@ dotnet pack -c Release
 
    namespace DatabaseMcpServer.Tools;
 
+   [McpServerToolType]
    internal class YourNewTools
    {
        private readonly IDatabaseConfigService _databaseConfig;
@@ -727,14 +728,12 @@ dotnet pack -c Release
    In `Program.cs`:
 
    ```csharp
+   using System.Reflection;
+
    builder.Services
        .AddMcpServer()
        .WithStdioServerTransport()
-       .WithTools<ConnectionTools>()
-       .WithTools<SchemaTools>()
-       .WithTools<QueryTools>()
-       .WithTools<CommandTools>()
-       .WithTools<YourNewTools>(); // Add your tool
+       .WithToolsFromAssembly(Assembly.GetExecutingAssembly()); // Auto-discover tools with [McpServerToolType]
    ```
 
 ### Project Architecture
@@ -759,7 +758,7 @@ Data Access Layer (SqlSugar ORM)
 ## 🛠️ Tech Stack
 
 - **.NET 9.0** - Latest .NET platform
-- **ModelContextProtocol 0.4.0** - MCP protocol C# SDK
+- **ModelContextProtocol 1.0.0** - MCP protocol C# SDK
 - **SqlSugarCore 5.1.4** - Lightweight high-performance ORM
 - **Serilog** - Structured logging framework
 - **Microsoft.Extensions.Hosting** - Dependency injection and hosting
@@ -787,7 +786,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 2.0.8
+- This project has released version 2.1.0
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data

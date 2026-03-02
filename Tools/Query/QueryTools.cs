@@ -14,6 +14,7 @@ namespace DatabaseMcpServer.Tools.Query;
 /// <summary>
 /// 数据库查询工具类，支持各种查询操作
 /// </summary>
+[McpServerToolType]
 internal class QueryTools
 {
     private readonly IDatabaseConfigService _databaseConfig;

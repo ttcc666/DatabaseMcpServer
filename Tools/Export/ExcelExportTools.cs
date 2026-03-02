@@ -16,6 +16,7 @@ namespace DatabaseMcpServer.Tools.Export;
 /// <summary>
 /// Excel 导出工具类，支持 SQL 查询结果和表数据导出
 /// </summary>
+[McpServerToolType]
 public class ExcelExportTools
 {
     private readonly IDatabaseConfigService _databaseConfig;

@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.0.8-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.1.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -139,7 +139,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.0.8 --yes
+dnx DatabaseMcpServer@2.1.0 --yes
 ```
 
 **MCP 配置**：
@@ -148,7 +148,7 @@ dnx DatabaseMcpServer@2.0.8 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.0.8", "--yes"],
+      "args": ["DatabaseMcpServer@2.1.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -645,8 +645,8 @@ dotnet pack -c Release
 
 ## 🆕 版本发布
 
-- **2.0.8**
-  - 版本号统一至 2.0.8（徽标/示例命令/配置）
+- **2.1.0**
+  - 版本号统一至 2.1.0（徽标/示例命令/配置）
   - 为工具、服务、策略等补充中文 XML 注释，便于智能提示与维护
   - 精简冗余工具接口（多型标量/重复查询/重复 DML 包装），保持核心能力
   - 修复模型非空属性警告，构建无警告
@@ -669,6 +669,7 @@ dotnet pack -c Release
 
    namespace DatabaseMcpServer.Tools;
 
+   [McpServerToolType]
    internal class YourNewTools
    {
        private readonly IDatabaseConfigService _databaseConfig;
@@ -694,14 +695,12 @@ dotnet pack -c Release
 3. **注册工具**
    在 `Program.cs` 中：
    ```csharp
+   using System.Reflection;
+
    builder.Services
        .AddMcpServer()
        .WithStdioServerTransport()
-       .WithTools<ConnectionTools>()
-       .WithTools<SchemaTools>()
-       .WithTools<QueryTools>()
-       .WithTools<CommandTools>()
-       .WithTools<YourNewTools>(); // 添加你的工具
+       .WithToolsFromAssembly(Assembly.GetExecutingAssembly()); // 自动发现带 [McpServerToolType] 的工具
    ```
 
 ### 项目架构
@@ -725,7 +724,7 @@ Data Access Layer (SqlSugar ORM)
 ## 🛠️ 技术栈
 
 - **.NET 9.0** - 最新的 .NET 平台
-- **ModelContextProtocol 0.4.0** - MCP 协议 C# SDK
+- **ModelContextProtocol 1.0.0** - MCP 协议 C# SDK
 - **SqlSugarCore 5.1.4** - 轻量级高性能 ORM
 - **Serilog** - 结构化日志框架
 - **Microsoft.Extensions.Hosting** - 依赖注入和托管
@@ -753,7 +752,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.0.8 正式版本
+- 本项目已发布 2.1.0 正式版本
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据

@@ -13,6 +13,7 @@ namespace DatabaseMcpServer.Tools.Command;
 /// <summary>
 /// 数据库命令执行工具类，用于执行数据库的增删改操作、存储过程和事务
 /// </summary>
+[McpServerToolType]
 internal class CommandTools
 {
     private readonly IDatabaseConfigService _databaseConfig;

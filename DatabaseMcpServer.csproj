@@ -1,50 +1,50 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <!-- 多目标：同时支持 .NET 9 / 10 -->
-    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+	<PropertyGroup>
+		<!-- 多目标：同时支持 .NET 9 / 10 -->
+		<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
 
-    <OutputType>Exe</OutputType>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+		<OutputType>Exe</OutputType>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- 作为 .NET Global Tool & MCP Server 发布 -->
-    <PackAsTool>true</PackAsTool>
-    <PackageType>McpServer</PackageType>
-    <ToolCommandName>DatabaseMcpServer</ToolCommandName>
+		<!-- 作为 .NET Global Tool & MCP Server 发布 -->
+		<PackAsTool>true</PackAsTool>
+		<PackageType>McpServer</PackageType>
+		<ToolCommandName>DatabaseMcpServer</ToolCommandName>
 
-    <!-- NuGet 元数据 -->
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageId>DatabaseMcpServer</PackageId>
-    <!-- 记得发布新包时改版本号 -->
-    <PackageVersion>2.0.8</PackageVersion>
-    <PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
-    <Description>一个功能强大的数据库操作 MCP 服务器，聚焦 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB、SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA、达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）。</Description>
-    <RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/ttcc666/DatabaseMcpServer</PackageProjectUrl>
-  </PropertyGroup>
+		<!-- NuGet 元数据 -->
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<PackageId>DatabaseMcpServer</PackageId>
+		<!-- 记得发布新包时改版本号 -->
+		<PackageVersion>2.1.0</PackageVersion>
+		<PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
+		<Description>一个功能强大的数据库操作 MCP 服务器，聚焦 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB、SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA、达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）。</Description>
+		<RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/ttcc666/DatabaseMcpServer</PackageProjectUrl>
+	</PropertyGroup>
 
-  <!-- Include additional files for browsing the MCP server. -->
-  <ItemGroup>
-    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
-    <None Include="README.md" Pack="true" PackagePath="/" />
-    <None Include="LICENSE" Pack="true" PackagePath="/" />
- </ItemGroup>
+	<!-- Include additional files for browsing the MCP server. -->
+	<ItemGroup>
+		<None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
+		<None Include="README.md" Pack="true" PackagePath="/" />
+		<None Include="LICENSE" Pack="true" PackagePath="/" />
+	</ItemGroup>
 
-  <ItemGroup>
-	<PackageReference Include="ClosedXML" Version="0.105.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
-    <PackageReference Include="ModelContextProtocol" Version="0.8.0-preview.1" />
-    <PackageReference Include="SqlSugarCore" Version="5.1.4.211" />
-    <PackageReference Include="SqlSugar.OceanBaseForOracleCore" Version="5.1.4.205" />
-    <PackageReference Include="SqlSugar.MongoDbCore" Version="5.1.4.277" />
-    <PackageReference Include="SqlSugar.ClickHouseCore" Version="5.1.4.201" />
-    <PackageReference Include="SqlSugar.GaussDBNativeCore" Version="5.1.4.189" />
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="ClosedXML" Version="0.105.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
+		<PackageReference Include="ModelContextProtocol" Version="1.0.0" />
+		<PackageReference Include="SqlSugarCore" Version="5.1.4.211" />
+		<PackageReference Include="SqlSugar.OceanBaseForOracleCore" Version="5.1.4.205" />
+		<PackageReference Include="SqlSugar.MongoDbCore" Version="5.1.4.277" />
+		<PackageReference Include="SqlSugar.ClickHouseCore" Version="5.1.4.201" />
+		<PackageReference Include="SqlSugar.GaussDBNativeCore" Version="5.1.4.189" />
+		<PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+		<PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
+	</ItemGroup>
 
 </Project>
