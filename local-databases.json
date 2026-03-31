@@ -1,0 +1,16 @@
+{
+  "databases": [
+    {
+      "name": "sqlite-local",
+      "connectionString": "Data Source=D:\\Demo\\DatabaseMcpServer\\data\\local.db;Cache=Shared;Mode=ReadWriteCreate;",
+      "dbType": "Sqlite",
+      "description": "本地干净测试库",
+      "isDefault": true,
+      "optimizationSettings": {
+        "enableDefaultValue": "true",
+        "enableDescription": "true",
+        "enableDropColumn": "true"
+      }
+    }
+  ]
+}
