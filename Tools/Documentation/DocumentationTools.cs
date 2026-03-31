@@ -1,7 +1,7 @@
-using DatabaseMcpServer.Filters;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
+using DatabaseMcpServer.Tools;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
@@ -11,23 +11,22 @@ using System.Text.Json;
 namespace DatabaseMcpServer.Tools.Documentation;
 
 /// <summary>
-/// 一步生成数据库文档的工具
+/// 一步生成数据库文档的工具。
 /// </summary>
 [McpServerToolType]
-public class DocumentationTools
+internal class DocumentationTools : McpToolBase
 {
     private readonly IDatabaseDocumentationService _documentationService;
-    private readonly IDatabaseHelperService _databaseHelper;
-    private readonly ILogger<DocumentationTools> _logger;
 
     public DocumentationTools(
         IDatabaseDocumentationService documentationService,
+        IDatabaseConfigService databaseConfig,
         IDatabaseHelperService databaseHelper,
+        IJsonResultSerializer resultSerializer,
         ILogger<DocumentationTools> logger)
+        : base(databaseConfig, databaseHelper, resultSerializer, logger)
     {
         _documentationService = documentationService;
-        _databaseHelper = databaseHelper;
-        _logger = logger;
     }
 
     [McpServerTool]
@@ -39,7 +38,7 @@ public class DocumentationTools
         [Description("Return mode: content | base64 | path (default: content). base64/path will write a temp file when filePath is not provided.")] string returnMode = "content",
         [Description("Optional output file path (used when returnMode is base64 or path).")] string? filePath = null)
     {
-        try
+        return Execute(() =>
         {
             var normalizedFormat = string.IsNullOrWhiteSpace(format) ? "markdown" : format.Trim().ToLowerInvariant();
             if (normalizedFormat is not ("markdown" or "json"))
@@ -58,35 +57,11 @@ public class DocumentationTools
 
             if (normalizedReturnMode == "content")
             {
-                if (normalizedFormat == "json")
-                {
-                    return _databaseHelper.SerializeResult(new
-                    {
-                        success = true,
-                        format = normalizedFormat,
-                        connection = documentation.ConnectionName,
-                        data = documentation
-                    });
-                }
-
-                var markdown = DocumentationMarkdownFormatter.ToMarkdown(documentation);
-
-                return _databaseHelper.SerializeResult(new
-                {
-                    success = true,
-                    format = normalizedFormat,
-                    connection = documentation.ConnectionName,
-                    generatedAtUtc = documentation.GeneratedAtUtc,
-                    tables = documentation.Tables.Count,
-                    views = documentation.Views.Count,
-                    content = markdown,
-                    warnings = documentation.Warnings
-                });
+                return CreateContentResponse(documentation, normalizedFormat);
             }
 
             var (actualPath, base64Content) = WriteDocumentationToFile(documentation, normalizedFormat, filePath, normalizedReturnMode);
-
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 format = normalizedFormat,
@@ -99,12 +74,34 @@ public class DocumentationTools
                 filePath = actualPath,
                 fileName = Path.GetFileName(actualPath),
                 base64 = normalizedReturnMode == "base64" ? base64Content : null
-            });
-        }
-        catch (Exception ex)
+            };
+        });
+    }
+
+    private static object CreateContentResponse(DatabaseDocumentation documentation, string normalizedFormat)
+    {
+        if (normalizedFormat == "json")
         {
-            return McpExceptionFilter.HandleException(ex, _logger);
+            return new
+            {
+                success = true,
+                format = normalizedFormat,
+                connection = documentation.ConnectionName,
+                data = documentation
+            };
         }
+
+        return new
+        {
+            success = true,
+            format = normalizedFormat,
+            connection = documentation.ConnectionName,
+            generatedAtUtc = documentation.GeneratedAtUtc,
+            tables = documentation.Tables.Count,
+            views = documentation.Views.Count,
+            content = DocumentationMarkdownFormatter.ToMarkdown(documentation),
+            warnings = documentation.Warnings
+        };
     }
 
     private static IReadOnlyCollection<string>? ParseTableFilters(string? tableNames)
@@ -116,7 +113,7 @@ public class DocumentationTools
 
         var names = tableNames
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToList();
 
         return names.Count == 0 ? null : names;
@@ -157,8 +154,7 @@ public class DocumentationTools
         if (returnMode == "base64")
         {
             var bytes = File.ReadAllBytes(actualPath);
-            var base64 = Convert.ToBase64String(bytes);
-            return (actualPath, base64);
+            return (actualPath, Convert.ToBase64String(bytes));
         }
 
         return (actualPath, null);
@@ -171,9 +167,9 @@ public class DocumentationTools
             return "database";
         }
 
-        foreach (var c in Path.GetInvalidFileNameChars())
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
         {
-            name = name.Replace(c, '_');
+            name = name.Replace(invalidChar, '_');
         }
 
         return name;

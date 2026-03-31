@@ -37,17 +37,13 @@ INNER JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.ref
 WHERE tp.name = @TableName
   AND SCHEMA_NAME(tp.schema_id) = SCHEMA_NAME();";
 
-        try
-        {
-            var rows = db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName });
-            return GroupForeignKeys(rows);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的外键失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的外键: {ex.Message}");
-            return Enumerable.Empty<ForeignKeyDocumentation>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的外键: {ex.Message}",
+            () => GroupForeignKeys(db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName })),
+            Enumerable.Empty<ForeignKeyDocumentation>(),
+            "获取表 {TableName} 的外键失败",
+            tableName);
     }
 
     /// <summary>
@@ -66,33 +62,32 @@ FROM sys.dm_db_partition_stats ps
 WHERE ps.index_id >= 0
   AND (@objId IS NOT NULL AND ps.object_id = @objId);";
 
-        try
-        {
-            var row = db.Ado.SqlQuerySingle<SqlServerTableStatRow>(sql, new { TableName = tableName });
-            if (row == null)
+        return ExecuteWithWarning<TableStatistics?>(
+            warnings,
+            ex => $"未能获取表 {tableName} 的统计信息: {ex.Message}",
+            () =>
             {
-                return null;
-            }
+                var row = db.Ado.SqlQuerySingle<SqlServerTableStatRow>(sql, new { TableName = tableName });
+                if (row == null)
+                {
+                    return null;
+                }
 
-            var dataBytes = (row.DataPages ?? 0) * 8L * 1024L;
-            var usedBytes = (row.UsedPages ?? 0) * 8L * 1024L;
-            var totalBytes = (row.ReservedPages ?? 0) * 8L * 1024L;
-            var indexBytes = Math.Max(0, totalBytes - dataBytes);
+                var dataBytes = (row.DataPages ?? 0) * 8L * 1024L;
+                var totalBytes = (row.ReservedPages ?? 0) * 8L * 1024L;
+                var indexBytes = Math.Max(0, totalBytes - dataBytes);
 
-            return new TableStatistics
-            {
-                RowCount = row.RowCount,
-                DataBytes = dataBytes,
-                IndexBytes = indexBytes,
-                TotalBytes = totalBytes
-            };
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的统计信息失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的统计信息: {ex.Message}");
-            return null;
-        }
+                return new TableStatistics
+                {
+                    RowCount = row.RowCount,
+                    DataBytes = dataBytes,
+                    IndexBytes = indexBytes,
+                    TotalBytes = totalBytes
+                };
+            },
+            null,
+            "获取表 {TableName} 的统计信息失败",
+            tableName);
     }
 
     private sealed class SqlServerTableStatRow

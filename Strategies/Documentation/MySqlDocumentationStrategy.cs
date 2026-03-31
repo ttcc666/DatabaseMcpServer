@@ -35,17 +35,13 @@ WHERE k.TABLE_SCHEMA = DATABASE()
   AND k.TABLE_NAME = @TableName
   AND k.REFERENCED_TABLE_NAME IS NOT NULL;";
 
-        try
-        {
-            var rows = db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName });
-            return GroupForeignKeys(rows);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的外键失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的外键: {ex.Message}");
-            return Enumerable.Empty<ForeignKeyDocumentation>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的外键: {ex.Message}",
+            () => GroupForeignKeys(db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName })),
+            Enumerable.Empty<ForeignKeyDocumentation>(),
+            "获取表 {TableName} 的外键失败",
+            tableName);
     }
 
     /// <summary>
@@ -64,28 +60,28 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = @TableName
 LIMIT 1;";
 
-        try
-        {
-            var row = db.Ado.SqlQuerySingle<MySqlTableStatRow>(sql, new { TableName = tableName });
-            if (row == null)
+        return ExecuteWithWarning<TableStatistics?>(
+            warnings,
+            ex => $"未能获取表 {tableName} 的统计信息: {ex.Message}",
+            () =>
             {
-                return null;
-            }
+                var row = db.Ado.SqlQuerySingle<MySqlTableStatRow>(sql, new { TableName = tableName });
+                if (row == null)
+                {
+                    return null;
+                }
 
-            return new TableStatistics
-            {
-                RowCount = row.RowCount,
-                DataBytes = row.DataBytes,
-                IndexBytes = row.IndexBytes,
-                TotalBytes = row.TotalBytes
-            };
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的统计信息失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的统计信息: {ex.Message}");
-            return null;
-        }
+                return new TableStatistics
+                {
+                    RowCount = row.RowCount,
+                    DataBytes = row.DataBytes,
+                    IndexBytes = row.IndexBytes,
+                    TotalBytes = row.TotalBytes
+                };
+            },
+            null,
+            "获取表 {TableName} 的统计信息失败",
+            tableName);
     }
 
     /// <summary>
@@ -96,17 +92,13 @@ LIMIT 1;";
         var safeName = tableName.Replace("`", "``");
         var sql = $"SHOW CREATE TABLE `{safeName}`;";
 
-        try
-        {
-            var row = db.Ado.SqlQuerySingle<MySqlShowCreateTableRow>(sql);
-            return row?.CreateTable;
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的 DDL 摘要失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的 DDL 摘要: {ex.Message}");
-            return null;
-        }
+        return ExecuteWithWarning<string?>(
+            warnings,
+            ex => $"未能获取表 {tableName} 的 DDL 摘要: {ex.Message}",
+            () => db.Ado.SqlQuerySingle<MySqlShowCreateTableRow>(sql)?.CreateTable,
+            null,
+            "获取表 {TableName} 的 DDL 摘要失败",
+            tableName);
     }
 
     private sealed class MySqlTableStatRow

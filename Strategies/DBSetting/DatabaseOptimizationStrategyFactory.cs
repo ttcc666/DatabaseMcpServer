@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
@@ -7,7 +8,7 @@ namespace DatabaseMcpServer.Strategies.DBSetting;
 /// 数据库优化策略工厂
 /// 使用字典映射 + 策略模式，方便扩展新的数据库类型
 /// </summary>
-public class DatabaseOptimizationStrategyFactory
+public class DatabaseOptimizationStrategyFactory : IDatabaseOptimizationStrategyFactory
 {
     private readonly ILogger? _logger;
     private readonly Dictionary<DbType, Func<IDatabaseOptimizationStrategy>> _strategyFactories;

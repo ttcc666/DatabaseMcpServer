@@ -58,18 +58,18 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
     /// </summary>
     public virtual IEnumerable<IndexDocumentation> GetIndexes(ISqlSugarClient db, string tableName, IReadOnlyList<DbColumnInfo> columns, List<string> warnings)
     {
-        try
-        {
-            var indexes = db.DbMaintenance.GetIndexList(tableName) ?? new List<string>();
-            var mapped = indexes.Select(MapIndex).ToList();
-            return MergeIndexes(mapped, columns);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的索引失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的索引: {ex.Message}");
-            return Enumerable.Empty<IndexDocumentation>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的索引: {ex.Message}",
+            () =>
+            {
+                var indexes = db.DbMaintenance.GetIndexList(tableName) ?? new List<string>();
+                var mapped = indexes.Select(MapIndex).ToList();
+                return MergeIndexes(mapped, columns);
+            },
+            Enumerable.Empty<IndexDocumentation>(),
+            "获取表 {TableName} 的索引失败",
+            tableName);
     }
 
     /// <summary>
@@ -104,30 +104,46 @@ public class DatabaseDocumentationStrategyBase : IDatabaseDocumentationStrategy
     /// </summary>
     public virtual IEnumerable<string> GetTriggers(ISqlSugarClient db, string tableName, List<string> warnings)
     {
-        try
-        {
-            return db.DbMaintenance.GetTriggerNames(tableName) ?? Enumerable.Empty<string>();
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的触发器失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的触发器: {ex.Message}");
-            return Enumerable.Empty<string>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的触发器: {ex.Message}",
+            () => db.DbMaintenance.GetTriggerNames(tableName) ?? Enumerable.Empty<string>(),
+            Enumerable.Empty<string>(),
+            "获取表 {TableName} 的触发器失败",
+            tableName);
     }
 
     public virtual IEnumerable<ViewDocumentation> GetViews(ISqlSugarClient db, List<string> warnings)
     {
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取视图信息: {ex.Message}",
+            () =>
+            {
+                var views = db.DbMaintenance.GetViewInfoList();
+                return views.Select(MapView);
+            },
+            Enumerable.Empty<ViewDocumentation>(),
+            "获取视图信息失败");
+    }
+
+    protected T ExecuteWithWarning<T>(
+        List<string> warnings,
+        Func<Exception, string> warningFactory,
+        Func<T> action,
+        T fallback,
+        string logMessage,
+        params object?[] args)
+    {
         try
         {
-            var views = db.DbMaintenance.GetViewInfoList();
-            return views.Select(MapView);
+            return action();
         }
         catch (Exception ex)
         {
-            Logger?.LogWarning(ex, "获取视图信息失败");
-            AddWarningOnce(warnings, $"未能获取视图信息: {ex.Message}");
-            return Enumerable.Empty<ViewDocumentation>();
+            Logger?.LogWarning(ex, logMessage, args);
+            AddWarningOnce(warnings, warningFactory(ex));
+            return fallback;
         }
     }
 

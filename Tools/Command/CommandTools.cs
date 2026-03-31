@@ -1,30 +1,28 @@
-using DatabaseMcpServer.Filters;
+using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
+using DatabaseMcpServer.Tools;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using SqlSugar;
 using System.ComponentModel;
-using System.Data;
 using System.Text.Json;
 
 namespace DatabaseMcpServer.Tools.Command;
 
 /// <summary>
-/// 数据库命令执行工具类，用于执行数据库的增删改操作、存储过程和事务
+/// 数据库命令执行工具类，用于执行数据库的增删改操作、存储过程和事务。
 /// </summary>
 [McpServerToolType]
-internal class CommandTools
+internal class CommandTools : McpToolBase
 {
-    private readonly IDatabaseConfigService _databaseConfig;
-    private readonly IDatabaseHelperService _databaseHelper;
-    private readonly ILogger<CommandTools> _logger;
-
-    public CommandTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper, ILogger<CommandTools> logger)
+    public CommandTools(
+        IDatabaseConfigService databaseConfig,
+        IDatabaseHelperService databaseHelper,
+        IJsonResultSerializer resultSerializer,
+        ILogger<CommandTools> logger)
+        : base(databaseConfig, databaseHelper, resultSerializer, logger)
     {
-        _databaseConfig = databaseConfig;
-        _databaseHelper = databaseHelper;
-        _logger = logger;
     }
 
     [McpServerTool]
@@ -33,22 +31,16 @@ internal class CommandTools
         [Description("SQL command to execute")] string sql,
         [Description("Optional JSON parameters")] string? parameters = null)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql);
-
-            using var db = _databaseConfig.CreateClient();
-            var parsedParams = _databaseHelper.ParseParameters(parameters);
+            var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var affectedRows = parsedParams != null
                 ? db.Ado.ExecuteCommand(sql, parsedParams)
                 : db.Ado.ExecuteCommand(sql);
 
-            return _databaseHelper.SerializeResult(new { success = true, affectedRows });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            return new { success = true, affectedRows };
+        });
     }
 
     [McpServerTool]
@@ -57,47 +49,40 @@ internal class CommandTools
         [Description("Stored procedure name")] string procedureName,
         [Description("JSON object of stored procedure parameters")] string? parameters = null)
     {
-        try
+        return WithClient(db =>
         {
-            using var db = _databaseConfig.CreateClient();
-
             if (string.IsNullOrWhiteSpace(parameters))
             {
                 var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName);
-                var rows = _databaseHelper.ConvertDataTableToList(result);
-                return _databaseHelper.SerializeResult(new
+                var rows = DatabaseHelper.ConvertDataTableToList(result);
+                return new
                 {
                     success = true,
                     rowCount = rows.Count,
                     data = rows
-                });
+                };
             }
-            else
+
+            var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters);
+            if (paramsDict == null)
             {
-                var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters);
-                if (paramsDict == null)
-                    throw new ArgumentException("无效的参数 JSON");
-
-                // 转换 JsonElement 为实际值
-                var convertedDict = paramsDict.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => ConvertJsonElementToValue(kvp.Value)
-                );
-
-                var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, convertedDict);
-                var rows = _databaseHelper.ConvertDataTableToList(result);
-                return _databaseHelper.SerializeResult(new
-                {
-                    success = true,
-                    rowCount = rows.Count,
-                    data = rows
-                });
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的参数 JSON");
             }
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+
+            var convertedDict = paramsDict.ToDictionary(
+                kvp => kvp.Key,
+                kvp => JsonElementValueConverter.ConvertToValue(kvp.Value));
+
+            var table = db.Ado.UseStoredProcedure().GetDataTable(procedureName, convertedDict);
+            var tableRows = DatabaseHelper.ConvertDataTableToList(table);
+
+            return new
+            {
+                success = true,
+                rowCount = tableRows.Count,
+                data = tableRows
+            };
+        });
     }
 
     [McpServerTool]
@@ -107,9 +92,8 @@ internal class CommandTools
         [Description("JSON object of input parameters")] string? inputParameters = null,
         [Description("JSON array of output parameter names")] string? outputParameters = null)
     {
-        try
+        return WithClient(db =>
         {
-            using var db = _databaseConfig.CreateClient();
             var sugarParams = new List<SugarParameter>();
 
             if (!string.IsNullOrWhiteSpace(inputParameters))
@@ -119,7 +103,7 @@ internal class CommandTools
                 {
                     foreach (var kvp in inputDict)
                     {
-                        sugarParams.Add(new SugarParameter(kvp.Key, ConvertJsonElementToValue(kvp.Value)));
+                        sugarParams.Add(new SugarParameter(kvp.Key, JsonElementValueConverter.ConvertToValue(kvp.Value)));
                     }
                 }
             }
@@ -127,7 +111,7 @@ internal class CommandTools
             var outputParamNames = new List<string>();
             if (!string.IsNullOrWhiteSpace(outputParameters))
             {
-                outputParamNames = JsonSerializer.Deserialize<List<string>>(outputParameters) ?? new List<string>();
+                outputParamNames = JsonSerializer.Deserialize<List<string>>(outputParameters) ?? [];
                 foreach (var paramName in outputParamNames)
                 {
                     sugarParams.Add(new SugarParameter(paramName, null, true));
@@ -135,26 +119,19 @@ internal class CommandTools
             }
 
             var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, sugarParams.ToArray());
-            var rows = _databaseHelper.ConvertDataTableToList(result);
+            var rows = DatabaseHelper.ConvertDataTableToList(result);
+            var outputValues = sugarParams
+                .Where(p => p.Direction == System.Data.ParameterDirection.Output)
+                .ToDictionary(p => p.ParameterName, p => p.Value);
 
-            var outputValues = new Dictionary<string, object?>();
-            foreach (var param in sugarParams.Where(p => p.Direction == System.Data.ParameterDirection.Output))
-            {
-                outputValues[param.ParameterName] = param.Value;
-            }
-
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 rowCount = rows.Count,
                 data = rows,
                 outputParameters = outputValues
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            };
+        });
     }
 
     [McpServerTool]
@@ -162,22 +139,16 @@ internal class CommandTools
     public string ExecuteCommandWithGo(
         [Description("SQL script containing GO statements")] string sql)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql);
-            using var db = _databaseConfig.CreateClient();
-            var result = db.Ado.ExecuteCommandWithGo(sql);
-
-            return _databaseHelper.SerializeResult(new
+            var affectedRows = db.Ado.ExecuteCommandWithGo(sql);
+            return new
             {
                 success = true,
-                affectedRows = result
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+                affectedRows
+            };
+        });
     }
 
     [McpServerTool]
@@ -186,40 +157,26 @@ internal class CommandTools
         [Description("SQL commands: JSON array, single SQL string, or JSON-stringified array")] JsonElement commands,
         [Description("Optional parameters per command: JSON array/object, or JSON-stringified array/object")] JsonElement? parametersArray = null)
     {
-        try
+        return WithClient(db =>
         {
-            using var db = _databaseConfig.CreateClient();
             var commandList = ParseCommandList(commands);
             var paramsList = ParseParametersArray(parametersArray);
-
             var results = new List<object>();
 
             using (db.Ado.OpenAlways())
             {
-                for (int i = 0; i < commandList.Length; i++)
+                for (var i = 0; i < commandList.Length; i++)
                 {
                     try
                     {
-                        var cmd = commandList[i];
-                        if (_databaseHelper.DetectDangerousOperation(cmd))
+                        var command = commandList[i];
+                        if (DatabaseHelper.DetectDangerousOperation(command))
                         {
                             results.Add(new { success = false, error = "检测到危险操作", commandIndex = i });
                             continue;
                         }
 
-                        int affectedRows;
-                        if (paramsList != null && i < paramsList.Count && paramsList[i] != null)
-                        {
-                            var currentParams = paramsList[i]!;
-                            var sugarParams = currentParams.Select(p =>
-                                new SugarParameter(p.Key, ConvertJsonElementToValue(p.Value))).ToArray();
-                            affectedRows = db.Ado.ExecuteCommand(cmd, sugarParams);
-                        }
-                        else
-                        {
-                            affectedRows = db.Ado.ExecuteCommand(cmd);
-                        }
-
+                        var affectedRows = ExecuteSingleCommand(db, command, paramsList, i);
                         results.Add(new { success = true, affectedRows, commandIndex = i });
                     }
                     catch (Exception ex)
@@ -229,17 +186,30 @@ internal class CommandTools
                 }
             }
 
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 totalCommands = commandList.Length,
-                results = results
-            });
-        }
-        catch (Exception ex)
+                results
+            };
+        });
+    }
+
+    private static int ExecuteSingleCommand(
+        ISqlSugarClient db,
+        string command,
+        IReadOnlyList<Dictionary<string, JsonElement>?>? paramsList,
+        int index)
+    {
+        if (paramsList != null && index < paramsList.Count && paramsList[index] != null)
         {
-            return McpExceptionFilter.HandleException(ex, _logger);
+            var sugarParams = paramsList[index]!
+                .Select(p => new SugarParameter(p.Key, JsonElementValueConverter.ConvertToValue(p.Value)))
+                .ToArray();
+            return db.Ado.ExecuteCommand(command, sugarParams);
         }
+
+        return db.Ado.ExecuteCommand(command);
     }
 
     private static string[] ParseCommandList(JsonElement commands)
@@ -252,13 +222,13 @@ internal class CommandTools
                 {
                     if (item.ValueKind != JsonValueKind.String)
                     {
-                        throw new ArgumentException("commands 数组中的每一项必须是字符串 SQL");
+                        throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "commands 数组中的每一项必须是字符串 SQL");
                     }
 
                     var sql = item.GetString();
                     if (string.IsNullOrWhiteSpace(sql))
                     {
-                        throw new ArgumentException("commands 数组中包含空 SQL");
+                        throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "commands 数组中包含空 SQL");
                     }
 
                     return sql;
@@ -267,7 +237,7 @@ internal class CommandTools
 
             if (commandList.Length == 0)
             {
-                throw new ArgumentException("命令数组不能为空");
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "命令数组不能为空");
             }
 
             return commandList;
@@ -278,17 +248,16 @@ internal class CommandTools
             var raw = commands.GetString();
             if (string.IsNullOrWhiteSpace(raw))
             {
-                throw new ArgumentException("commands 不能为空");
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "commands 不能为空");
             }
 
             var trimmed = raw.Trim();
-
             if (trimmed.StartsWith("[", StringComparison.Ordinal))
             {
                 var parsedList = JsonSerializer.Deserialize<string[]>(trimmed);
                 if (parsedList == null || parsedList.Length == 0 || parsedList.Any(string.IsNullOrWhiteSpace))
                 {
-                    throw new ArgumentException("无效的命令数组");
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的命令数组");
                 }
 
                 return parsedList;
@@ -297,7 +266,7 @@ internal class CommandTools
             return [trimmed];
         }
 
-        throw new ArgumentException("commands 参数必须是 SQL 字符串数组，或其 JSON 字符串表示");
+        throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "commands 参数必须是 SQL 字符串数组，或其 JSON 字符串表示");
     }
 
     private static List<Dictionary<string, JsonElement>?>? ParseParametersArray(JsonElement? parametersArray)
@@ -310,13 +279,9 @@ internal class CommandTools
         }
 
         var value = parametersArray.Value;
-
         if (value.ValueKind == JsonValueKind.Array)
         {
-            return value
-                .EnumerateArray()
-                .Select(ParseSingleParameterObject)
-                .ToList();
+            return value.EnumerateArray().Select(ParseSingleParameterObject).ToList();
         }
 
         if (value.ValueKind == JsonValueKind.Object)
@@ -338,7 +303,7 @@ internal class CommandTools
                 var parsedList = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>?>>(trimmed);
                 if (parsedList == null)
                 {
-                    throw new ArgumentException("无效的 parametersArray 数组");
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的 parametersArray 数组");
                 }
 
                 return parsedList;
@@ -349,16 +314,16 @@ internal class CommandTools
                 var single = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(trimmed);
                 if (single == null)
                 {
-                    throw new ArgumentException("无效的 parametersArray 对象");
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的 parametersArray 对象");
                 }
 
                 return [single];
             }
 
-            throw new ArgumentException("parametersArray 字符串必须是 JSON 对象或 JSON 数组");
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "parametersArray 字符串必须是 JSON 对象或 JSON 数组");
         }
 
-        throw new ArgumentException("parametersArray 必须是对象、对象数组，或其 JSON 字符串表示");
+        throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "parametersArray 必须是对象、对象数组，或其 JSON 字符串表示");
     }
 
     private static Dictionary<string, JsonElement>? ParseSingleParameterObject(JsonElement element)
@@ -367,35 +332,16 @@ internal class CommandTools
         {
             JsonValueKind.Null => null,
             JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(element.GetRawText())
-                ?? throw new ArgumentException("无效的参数对象"),
-            _ => throw new ArgumentException("parametersArray 数组中的每一项必须是对象或 null")
+                ?? throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的参数对象"),
+            _ => throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "parametersArray 数组中的每一项必须是对象或 null")
         };
     }
 
     private void EnsureSafeSql(string sql)
     {
-        if (_databaseHelper.DetectDangerousOperation(sql))
+        if (DatabaseHelper.DetectDangerousOperation(sql))
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
-                "检测到危险操作。请使用特定工具进行架构操作。");
+            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到危险操作。请使用特定工具进行架构操作。");
         }
-    }
-
-    /// <summary>
-    /// 将 JsonElement 转换为实际的值类型。
-    /// </summary>
-    private static object? ConvertJsonElementToValue(JsonElement element)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.Null => null,
-            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElementToValue).ToArray(),
-            JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(element.GetRawText()),
-            _ => element.GetRawText()
-        };
     }
 }

@@ -643,6 +643,12 @@ dotnet test
 dotnet pack -c Release
 ```
 
+推荐的稳定验证方式：
+
+```powershell
+.\scripts\verify.ps1
+```
+
 ## 🆕 版本发布
 
 - **2.1.0**
@@ -695,12 +701,15 @@ dotnet pack -c Release
 3. **注册工具**
    在 `Program.cs` 中：
    ```csharp
-   using System.Reflection;
-
    builder.Services
        .AddMcpServer()
        .WithStdioServerTransport()
-       .WithToolsFromAssembly(Assembly.GetExecutingAssembly()); // 自动发现带 [McpServerToolType] 的工具
+       .WithTools<ConnectionTools>()
+       .WithTools<SchemaTools>()
+       .WithTools<QueryTools>()
+       .WithTools<CommandTools>()
+       .WithTools<ExcelExportTools>()
+       .WithTools<DocumentationTools>();
    ```
 
 ### 项目架构

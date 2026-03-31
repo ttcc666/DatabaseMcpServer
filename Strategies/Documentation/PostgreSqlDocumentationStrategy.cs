@@ -51,17 +51,13 @@ WHERE con.contype = 'f'
   AND rel.relname = @TableName
   AND n.nspname = current_schema();";
 
-        try
-        {
-            var rows = db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName });
-            return GroupForeignKeys(rows);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的外键失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的外键: {ex.Message}");
-            return Enumerable.Empty<ForeignKeyDocumentation>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的外键: {ex.Message}",
+            () => GroupForeignKeys(db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName })),
+            Enumerable.Empty<ForeignKeyDocumentation>(),
+            "获取表 {TableName} 的外键失败",
+            tableName);
     }
 
     /// <summary>
@@ -82,15 +78,12 @@ WHERE rel.relname = @TableName
   AND rel.relkind = 'r'
 LIMIT 1;";
 
-        try
-        {
-            return db.Ado.SqlQuerySingle<TableStatistics>(sql, new { TableName = tableName });
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的统计信息失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的统计信息: {ex.Message}");
-            return null;
-        }
+        return ExecuteWithWarning<TableStatistics?>(
+            warnings,
+            ex => $"未能获取表 {tableName} 的统计信息: {ex.Message}",
+            () => db.Ado.SqlQuerySingle<TableStatistics>(sql, new { TableName = tableName }),
+            null,
+            "获取表 {TableName} 的统计信息失败",
+            tableName);
     }
 }

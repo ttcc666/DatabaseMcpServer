@@ -3,6 +3,8 @@
 	<PropertyGroup>
 		<!-- 多目标：同时支持 .NET 9 / 10 -->
 		<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+		<!-- 当前 SDK 环境下并行 inner build 会导致多目标构建异常失败，强制串行保证稳定性 -->
+		<BuildInParallel>false</BuildInParallel>
 
 		<OutputType>Exe</OutputType>
 		<Nullable>enable</Nullable>
@@ -31,6 +33,12 @@
 		<None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
 		<None Include="README.md" Pack="true" PackagePath="/" />
 		<None Include="LICENSE" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Remove="DatabaseMcpServer.Tests\**\*.cs" />
+		<EmbeddedResource Remove="DatabaseMcpServer.Tests\**\*" />
+		<None Remove="DatabaseMcpServer.Tests\**\*" />
 	</ItemGroup>
 
 	<ItemGroup>

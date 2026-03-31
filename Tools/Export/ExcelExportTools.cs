@@ -1,8 +1,8 @@
-﻿using ClosedXML.Excel;
-using DatabaseMcpServer.Filters;
+using ClosedXML.Excel;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
+using DatabaseMcpServer.Tools;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using SqlSugar;
@@ -14,22 +14,18 @@ using DbType = SqlSugar.DbType;
 namespace DatabaseMcpServer.Tools.Export;
 
 /// <summary>
-/// Excel 导出工具类，支持 SQL 查询结果和表数据导出
+/// Excel 导出工具类，支持 SQL 查询结果和表数据导出。
 /// </summary>
 [McpServerToolType]
-public class ExcelExportTools
+internal class ExcelExportTools : McpToolBase
 {
-    private readonly IDatabaseConfigService _databaseConfig;
-    private readonly IDatabaseHelperService _databaseHelper;
-    private readonly ILogger<ExcelExportTools> _logger;
-
-    public ExcelExportTools(IDatabaseConfigService databaseConfig,
-                           IDatabaseHelperService databaseHelper,
-                           ILogger<ExcelExportTools> logger)
+    public ExcelExportTools(
+        IDatabaseConfigService databaseConfig,
+        IDatabaseHelperService databaseHelper,
+        IJsonResultSerializer resultSerializer,
+        ILogger<ExcelExportTools> logger)
+        : base(databaseConfig, databaseHelper, resultSerializer, logger)
     {
-        _databaseConfig = databaseConfig;
-        _databaseHelper = databaseHelper;
-        _logger = logger;
     }
 
     [McpServerTool]
@@ -45,53 +41,47 @@ public class ExcelExportTools
         [Description("Return format: 'base64' or 'path' (default: 'base64')")] string returnFormat = "base64",
         [Description("Maximum rows per batch for performance (default: 10000)")] int batchSize = 10000)
     {
-        var startTime = DateTime.UtcNow;
-
-        try
+        return Execute(() =>
         {
+            var startTime = DateTime.UtcNow;
             ValidateExportParameters(sql, filePath, batchSize);
 
             var actualFilePath = string.IsNullOrWhiteSpace(filePath)
                 ? GenerateTempFilePath(worksheetName)
                 : filePath;
 
-            using var db = _databaseConfig.CreateClient();
-            var parsedParams = _databaseHelper.ParseParameters(parameters);
+            using var db = DatabaseConfig.CreateClient();
+            var parsedParams = DatabaseHelper.ParseParameters(parameters);
             using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add(SanitizeWorksheetName(worksheetName));
 
-            _logger?.LogInformation("开始导出 SQL 查询结果到 Excel: {FilePath}", actualFilePath);
+            Logger.LogInformation("开始导出 SQL 查询结果到 Excel: {FilePath}", actualFilePath);
 
             var totalRows = PopulateWorksheetFromQuery(worksheet, db, sql, parsedParams, batchSize);
             if (totalRows == 0)
             {
-                return _databaseHelper.SerializeResult(new
+                return new
                 {
                     success = false,
                     message = "查询结果为空，无法导出",
                     sql = sql.TruncateForLog()
-                });
+                };
             }
 
             ApplyWorksheetFormatting(worksheet, autoFilter, autoSizeColumns, freezeHeader);
             workbook.SaveAs(actualFilePath);
 
             var processingTime = DateTime.UtcNow - startTime;
-            var result = GenerateExportResponse(actualFilePath, returnFormat.ToLower(), totalRows, worksheetName, processingTime);
+            var response = GenerateExportResponse(actualFilePath, returnFormat.ToLowerInvariant(), totalRows, worksheetName, processingTime);
 
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 ScheduleFileCleanup(actualFilePath);
             }
 
-            _logger?.LogInformation("Excel 导出完成: {TotalRows} 行, 耗时 {ElapsedMs}ms", totalRows, processingTime.TotalMilliseconds);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "导出 SQL 查询到 Excel 失败");
-            return McpExceptionFilter.HandleException(ex, _logger!);
-        }
+            Logger.LogInformation("Excel 导出完成: {TotalRows} 行, 耗时 {ElapsedMs}ms", totalRows, processingTime.TotalMilliseconds);
+            return response;
+        });
     }
 
     [McpServerTool]
@@ -105,23 +95,22 @@ public class ExcelExportTools
         [Description("Return format: 'base64' or 'path' (default: 'base64')")] string returnFormat = "base64",
         [Description("Maximum rows per batch for performance (default: 10000)")] int batchSize = 10000)
     {
-        var startTime = DateTime.UtcNow;
-
-        try
+        return Execute(() =>
         {
+            var startTime = DateTime.UtcNow;
             ValidateTableExportParameters(tableName, whereClause, filePath, batchSize);
 
             var actualFilePath = string.IsNullOrWhiteSpace(filePath)
                 ? GenerateTempFilePath($"{worksheetPrefix}{tableName}")
                 : filePath;
 
-            using var db = _databaseConfig.CreateClient();
+            using var db = DatabaseConfig.CreateClient();
             ValidateTableExists(db, tableName);
 
             var worksheetName = string.IsNullOrWhiteSpace(worksheetPrefix) ? tableName : $"{worksheetPrefix}_{tableName}";
             using var workbook = new XLWorkbook();
 
-            _logger?.LogInformation("开始导出表 {TableName} 到 Excel: {FilePath}", tableName, actualFilePath);
+            Logger.LogInformation("开始导出表 {TableName} 到 Excel: {FilePath}", tableName, actualFilePath);
 
             var sql = BuildTableExportSql(db.CurrentConnectionConfig.DbType, tableName, whereClause);
             var dataSheet = workbook.Worksheets.Add(SanitizeWorksheetName(worksheetName));
@@ -129,12 +118,12 @@ public class ExcelExportTools
 
             if (totalRows == 0)
             {
-                return _databaseHelper.SerializeResult(new
+                return new
                 {
                     success = false,
                     message = $"表 {tableName} 中没有数据",
                     tableName
-                });
+                };
             }
 
             ApplyWorksheetFormatting(dataSheet, autoFilter: true, autoSizeColumns: true, freezeHeader: true);
@@ -147,21 +136,16 @@ public class ExcelExportTools
             workbook.SaveAs(actualFilePath);
 
             var processingTime = DateTime.UtcNow - startTime;
-            var result = GenerateExportResponse(actualFilePath, returnFormat.ToLower(), totalRows, worksheetName, processingTime);
+            var response = GenerateExportResponse(actualFilePath, returnFormat.ToLowerInvariant(), totalRows, worksheetName, processingTime);
 
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 ScheduleFileCleanup(actualFilePath);
             }
 
-            _logger?.LogInformation("表导出完成: {TableName}, {TotalRows} 行, 耗时 {ElapsedMs}ms", tableName, totalRows, processingTime.TotalMilliseconds);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "导出表 {TableName} 到 Excel 失败", tableName);
-            return McpExceptionFilter.HandleException(ex, _logger!);
-        }
+            Logger.LogInformation("表导出完成: {TableName}, {TotalRows} 行, 耗时 {ElapsedMs}ms", tableName, totalRows, processingTime.TotalMilliseconds);
+            return response;
+        });
     }
 
     [McpServerTool]
@@ -173,10 +157,9 @@ public class ExcelExportTools
         [Description("Return format: 'base64' or 'path' (default: 'base64')")] string returnFormat = "base64",
         [Description("Maximum rows per batch for performance (default: 10000)")] int batchSize = 10000)
     {
-        var startTime = DateTime.UtcNow;
-
-        try
+        return Execute(() =>
         {
+            var startTime = DateTime.UtcNow;
             ValidateMultipleExportParameters(queriesJson, filePath, batchSize);
 
             var queries = ParseAndValidateQueries(queriesJson);
@@ -184,14 +167,13 @@ public class ExcelExportTools
                 ? GenerateTempFilePath("MultiQueryExport")
                 : filePath;
 
-            using var db = _databaseConfig.CreateClient();
+            using var db = DatabaseConfig.CreateClient();
             using var workbook = new XLWorkbook();
-
             var exportResults = new List<QueryExportResult>();
 
             foreach (var (queryName, sql) in queries)
             {
-                _logger?.LogInformation("导出查询 {QueryName}: {SqlSample}", queryName, sql.TruncateForLog());
+                Logger.LogInformation("导出查询 {QueryName}: {SqlSample}", queryName, sql.TruncateForLog());
 
                 try
                 {
@@ -208,7 +190,7 @@ public class ExcelExportTools
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogError(ex, "导出查询 {QueryName} 失败", queryName);
+                    Logger.LogError(ex, "导出查询 {QueryName} 失败", queryName);
                     exportResults.Add(new QueryExportResult
                     {
                         QueryName = queryName,
@@ -228,36 +210,30 @@ public class ExcelExportTools
 
             var processingTime = DateTime.UtcNow - startTime;
             var totalRows = exportResults.Sum(result => result.RowCount);
-
-            var result = GenerateExportResponse(actualFilePath, returnFormat.ToLower(), totalRows, "MultipleQueries", processingTime);
+            var response = GenerateExportResponse(actualFilePath, returnFormat.ToLowerInvariant(), totalRows, "MultipleQueries", processingTime);
 
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 ScheduleFileCleanup(actualFilePath);
             }
 
-            _logger?.LogInformation("多查询导出完成: {QueryCount} 个查询, {TotalRows} 行, 耗时 {ElapsedMs}ms",
-                queries.Count, totalRows, processingTime.TotalMilliseconds);
+            Logger.LogInformation(
+                "多查询导出完成: {QueryCount} 个查询, {TotalRows} 行, 耗时 {ElapsedMs}ms",
+                queries.Count,
+                totalRows,
+                processingTime.TotalMilliseconds);
 
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "多查询导出到 Excel 失败");
-            return McpExceptionFilter.HandleException(ex, _logger!);
-        }
+            return response;
+        });
     }
-
-    #region 私有方法
 
     private void ValidateExportParameters(string sql, string? filePath, int batchSize)
     {
-        SqlSafetyGuard.EnsureReadOnlySql(sql, _databaseHelper);
+        SqlSafetyGuard.EnsureReadOnlySql(sql, DatabaseHelper);
 
         if (batchSize <= 0 || batchSize > 50000)
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters,
-                "批量大小必须在 1-50000 之间");
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "批量大小必须在 1-50000 之间");
         }
 
         if (!string.IsNullOrWhiteSpace(filePath))
@@ -273,8 +249,7 @@ public class ExcelExportTools
 
         if (batchSize <= 0 || batchSize > 50000)
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters,
-                "批量大小必须在 1-50000 之间");
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "批量大小必须在 1-50000 之间");
         }
 
         if (!string.IsNullOrWhiteSpace(filePath))
@@ -292,8 +267,7 @@ public class ExcelExportTools
 
         if (batchSize <= 0 || batchSize > 50000)
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters,
-                "批量大小必须在 1-50000 之间");
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "批量大小必须在 1-50000 之间");
         }
 
         if (!string.IsNullOrWhiteSpace(filePath))
@@ -324,7 +298,7 @@ public class ExcelExportTools
                     throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, $"查询 '{queryName}' 的 SQL 不能为空");
                 }
 
-                SqlSafetyGuard.EnsureReadOnlySql(sql, _databaseHelper);
+                SqlSafetyGuard.EnsureReadOnlySql(sql, DatabaseHelper);
             }
 
             return queries;
@@ -359,8 +333,7 @@ public class ExcelExportTools
         }
         catch (Exception ex)
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.QueryExecutionFailed,
-                $"查询执行失败: {ex.Message}", ex);
+            throw new DatabaseMcpException(DatabaseErrorCode.QueryExecutionFailed, $"查询执行失败: {ex.Message}", ex);
         }
     }
 
@@ -389,14 +362,7 @@ public class ExcelExportTools
             for (var col = 0; col < fieldCount; col++)
             {
                 var cell = worksheet.Cell(rowIndex, col + 1);
-                if (reader.IsDBNull(col))
-                {
-                    cell.Value = string.Empty;
-                }
-                else
-                {
-                    cell.Value = ConvertToXLCellValue(reader.GetValue(col));
-                }
+                cell.Value = reader.IsDBNull(col) ? string.Empty : ConvertToXLCellValue(reader.GetValue(col));
             }
 
             rowIndex++;
@@ -404,75 +370,60 @@ public class ExcelExportTools
 
             if (rowCount % batchSize == 0)
             {
-                _logger?.LogDebug("工作表 {Worksheet} 已写入 {RowCount} 行", worksheet.Name, rowCount);
+                Logger.LogDebug("工作表 {Worksheet} 已写入 {RowCount} 行", worksheet.Name, rowCount);
             }
         }
 
         return rowCount;
     }
 
-    private XLCellValue ConvertToXLCellValue(object value)
+    private static XLCellValue ConvertToXLCellValue(object value)
     {
         return value switch
         {
-            // 布尔类型 - 保持为布尔值
-            bool b => b,
-
-            // 日期时间类型 - 保持为日期格式
-            DateTime dt => dt,
-            DateTimeOffset dto => dto.DateTime,
-            TimeSpan ts => ts.ToString(),
-
-            // 字符串类型 - 保持为文本
-            string s => s,
-            char c => c.ToString(),
-
-            // Guid - 转换为文本
-            Guid g => g.ToString(),
-
-            // 数值类型 - 全部转换为文本格式，避免科学计数法
-            byte b => b.ToString(),
-            sbyte sb => sb.ToString(),
-            short s => s.ToString(),
-            ushort us => us.ToString(),
-            int i => i.ToString(),
-            uint ui => ui.ToString(),
-            long l => l.ToString(),
-            ulong ul => ul.ToString(),
-            float f => f.ToString("F"),
-            double d => d.ToString("G"),
-            decimal dec => dec.ToString(),
-
-            // 其他类型转换为字符串
-            _ => value.ToString() ?? ""
+            bool booleanValue => booleanValue,
+            DateTime dateTime => dateTime,
+            DateTimeOffset dateTimeOffset => dateTimeOffset.DateTime,
+            TimeSpan timeSpan => timeSpan.ToString(),
+            string stringValue => stringValue,
+            char charValue => charValue.ToString(),
+            Guid guid => guid.ToString(),
+            byte number => number.ToString(),
+            sbyte number => number.ToString(),
+            short number => number.ToString(),
+            ushort number => number.ToString(),
+            int number => number.ToString(),
+            uint number => number.ToString(),
+            long number => number.ToString(),
+            ulong number => number.ToString(),
+            float number => number.ToString("F"),
+            double number => number.ToString("G"),
+            decimal number => number.ToString(),
+            _ => value.ToString() ?? string.Empty
         };
     }
 
-    private void ApplyWorksheetFormatting(IXLWorksheet worksheet, bool autoFilter, bool autoSizeColumns, bool freezeHeader)
+    private static void ApplyWorksheetFormatting(IXLWorksheet worksheet, bool autoFilter, bool autoSizeColumns, bool freezeHeader)
     {
         var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 1;
         var lastCol = worksheet.LastColumnUsed()?.ColumnNumber() ?? 1;
         var range = worksheet.Range(1, 1, lastRow, lastCol);
 
-        // 自动筛选
         if (autoFilter && lastRow > 1)
         {
             range.SetAutoFilter();
         }
 
-        // 自动调整列宽
         if (autoSizeColumns)
         {
             worksheet.Columns().AdjustToContents();
         }
 
-        // 冻结首行
         if (freezeHeader && lastRow > 1)
         {
             worksheet.SheetView.FreezeRows(1);
         }
 
-        // 添加表格样式
         if (lastRow > 1)
         {
             var dataRange = worksheet.Range(2, 1, lastRow, lastCol);
@@ -481,7 +432,7 @@ public class ExcelExportTools
         }
     }
 
-    private string GenerateTempFilePath(string suggestedName)
+    private static string GenerateTempFilePath(string suggestedName)
     {
         var tempDir = Path.GetTempPath();
         var fileName = string.IsNullOrWhiteSpace(suggestedName)
@@ -491,37 +442,37 @@ public class ExcelExportTools
         return Path.Combine(tempDir, $"DatabaseMCP_{fileName}");
     }
 
-    private string GenerateExportResponse(string filePath, string returnFormat, int totalRows,
-        string sheetName, TimeSpan processingTime)
+    private static object GenerateExportResponse(
+        string filePath,
+        string returnFormat,
+        int totalRows,
+        string sheetName,
+        TimeSpan processingTime)
     {
         if (returnFormat == "path")
         {
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 exportPath = filePath,
-                totalRows = totalRows,
+                totalRows,
                 worksheetName = sheetName,
                 processingTimeMs = processingTime.TotalMilliseconds,
                 fileSize = new FileInfo(filePath).Length
-            });
+            };
         }
-        else // base64
-        {
-            var bytes = File.ReadAllBytes(filePath);
-            var base64 = Convert.ToBase64String(bytes);
 
-            return _databaseHelper.SerializeResult(new
-            {
-                success = true,
-                fileName = Path.GetFileName(filePath),
-                base64Content = base64,
-                totalRows = totalRows,
-                worksheetName = sheetName,
-                processingTimeMs = processingTime.TotalMilliseconds,
-                fileSize = bytes.Length
-            });
-        }
+        var bytes = File.ReadAllBytes(filePath);
+        return new
+        {
+            success = true,
+            fileName = Path.GetFileName(filePath),
+            base64Content = Convert.ToBase64String(bytes),
+            totalRows,
+            worksheetName = sheetName,
+            processingTimeMs = processingTime.TotalMilliseconds,
+            fileSize = bytes.Length
+        };
     }
 
     private void ScheduleFileCleanup(string filePath)
@@ -534,17 +485,17 @@ public class ExcelExportTools
                 if (File.Exists(filePath))
                 {
                     File.Delete(filePath);
-                    _logger?.LogDebug("临时文件已自动清理: {FilePath}", filePath);
+                    Logger.LogDebug("临时文件已自动清理: {FilePath}", filePath);
                 }
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning("清理临时文件失败: {FilePath}, Error: {Error}", filePath, ex.Message);
+                Logger.LogWarning("清理临时文件失败: {FilePath}, Error: {Error}", filePath, ex.Message);
             }
         });
     }
 
-    private void EnsureDirectoryExists(string filePath)
+    private static void EnsureDirectoryExists(string filePath)
     {
         var directory = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -553,31 +504,28 @@ public class ExcelExportTools
         }
     }
 
-    private string SanitizeWorksheetName(string name)
+    private static string SanitizeWorksheetName(string name)
     {
-        // Excel 工作表名称限制
         var invalidChars = new[] { '\\', '/', '*', '[', ']', ':', '?' };
-        foreach (var c in invalidChars)
+        foreach (var invalidChar in invalidChars)
         {
-            name = name.Replace(c.ToString(), "_");
+            name = name.Replace(invalidChar.ToString(), "_", StringComparison.Ordinal);
         }
 
-        // 长度限制
-        return name.Length > 31 ? name.Substring(0, 31) : name;
+        return name.Length > 31 ? name[..31] : name;
     }
 
-    private string SanitizeFileName(string name)
+    private static string SanitizeFileName(string name)
     {
-        var invalidChars = Path.GetInvalidFileNameChars();
-        foreach (var c in invalidChars)
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
         {
-            name = name.Replace(c.ToString(), "_");
+            name = name.Replace(invalidChar.ToString(), "_", StringComparison.Ordinal);
         }
 
         return name;
     }
 
-    private string BuildTableExportSql(DbType dbType, string tableName, string? whereClause)
+    private static string BuildTableExportSql(DbType dbType, string tableName, string? whereClause)
     {
         var quotedTableName = SqlSafetyGuard.QuoteTableName(tableName, dbType);
         var sql = $"SELECT * FROM {quotedTableName}";
@@ -585,20 +533,15 @@ public class ExcelExportTools
         if (!string.IsNullOrWhiteSpace(whereClause))
         {
             var normalizedWhereClause = whereClause.Trim();
-            if (!normalizedWhereClause.StartsWith("WHERE", StringComparison.OrdinalIgnoreCase))
-            {
-                sql += $" WHERE {normalizedWhereClause}";
-            }
-            else
-            {
-                sql += $" {normalizedWhereClause}";
-            }
+            sql += normalizedWhereClause.StartsWith("WHERE", StringComparison.OrdinalIgnoreCase)
+                ? $" {normalizedWhereClause}"
+                : $" WHERE {normalizedWhereClause}";
         }
 
         return sql;
     }
 
-    private void ValidateTableExists(ISqlSugarClient db, string tableName)
+    private static void ValidateTableExists(ISqlSugarClient db, string tableName)
     {
         var simpleTableName = tableName
             .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -611,8 +554,7 @@ public class ExcelExportTools
 
         if (!exists)
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters,
-                $"表 '{tableName}' 不存在，请先检查表名是否正确。");
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, $"表 '{tableName}' 不存在，请先检查表名是否正确。");
         }
     }
 
@@ -621,11 +563,8 @@ public class ExcelExportTools
         try
         {
             var schemaSheet = workbook.Worksheets.Add("Schema");
-
-            // 获取表结构信息
             var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName);
 
-            // 表头
             schemaSheet.Cell(1, 1).Value = "ColumnName";
             schemaSheet.Cell(1, 2).Value = "DataType";
             schemaSheet.Cell(1, 3).Value = "Length";
@@ -634,12 +573,10 @@ public class ExcelExportTools
             schemaSheet.Cell(1, 6).Value = "IsPrimaryKey";
             schemaSheet.Cell(1, 7).Value = "IsIdentity";
 
-            // 表头样式
             schemaSheet.Range(1, 1, 1, 7).Style.Font.Bold = true;
             schemaSheet.Range(1, 1, 1, 7).Style.Fill.BackgroundColor = XLColor.LightGray;
 
-            // 填充数据
-            int row = 2;
+            var row = 2;
             foreach (var column in columns)
             {
                 schemaSheet.Cell(row, 1).Value = column.DbColumnName;
@@ -656,25 +593,21 @@ public class ExcelExportTools
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "无法获取表 {TableName} 的模式信息", tableName);
+            Logger.LogWarning(ex, "无法获取表 {TableName} 的模式信息", tableName);
         }
     }
 
-    private void AddSummaryWorksheet(XLWorkbook workbook, IReadOnlyCollection<QueryExportResult> exportResults)
+    private static void AddSummaryWorksheet(XLWorkbook workbook, IReadOnlyCollection<QueryExportResult> exportResults)
     {
         var summarySheet = workbook.Worksheets.Add("Summary");
-
-        // 表头
         summarySheet.Cell(1, 1).Value = "Query Name";
         summarySheet.Cell(1, 2).Value = "Row Count";
         summarySheet.Cell(1, 3).Value = "Status";
         summarySheet.Cell(1, 4).Value = "Error";
 
-        // 表头样式
         summarySheet.Range(1, 1, 1, 4).Style.Font.Bold = true;
         summarySheet.Range(1, 1, 1, 4).Style.Fill.BackgroundColor = XLColor.LightGray;
 
-        // 填充数据
         var row = 2;
         foreach (var result in exportResults)
         {
@@ -682,8 +615,6 @@ public class ExcelExportTools
             summarySheet.Cell(row, 2).Value = result.RowCount;
             summarySheet.Cell(row, 3).Value = result.Success ? "Success" : "Failed";
             summarySheet.Cell(row, 4).Value = result.Error ?? "-";
-
-            // 根据状态设置颜色
             summarySheet.Cell(row, 3).Style.Font.FontColor = result.Success ? XLColor.Green : XLColor.Red;
             row++;
         }
@@ -701,17 +632,17 @@ public class ExcelExportTools
 
         public string? Error { get; set; }
     }
-
-    #endregion 私有方法
 }
 
 public static class StringExtensions
 {
-    public static string TruncateForLog(this string? str, int maxLength = 100)
+    public static string TruncateForLog(this string? value, int maxLength = 100)
     {
-        if (string.IsNullOrWhiteSpace(str))
+        if (string.IsNullOrWhiteSpace(value))
+        {
             return string.Empty;
+        }
 
-        return str.Length > maxLength ? str.Substring(0, maxLength) + "..." : str;
+        return value.Length > maxLength ? $"{value[..maxLength]}..." : value;
     }
 }

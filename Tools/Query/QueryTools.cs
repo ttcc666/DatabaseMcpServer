@@ -1,7 +1,7 @@
-﻿using DatabaseMcpServer.Filters;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
+using DatabaseMcpServer.Tools;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using SqlSugar;
@@ -12,20 +12,18 @@ using System.Text.Json;
 namespace DatabaseMcpServer.Tools.Query;
 
 /// <summary>
-/// 数据库查询工具类，支持各种查询操作
+/// 数据库查询工具类，支持各种查询操作。
 /// </summary>
 [McpServerToolType]
-internal class QueryTools
+internal class QueryTools : McpToolBase
 {
-    private readonly IDatabaseConfigService _databaseConfig;
-    private readonly IDatabaseHelperService _databaseHelper;
-    private readonly ILogger<QueryTools> _logger;
-
-    public QueryTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper, ILogger<QueryTools> logger)
+    public QueryTools(
+        IDatabaseConfigService databaseConfig,
+        IDatabaseHelperService databaseHelper,
+        IJsonResultSerializer resultSerializer,
+        ILogger<QueryTools> logger)
+        : base(databaseConfig, databaseHelper, resultSerializer, logger)
     {
-        _databaseConfig = databaseConfig;
-        _databaseHelper = databaseHelper;
-        _logger = logger;
     }
 
     [McpServerTool]
@@ -34,28 +32,21 @@ internal class QueryTools
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql);
-
-            using var db = _databaseConfig.CreateClient();
-            var parsedParams = _databaseHelper.ParseParameters(parameters);
-
+            var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var result = parsedParams != null
                 ? db.Ado.SqlQuery<dynamic>(sql, parsedParams)
                 : db.Ado.SqlQuery<dynamic>(sql);
 
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 rowCount = result.Count,
                 data = result
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            };
+        });
     }
 
     [McpServerTool]
@@ -64,26 +55,20 @@ internal class QueryTools
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql);
-            using var db = _databaseConfig.CreateClient();
-            var parsedParams = _databaseHelper.ParseParameters(parameters);
-
+            var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var result = parsedParams != null
                 ? db.Ado.SqlQuery<dynamic>(sql, parsedParams).FirstOrDefault()
                 : db.Ado.SqlQuery<dynamic>(sql).FirstOrDefault();
 
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 data = result
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            };
+        });
     }
 
     [McpServerTool]
@@ -92,35 +77,28 @@ internal class QueryTools
         [Description("SQL query to execute (can contain multiple query statements separated by semicolons)")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql, allowMultipleStatements: true);
-            using var db = _databaseConfig.CreateClient();
-            var parsedParams = _databaseHelper.ParseParameters(parameters);
-
+            var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var dataSet = parsedParams != null
                 ? db.Ado.GetDataSetAll(sql, parsedParams)
                 : db.Ado.GetDataSetAll(sql);
 
             var resultSets = new List<object>();
-
             foreach (DataTable table in dataSet.Tables)
             {
-                var rows = _databaseHelper.ConvertDataTableToList(table);
+                var rows = DatabaseHelper.ConvertDataTableToList(table);
                 resultSets.Add(new { rowCount = rows.Count, data = rows });
             }
 
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 resultSetCount = resultSets.Count,
                 resultSets
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            };
+        });
     }
 
     [McpServerTool]
@@ -129,26 +107,20 @@ internal class QueryTools
         [Description("SQL query to execute")] string sql,
         [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql);
-            using var db = _databaseConfig.CreateClient();
-            var parsedParams = _databaseHelper.ParseParameters(parameters);
-
+            var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var result = parsedParams != null
                 ? db.Ado.GetScalar(sql, parsedParams)
                 : db.Ado.GetScalar(sql);
 
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 value = result
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            };
+        });
     }
 
     [McpServerTool]
@@ -159,7 +131,7 @@ internal class QueryTools
         [Description("JSON array of IN parameter values (e.g.: [1,2,3])")] string inValues,
         [Description("JSON of other parameters (optional)")] string? otherParameters = null)
     {
-        try
+        return WithClient(db =>
         {
             EnsureSafeSql(sql);
 
@@ -172,8 +144,6 @@ internal class QueryTools
             {
                 throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "inValues 不能为空");
             }
-
-            using var db = _databaseConfig.CreateClient();
 
             var inArray = JsonSerializer.Deserialize<object[]>(inValues);
             if (inArray == null)
@@ -188,7 +158,7 @@ internal class QueryTools
 
             if (!string.IsNullOrWhiteSpace(otherParameters))
             {
-                var otherParams = _databaseHelper.ParseParameters(otherParameters);
+                var otherParams = DatabaseHelper.ParseParameters(otherParameters);
                 if (otherParams != null)
                 {
                     sugarParams.AddRange(otherParams);
@@ -196,22 +166,17 @@ internal class QueryTools
             }
 
             var result = db.Ado.SqlQuery<dynamic>(sql, sugarParams.ToArray());
-
-            return _databaseHelper.SerializeResult(new
+            return new
             {
                 success = true,
                 rowCount = result.Count,
                 data = result
-            });
-        }
-        catch (Exception ex)
-        {
-            return McpExceptionFilter.HandleException(ex, _logger);
-        }
+            };
+        });
     }
 
     private void EnsureSafeSql(string sql, bool allowMultipleStatements = false)
     {
-        SqlSafetyGuard.EnsureReadOnlySql(sql, _databaseHelper, allowMultipleStatements);
+        SqlSafetyGuard.EnsureReadOnlySql(sql, DatabaseHelper, allowMultipleStatements);
     }
 }

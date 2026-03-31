@@ -673,6 +673,12 @@ dotnet test
 dotnet pack -c Release
 ```
 
+Recommended stable verification flow:
+
+```powershell
+.\scripts\verify.ps1
+```
+
 ## 🆕 Release Notes
 
 - **2.1.0**
@@ -728,12 +734,15 @@ dotnet pack -c Release
    In `Program.cs`:
 
    ```csharp
-   using System.Reflection;
-
    builder.Services
        .AddMcpServer()
        .WithStdioServerTransport()
-       .WithToolsFromAssembly(Assembly.GetExecutingAssembly()); // Auto-discover tools with [McpServerToolType]
+       .WithTools<ConnectionTools>()
+       .WithTools<SchemaTools>()
+       .WithTools<QueryTools>()
+       .WithTools<CommandTools>()
+       .WithTools<ExcelExportTools>()
+       .WithTools<DocumentationTools>();
    ```
 
 ### Project Architecture

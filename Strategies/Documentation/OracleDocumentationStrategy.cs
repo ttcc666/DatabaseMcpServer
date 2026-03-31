@@ -40,17 +40,13 @@ INNER JOIN USER_CONS_COLUMNS acc_r
 WHERE ac.CONSTRAINT_TYPE = 'R'
   AND ac.TABLE_NAME = UPPER(:TableName);";
 
-        try
-        {
-            var rows = db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName });
-            return GroupForeignKeys(rows);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的外键失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的外键: {ex.Message}");
-            return Enumerable.Empty<ForeignKeyDocumentation>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的外键: {ex.Message}",
+            () => GroupForeignKeys(db.Ado.SqlQuery<ForeignKeyRow>(sql, new { TableName = tableName })),
+            Enumerable.Empty<ForeignKeyDocumentation>(),
+            "获取表 {TableName} 的外键失败",
+            tableName);
     }
 
     /// <summary>
@@ -81,16 +77,13 @@ CROSS JOIN table_bytes tb
 CROSS JOIN index_bytes ib
 WHERE ut.TABLE_NAME = UPPER(:TableName);";
 
-        try
-        {
-            return db.Ado.SqlQuerySingle<TableStatistics>(sql, new { TableName = tableName });
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的统计信息失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的统计信息: {ex.Message}");
-            return null;
-        }
+        return ExecuteWithWarning<TableStatistics?>(
+            warnings,
+            ex => $"未能获取表 {tableName} 的统计信息: {ex.Message}",
+            () => db.Ado.SqlQuerySingle<TableStatistics>(sql, new { TableName = tableName }),
+            null,
+            "获取表 {TableName} 的统计信息失败",
+            tableName);
     }
 
     /// <summary>
@@ -100,16 +93,13 @@ WHERE ut.TABLE_NAME = UPPER(:TableName);";
     {
         const string sql = "SELECT DBMS_METADATA.GET_DDL('TABLE', UPPER(:TableName)) AS Ddl FROM dual";
 
-        try
-        {
-            return db.Ado.SqlQuerySingle<string>(sql, new { TableName = tableName });
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的 DDL 摘要失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的 DDL 摘要: {ex.Message}");
-            return null;
-        }
+        return ExecuteWithWarning<string?>(
+            warnings,
+            ex => $"未能获取表 {tableName} 的 DDL 摘要: {ex.Message}",
+            () => db.Ado.SqlQuerySingle<string>(sql, new { TableName = tableName }),
+            null,
+            "获取表 {TableName} 的 DDL 摘要失败",
+            tableName);
     }
 
     /// <summary>
@@ -119,16 +109,16 @@ WHERE ut.TABLE_NAME = UPPER(:TableName);";
     {
         const string sql = "SELECT trigger_name FROM user_triggers WHERE table_name = UPPER(:TableName)";
 
-        try
-        {
-            var triggers = db.Ado.SqlQuery<string>(sql, new { TableName = tableName }) ?? new List<string>();
-            return triggers.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim());
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogWarning(ex, "获取表 {TableName} 的触发器失败", tableName);
-            AddWarningOnce(warnings, $"未能获取表 {tableName} 的触发器: {ex.Message}");
-            return Enumerable.Empty<string>();
-        }
+        return ExecuteWithWarning(
+            warnings,
+            ex => $"未能获取表 {tableName} 的触发器: {ex.Message}",
+            () =>
+            {
+                var triggers = db.Ado.SqlQuery<string>(sql, new { TableName = tableName }) ?? new List<string>();
+                return triggers.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim());
+            },
+            Enumerable.Empty<string>(),
+            "获取表 {TableName} 的触发器失败",
+            tableName);
     }
 }
