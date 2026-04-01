@@ -27,7 +27,7 @@
     "features": [
       "JSON 配置文件管理",
       "单实例多数据库动态切换",
-      "数据库连接管理（连接测试、健康检查、自动重连）",
+      "数据库连接管理（连接测试、配置刷新、健康检查、自动重连）",
       "数据库架构查询（数据库列表、表列表、视图列表、表结构、列信息、主键、索引等）",
       "数据库架构操作（创建/删除/重命名表、添加/删除/修改列、索引管理、约束管理等）",
       "基础查询（SqlQuery、SqlQuerySingle）",
@@ -123,6 +123,10 @@
     {
       "name": "validate_configuration",
       "description": "Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome."
+    },
+    {
+      "name": "reload_database_config",
+      "description": "Reload databases.json from DB_CONFIG_PATH, refresh cached clients, and return the applied current database plus whether the previous selection was preserved."
     },
     {
       "name": "get_data_base_list",

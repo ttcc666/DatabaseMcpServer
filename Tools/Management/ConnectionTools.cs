@@ -111,6 +111,13 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool]
+    [Description("Reload the databases.json file from DB_CONFIG_PATH, refresh cached clients, and return the applied currentDatabase plus whether the previous selection was preserved.")]
+    public string ReloadDatabaseConfig()
+    {
+        return Execute(() => DatabaseConfig.ReloadConfiguration());
+    }
+
+    [McpServerTool]
     [Description("List every configured database connection (name, type, description, default flag, current flag) so callers can choose a target.")]
     public string ListDatabases()
     {

@@ -15,7 +15,7 @@
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优
 - 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
-- 💾 **完整功能** - 50+ MCP 工具（当前约 57 个），涵盖查询、操作、架构管理、健康检查等
+- 💾 **完整功能** - 50+ MCP 工具（当前约 58 个），涵盖查询、操作、架构管理、健康检查等
 - 🚀 **生产就绪** - 支持事务、批量操作、存储过程、自动重连
 - 📦 **.NET Global Tool** - 简单安装，一键部署
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
@@ -215,6 +215,8 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 }
 ```
 
+当 `databases.json` 内容更新后，可以直接调用 `reload_database_config`，让 MCP 在不重启进程的情况下重新读取配置并刷新连接缓存。
+
 **配置文件格式 (databases.json)：**
 
 ```json
@@ -404,7 +406,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 ---
 
-## 📋 完整功能清单（约 57 个工具）
+## 📋 完整功能清单（约 58 个工具）
 
 ### 🔌 一、连接与配置管理
 
@@ -413,6 +415,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - **test_connection_by_name** - 测试指定数据库的连接
 - **get_database_config** - 获取当前数据库配置信息
 - **validate_configuration** - 验证数据库配置是否正确
+- **reload_database_config** - 重新加载 `databases.json` 并刷新当前配置缓存
 
 **多数据库管理**:
 - **list_databases** - 列出所有可用的数据库连接

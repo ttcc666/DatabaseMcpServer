@@ -26,16 +26,11 @@ internal sealed class SqlSugarClientFactory : ISqlSugarClientFactory
 
     public ISqlSugarClient CreateClient(DatabaseConnection connection)
     {
-        if (_clientPool.TryGetValue(connection.Name, out var existingScope))
-        {
-            _logger.LogDebug("复用连接池中的数据库客户端: {Name}", connection.Name);
-            return existingScope;
-        }
-
         lock (_poolLock)
         {
-            if (_clientPool.TryGetValue(connection.Name, out existingScope))
+            if (_clientPool.TryGetValue(connection.Name, out var existingScope))
             {
+                _logger.LogDebug("复用连接池中的数据库客户端: {Name}", connection.Name);
                 return existingScope;
             }
 
@@ -55,6 +50,18 @@ internal sealed class SqlSugarClientFactory : ISqlSugarClientFactory
             _logger.LogInformation("SqlSugarScope 客户端创建成功并加入连接池: {Name} ({DbType})", connection.Name, dbType);
 
             return scope;
+        }
+    }
+
+    public void ResetClientPool()
+    {
+        lock (_poolLock)
+        {
+            var removedClients = _clientPool.Count;
+            _clientPool.Clear();
+
+            // 不主动释放旧的共享 scope，避免在配置刷新时打断正在执行的请求。
+            _logger.LogInformation("已清空 SqlSugar 客户端缓存，等待后续请求按新配置重建: {Count}", removedClients);
         }
     }
 

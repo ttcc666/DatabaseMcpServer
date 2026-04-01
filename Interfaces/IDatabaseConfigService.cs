@@ -77,4 +77,10 @@ public interface IDatabaseConfigService
     /// </summary>
     /// <returns>当前数据库连接名称</returns>
     string GetCurrentDatabaseName();
+
+    /// <summary>
+    /// 重新加载数据库配置文件并刷新客户端缓存
+    /// </summary>
+    /// <returns>刷新结果</returns>
+    ConfigurationReloadResult ReloadConfiguration();
 }

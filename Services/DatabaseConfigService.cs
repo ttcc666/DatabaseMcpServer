@@ -15,6 +15,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private readonly IDatabaseHelperService _databaseHelper;
     private readonly ISqlSugarClientFactory _clientFactory;
     private readonly IJsonResultSerializer _resultSerializer;
+    private readonly object _stateLock = new();
     private readonly Dictionary<string, DatabaseConnection> _connections = new(StringComparer.Ordinal);
     private string? _currentDatabaseName;
 
@@ -34,6 +35,27 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     private void LoadDatabaseConnections()
     {
+        var configPath = GetConfiguredPath();
+        if (!TryLoadConfigurationSnapshot(configPath, preferredDatabaseName: null, out var snapshot, out _))
+        {
+            throw new InvalidOperationException(
+                $"无法加载配置文件: {configPath}\n\n" +
+                "请检查:\n" +
+                "  1. 文件是否存在\n" +
+                "  2. JSON 格式是否正确\n" +
+                "  3. 文件编码是否为 UTF-8\n\n" +
+                "配置文件格式请参考: databases.json.example");
+        }
+
+        lock (_stateLock)
+        {
+            ApplyConfigurationSnapshot(snapshot);
+            _logger.LogInformation("已从配置文件加载 {Count} 个数据库连接", _connections.Count);
+        }
+    }
+
+    private string GetConfiguredPath()
+    {
         CheckDeprecatedEnvironmentVariables();
 
         var configPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
@@ -47,26 +69,20 @@ internal class DatabaseConfigService : IDatabaseConfigService
         }
 
         _logger.LogInformation("使用配置文件路径: {Path}", configPath);
-
-        if (!LoadFromConfigFile(configPath))
-        {
-            throw new InvalidOperationException(
-                $"无法加载配置文件: {configPath}\n\n" +
-                "请检查:\n" +
-                "  1. 文件是否存在\n" +
-                "  2. JSON 格式是否正确\n" +
-                "  3. 文件编码是否为 UTF-8\n\n" +
-                "配置文件格式请参考: databases.json.example");
-        }
-
-        _logger.LogInformation("已从配置文件加载 {Count} 个数据库连接", _connections.Count);
+        return configPath;
     }
 
-    private bool LoadFromConfigFile(string configPath)
+    private bool TryLoadConfigurationSnapshot(
+        string configPath,
+        string? preferredDatabaseName,
+        out ConfigurationSnapshot snapshot,
+        out string errorMessage)
     {
         if (!File.Exists(configPath))
         {
             _logger.LogError("配置文件不存在: {Path}", configPath);
+            snapshot = ConfigurationSnapshot.Empty;
+            errorMessage = $"配置文件不存在: {configPath}";
             return false;
         }
 
@@ -81,34 +97,56 @@ internal class DatabaseConfigService : IDatabaseConfigService
             if (config?.Databases == null || config.Databases.Count == 0)
             {
                 _logger.LogError("配置文件中未找到有效的数据库配置: {Path}", configPath);
+                snapshot = ConfigurationSnapshot.Empty;
+                errorMessage = $"配置文件中未找到有效的数据库配置: {configPath}";
                 return false;
             }
 
-            _connections.Clear();
-            _currentDatabaseName = null;
-
+            var connections = new Dictionary<string, DatabaseConnection>(StringComparer.Ordinal);
+            string? defaultDatabaseName = null;
             foreach (var db in config.Databases)
             {
-                _connections[db.Name] = db;
-                if (db.IsDefault || _currentDatabaseName == null)
+                connections[db.Name] = db;
+                if (db.IsDefault && defaultDatabaseName == null)
                 {
-                    _currentDatabaseName = db.Name;
+                    defaultDatabaseName = db.Name;
                 }
             }
 
+            var currentDatabaseName = preferredDatabaseName is not null && connections.ContainsKey(preferredDatabaseName)
+                ? preferredDatabaseName
+                : defaultDatabaseName ?? connections.Keys.First();
+
+            snapshot = new ConfigurationSnapshot(configPath, connections, currentDatabaseName);
             _logger.LogInformation("成功从配置文件加载 {Count} 个数据库连接: {Path}", config.Databases.Count, configPath);
+            errorMessage = string.Empty;
             return true;
         }
         catch (JsonException ex)
         {
             _logger.LogError(ex, "配置文件 JSON 格式错误: {Path}", configPath);
+            snapshot = ConfigurationSnapshot.Empty;
+            errorMessage = $"配置文件 JSON 格式错误: {configPath}";
             return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "无法加载配置文件: {Path}", configPath);
+            snapshot = ConfigurationSnapshot.Empty;
+            errorMessage = $"无法加载配置文件: {configPath}";
             return false;
         }
+    }
+
+    private void ApplyConfigurationSnapshot(ConfigurationSnapshot snapshot)
+    {
+        _connections.Clear();
+        foreach (var connection in snapshot.Connections)
+        {
+            _connections[connection.Key] = connection.Value;
+        }
+
+        _currentDatabaseName = snapshot.CurrentDatabaseName;
     }
 
     private void CheckDeprecatedEnvironmentVariables()
@@ -171,7 +209,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
         throw new InvalidOperationException(message.ToString());
     }
 
-    private DatabaseConnection GetCurrentConnection()
+    private DatabaseConnection GetCurrentConnectionUnsafe()
     {
         if (_connections.Count == 0)
         {
@@ -187,7 +225,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
         return _connections[_currentDatabaseName];
     }
 
-    private DatabaseConnection GetConnection(string databaseName)
+    private DatabaseConnection GetConnectionUnsafe(string databaseName)
     {
         if (!_connections.TryGetValue(databaseName, out var connection))
         {
@@ -199,27 +237,42 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     public string GetConnectionString()
     {
-        return GetCurrentConnection().ConnectionString;
+        lock (_stateLock)
+        {
+            return GetCurrentConnectionUnsafe().ConnectionString;
+        }
     }
 
     public string GetDatabaseType()
     {
-        return GetCurrentConnection().DbType;
+        lock (_stateLock)
+        {
+            return GetCurrentConnectionUnsafe().DbType;
+        }
     }
 
     public DbType GetParsedDbType()
     {
-        return _databaseHelper.ParseDbType(GetDatabaseType());
+        lock (_stateLock)
+        {
+            return _databaseHelper.ParseDbType(GetCurrentConnectionUnsafe().DbType);
+        }
     }
 
     public ISqlSugarClient CreateClient()
     {
-        return _clientFactory.CreateClient(GetCurrentConnection());
+        lock (_stateLock)
+        {
+            return _clientFactory.CreateClient(GetCurrentConnectionUnsafe());
+        }
     }
 
     public ISqlSugarClient CreateClient(string databaseName)
     {
-        return _clientFactory.CreateClient(GetConnection(databaseName));
+        lock (_stateLock)
+        {
+            return _clientFactory.CreateClient(GetConnectionUnsafe(databaseName));
+        }
     }
 
     public Task<ISqlSugarClient> CreateClientAsync()
@@ -231,9 +284,12 @@ internal class DatabaseConfigService : IDatabaseConfigService
     {
         try
         {
-            _ = GetConnectionString();
-            _ = GetParsedDbType();
-            return true;
+            lock (_stateLock)
+            {
+                _ = GetCurrentConnectionUnsafe().ConnectionString;
+                _ = _databaseHelper.ParseDbType(GetCurrentConnectionUnsafe().DbType);
+                return true;
+            }
         }
         catch
         {
@@ -243,13 +299,19 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     public string GetConfigurationSummary()
     {
-        var connection = GetCurrentConnection();
+        DatabaseConnection connection;
+        int totalDatabases;
+        lock (_stateLock)
+        {
+            connection = GetCurrentConnectionUnsafe();
+            totalDatabases = _connections.Count;
+        }
 
         return _resultSerializer.Serialize(new
         {
             configured = true,
-            mode = _connections.Count > 1 ? "multi-database" : "single-database",
-            totalDatabases = _connections.Count,
+            mode = totalDatabases > 1 ? "multi-database" : "single-database",
+            totalDatabases,
             currentDatabase = connection.Name,
             databaseType = connection.DbType,
             description = connection.Description,
@@ -260,25 +322,112 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     public List<DatabaseConnection> GetAllConnections()
     {
-        return _connections.Values.ToList();
+        lock (_stateLock)
+        {
+            return _connections.Values.ToList();
+        }
     }
 
     public bool SwitchDatabase(string databaseName)
     {
-        if (!_connections.ContainsKey(databaseName))
+        lock (_stateLock)
         {
-            _logger.LogWarning("尝试切换到不存在的数据库: {Name}", databaseName);
-            return false;
-        }
+            if (!_connections.ContainsKey(databaseName))
+            {
+                _logger.LogWarning("尝试切换到不存在的数据库: {Name}", databaseName);
+                return false;
+            }
 
-        _currentDatabaseName = databaseName;
-        _logger.LogInformation("已切换到数据库: {Name}", databaseName);
-        return true;
+            _currentDatabaseName = databaseName;
+            _logger.LogInformation("已切换到数据库: {Name}", databaseName);
+            return true;
+        }
     }
 
     public string GetCurrentDatabaseName()
     {
-        return GetCurrentConnection().Name;
+        lock (_stateLock)
+        {
+            return GetCurrentConnectionUnsafe().Name;
+        }
+    }
+
+    public ConfigurationReloadResult ReloadConfiguration()
+    {
+        string previousDatabaseName;
+        int previousDatabaseCount;
+        lock (_stateLock)
+        {
+            previousDatabaseName = GetCurrentConnectionUnsafe().Name;
+            previousDatabaseCount = _connections.Count;
+        }
+
+        string configPath;
+        try
+        {
+            configPath = GetConfiguredPath();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "读取数据库配置路径失败，保留现有配置");
+            return CreateReloadFailureResult(ex.Message, string.Empty, previousDatabaseName, previousDatabaseCount);
+        }
+
+        if (!TryLoadConfigurationSnapshot(configPath, previousDatabaseName, out var snapshot, out var errorMessage))
+        {
+            _logger.LogWarning("重新加载数据库配置失败，保留现有配置: {Path}", configPath);
+            return CreateReloadFailureResult($"刷新配置失败，保留现有配置。{errorMessage}", configPath, previousDatabaseName, previousDatabaseCount);
+        }
+
+        string currentDatabaseName;
+        int totalDatabases;
+        lock (_stateLock)
+        {
+            ApplyConfigurationSnapshot(snapshot);
+            _clientFactory.ResetClientPool();
+            currentDatabaseName = _currentDatabaseName ?? snapshot.CurrentDatabaseName;
+            totalDatabases = _connections.Count;
+        }
+
+        var preservedCurrentDatabase = string.Equals(previousDatabaseName, currentDatabaseName, StringComparison.Ordinal);
+        var message = preservedCurrentDatabase
+            ? $"已重新加载数据库配置，并保留当前数据库 '{currentDatabaseName}'"
+            : $"已重新加载数据库配置，当前数据库已从 '{previousDatabaseName}' 切换到 '{currentDatabaseName}'";
+
+        _logger.LogInformation(
+            "数据库配置刷新成功: {Path}，当前数据库 {Previous} -> {Current}",
+            configPath,
+            previousDatabaseName,
+            currentDatabaseName);
+
+        return new ConfigurationReloadResult
+        {
+            Success = true,
+            Message = message,
+            ConfigPath = configPath,
+            PreviousDatabase = previousDatabaseName,
+            CurrentDatabase = currentDatabaseName,
+            TotalDatabases = totalDatabases,
+            PreservedCurrentDatabase = preservedCurrentDatabase
+        };
+    }
+
+    private static ConfigurationReloadResult CreateReloadFailureResult(
+        string message,
+        string configPath,
+        string currentDatabaseName,
+        int totalDatabases)
+    {
+        return new ConfigurationReloadResult
+        {
+            Success = false,
+            Message = message,
+            ConfigPath = configPath,
+            PreviousDatabase = currentDatabaseName,
+            CurrentDatabase = currentDatabaseName,
+            TotalDatabases = totalDatabases,
+            PreservedCurrentDatabase = true
+        };
     }
 
     private static readonly System.Text.RegularExpressions.Regex SensitiveInfoPattern =
@@ -296,5 +445,14 @@ internal class DatabaseConfigService : IDatabaseConfigService
             var key = match.Groups[1].Value;
             return $"{key}=****";
         });
+    }
+
+    private sealed record ConfigurationSnapshot(
+        string ConfigPath,
+        Dictionary<string, DatabaseConnection> Connections,
+        string CurrentDatabaseName)
+    {
+        public static ConfigurationSnapshot Empty { get; } =
+            new(string.Empty, new Dictionary<string, DatabaseConnection>(StringComparer.Ordinal), string.Empty);
     }
 }

@@ -15,7 +15,7 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
 - ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
-- 💾 **Complete Functionality** - 50+ MCP tools (about 57 currently), covering queries, operations, schema management, health checks, etc.
+- 💾 **Complete Functionality** - 50+ MCP tools (about 58 currently), covering queries, operations, schema management, health checks, etc.
 - 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
 - 📦 **.NET Global Tool** - Simple installation, one-click deployment
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
@@ -225,6 +225,8 @@ Specify the **absolute path** of the configuration file through the environment 
 }
 ```
 
+After `databases.json` changes, call `reload_database_config` to reload the file and rebuild cached clients without restarting the MCP process.
+
 **Configuration File Format (databases.json):**
 
 ```json
@@ -406,7 +408,7 @@ For more connection strings and optimization configurations, please refer to the
 
 ---
 
-## 📋 Complete Feature List (about 57 tools)
+## 📋 Complete Feature List (about 58 tools)
 
 ### 🔌 1. Connection and Configuration Management
 
@@ -415,6 +417,7 @@ For more connection strings and optimization configurations, please refer to the
 - **test_connection_by_name** - Test connection for a specific database
 - **get_database_config** - Get current database configuration information
 - **validate_configuration** - Validate if database configuration is correct
+- **reload_database_config** - Reload `databases.json` and refresh the active configuration cache
 
 **Multi-Database Management**:
 - **list_databases** - List all available database connections
