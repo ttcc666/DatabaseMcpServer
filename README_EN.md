@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.1.1-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@2.1.1 --yes
+dnx DatabaseMcpServer@2.2.0 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@2.1.1 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.1.1", "--yes"],
+      "args": ["DatabaseMcpServer@2.2.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -682,12 +682,22 @@ Recommended stable verification flow:
 .\scripts\verify.ps1
 ```
 
+CLI command reference:
+
+- [CLI Command Guide](Doc/cli.md)
+
 ## 🆕 Release Notes
 
 - **2.1.1**
   - Add `reload_database_config` to reload database connections from `DB_CONFIG_PATH` at runtime
   - Reset cached SqlSugar clients during config refresh so subsequent requests use updated connections
   - Expand tests for config reload and client recreation before release
+
+- **2.2.0**
+  - Add CLI mode so `DatabaseMcpServer tool <tool_name>` can invoke existing database tools directly
+  - Preserve no-argument stdio MCP server behavior and add `tool list`, `tool help`, `--config`, and `--yes`
+  - Suppress runtime log noise in CLI mode so successful calls emit tool result JSON only
+  - Add CLI docs, SQLite/SQL Server verification scripts, and a draft `database-mcp-cli` skill
 
 - **2.1.0**
   - Align version to 2.1.0 (badges/example commands/config)
@@ -803,7 +813,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 2.1.1
+- This project has released version 2.2.0
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data

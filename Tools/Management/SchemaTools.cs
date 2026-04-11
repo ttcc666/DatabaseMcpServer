@@ -1,5 +1,6 @@
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Tools;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
@@ -154,7 +155,47 @@ internal class SchemaTools : McpToolBase
         [Description("Table name")] string tableName,
         [Description("Column name")] string columnName,
         [Description("Default value")] string defaultValue)
-        => ExecuteOperation(db => db.DbMaintenance.AddDefaultValue(tableName, columnName, defaultValue));
+    {
+        return WithClient(db =>
+        {
+            if (string.IsNullOrWhiteSpace(defaultValue))
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "defaultValue 不能为空");
+            }
+
+            if (db.CurrentConnectionConfig.DbType != DbType.SqlServer)
+            {
+                return new { success = db.DbMaintenance.AddDefaultValue(tableName, columnName, defaultValue) };
+            }
+
+            var (schemaName, pureTableName) = ParseSqlServerObjectName(tableName);
+            var existingConstraintSql = @"
+SELECT dc.name
+FROM sys.default_constraints dc
+INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+INNER JOIN sys.tables t ON t.object_id = c.object_id
+INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
+WHERE s.name = @SchemaName AND t.name = @TableName AND c.name = @ColumnName";
+
+            var existingConstraintName = db.Ado.GetString(
+                existingConstraintSql,
+                new SugarParameter("@SchemaName", schemaName),
+                new SugarParameter("@TableName", pureTableName),
+                new SugarParameter("@ColumnName", columnName));
+
+            if (!string.IsNullOrWhiteSpace(existingConstraintName))
+            {
+                var dropSql = $"ALTER TABLE {QuoteSqlServerTableName(schemaName, pureTableName)} DROP CONSTRAINT {QuoteSqlServerIdentifier(existingConstraintName)}";
+                db.Ado.ExecuteCommand(dropSql);
+            }
+
+            var constraintName = BuildSqlServerDefaultConstraintName(pureTableName, columnName);
+            var addSql = $"ALTER TABLE {QuoteSqlServerTableName(schemaName, pureTableName)} ADD CONSTRAINT {QuoteSqlServerIdentifier(constraintName)} DEFAULT {defaultValue} FOR {QuoteSqlServerIdentifier(columnName)}";
+            db.Ado.ExecuteCommand(addSql);
+
+            return new { success = true };
+        });
+    }
 
     [McpServerTool]
     [Description("Attach a description to tableName so documentation tools can surface the table’s purpose.")]
@@ -323,5 +364,41 @@ internal class SchemaTools : McpToolBase
         {
             success = operation(db)
         });
+    }
+
+    private static (string SchemaName, string TableName) ParseSqlServerObjectName(string tableName)
+    {
+        SqlSafetyGuard.EnsureSafeTableName(tableName);
+
+        var parts = tableName
+            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return parts.Length switch
+        {
+            1 => ("dbo", parts[0]),
+            2 => (parts[0], parts[1]),
+            _ => throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "tableName 仅支持 table 或 schema.table 形式")
+        };
+    }
+
+    private static string QuoteSqlServerTableName(string schemaName, string tableName)
+    {
+        return $"{QuoteSqlServerIdentifier(schemaName)}.{QuoteSqlServerIdentifier(tableName)}";
+    }
+
+    private static string QuoteSqlServerIdentifier(string identifier)
+    {
+        return $"[{identifier.Replace("]", "]]", StringComparison.Ordinal)}]";
+    }
+
+    private static string BuildSqlServerDefaultConstraintName(string tableName, string columnName)
+    {
+        var sanitized = $"{tableName}_{columnName}"
+            .Replace(".", "_", StringComparison.Ordinal)
+            .Replace("-", "_", StringComparison.Ordinal);
+
+        var prefix = sanitized.Length > 96 ? sanitized[..96] : sanitized;
+        var candidate = $"DF_{prefix}_{Guid.NewGuid():N}";
+        return candidate.Length > 128 ? candidate[..128] : candidate;
     }
 }

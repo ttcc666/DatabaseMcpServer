@@ -1,35 +1,33 @@
+using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Extensions;
-using DatabaseMcpServer.Services;
+using DatabaseMcpServer.Hosting;
 using Microsoft.Extensions.Hosting;
-using Serilog;
 
-var builder = Host.CreateApplicationBuilder(args);
+return await MainAsync(args);
 
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Debug()
-    .WriteTo.Console(
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
-        standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose);
-
-var seqServerUrl = Environment.GetEnvironmentVariable("SEQ_SERVER_URL");
-if (!string.IsNullOrWhiteSpace(seqServerUrl))
+static async Task<int> MainAsync(string[] args)
 {
-    var seqApiKey = Environment.GetEnvironmentVariable("SEQ_API_KEY");
-    if (!string.IsNullOrWhiteSpace(seqApiKey))
+    if (args.Length == 0)
     {
-        loggerConfig.WriteTo.Seq(seqServerUrl, apiKey: seqApiKey);
+        var builder = DatabaseHostBuilderFactory.CreateBaseBuilder(args);
+        builder.Services.AddDatabaseMcpServer();
+        await builder.Build().RunAsync();
+        return 0;
     }
-    else
+
+    if (string.Equals(args[0], "tool", StringComparison.Ordinal))
     {
-        loggerConfig.WriteTo.Seq(seqServerUrl);
+        var cliRunner = new CliRunner();
+        return await cliRunner.RunAsync(args.Skip(1).ToArray(), Console.Out, Console.Error);
     }
+
+    if (string.Equals(args[0], "--help", StringComparison.Ordinal) ||
+        string.Equals(args[0], "-h", StringComparison.Ordinal))
+    {
+        await CliRunner.WriteRootHelpAsync(Console.Error);
+        return 0;
+    }
+
+    await CliRunner.WriteRootHelpAsync(Console.Error);
+    return 2;
 }
-
-var serilogLogger = loggerConfig.CreateLogger();
-builder.Services.AddSerilog(serilogLogger);
-
-SqlSugarProviderWarmup.Warmup(serilogLogger);
-builder.Services.AddDatabaseMcpApplicationServices();
-builder.Services.AddDatabaseMcpServer();
-
-await builder.Build().RunAsync();

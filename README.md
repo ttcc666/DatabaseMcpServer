@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.1.1-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -111,6 +111,63 @@ DatabaseMcpServer --version
 }
 ```
 
+## 💻 命令行模式（CLI）
+
+从当前版本开始，`DatabaseMcpServer` 在保留原有 MCP stdio 模式的同时，也支持直接从命令行调用已暴露的 tool。
+
+- **无参数**：启动 stdio MCP server（兼容现有 MCP 客户端配置）
+- **`tool` 子命令**：进入 CLI 模式
+
+### 基本用法
+
+```bash
+# 列出所有可调用的 tool
+DatabaseMcpServer tool list
+
+# 查看某个 tool 的帮助
+DatabaseMcpServer tool help switch_database
+
+# 直接调用 tool
+DatabaseMcpServer tool list_databases --config "D:\config\databases.json"
+DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\databases.json"
+```
+
+### 参数规则
+
+- tool 名称与 MCP 中保持一致，使用 `snake_case`
+  - 例如：`list_databases`、`get_table_schema`、`execute_command`
+- tool 参数统一映射为 `kebab-case` 选项
+  - 例如：`databaseName -> --database-name`
+  - 例如：`initialDelayMs -> --initial-delay-ms`
+- CLI 全局选项：
+  - `--config <path>`：本次调用临时指定配置文件
+  - `--yes`：执行写操作 / 高风险 schema tool 时必须显式确认
+  - `--help`：显示帮助
+
+### 配置文件查找顺序
+
+如果没有显式传 `--config`，CLI 会按以下顺序查找数据库配置：
+
+1. 当前目录 `./databases.json`
+2. 当前目录 `./local-databases.json`
+3. 环境变量 `DB_CONFIG_PATH`
+4. 用户目录 `%USERPROFILE%/.database-mcp/databases.json`
+
+### 高风险命令确认
+
+以下写操作 / 高风险命令必须追加 `--yes`：
+
+```bash
+DatabaseMcpServer tool drop_table --table-name users --config "D:\config\databases.json" --yes
+DatabaseMcpServer tool execute_command --sql "delete from users where id = 1" --config "D:\config\databases.json" --yes
+```
+
+CLI 模式下，tool 的 JSON 结果输出到 `stdout`，帮助和日志输出到 `stderr`，便于脚本集成。
+
+详细命令说明见：
+
+- [CLI 命令文档](Doc/cli.md)
+
 ## 📦 安装方式
 
 ### 方式 1：.NET Global Tool（推荐）
@@ -139,7 +196,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.1.1 --yes
+dnx DatabaseMcpServer@2.2.0 --yes
 ```
 
 **MCP 配置**：
@@ -148,7 +205,7 @@ dnx DatabaseMcpServer@2.1.1 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.1.1", "--yes"],
+      "args": ["DatabaseMcpServer@2.2.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -659,6 +716,12 @@ dotnet pack -c Release
   - 刷新配置时同步清空客户端缓存，确保后续请求使用新的连接信息
   - 增补配置刷新与客户端重建测试，发版前验证覆盖更完整
 
+- **2.2.0**
+  - 新增 CLI 模式：支持 `DatabaseMcpServer tool <tool_name>` 直接调用已有数据库工具
+  - 保留无参数 stdio MCP server 兼容行为，并新增 `tool list` / `tool help` / `--config` / `--yes`
+  - CLI 模式默认仅输出工具结果 JSON，避免日志污染 `stdout`
+  - 补充 CLI 文档、全量 SQLite/SQL Server 验证脚本与 `database-mcp-cli` skill 草案
+
 - **2.1.0**
   - 版本号统一至 2.1.0（徽标/示例命令/配置）
   - 为工具、服务、策略等补充中文 XML 注释，便于智能提示与维护
@@ -769,7 +832,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.1.1 正式版本
+- 本项目已发布 2.2.0 正式版本
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据

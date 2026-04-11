@@ -9,6 +9,7 @@ using DatabaseMcpServer.Tools.Export;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.Server;
 
 namespace DatabaseMcpServer.Extensions;
@@ -27,16 +28,29 @@ internal static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddDatabaseMcpToolServices(this IServiceCollection services)
+    {
+        foreach (var toolType in DatabaseMcpToolCatalog.ToolTypes)
+        {
+            services.TryAddTransient(toolType);
+        }
+
+        return services;
+    }
+
     public static IMcpServerBuilder AddDatabaseMcpServer(this IServiceCollection services)
     {
-        return services
+        services.AddDatabaseMcpToolServices();
+
+        var builder = services
             .AddMcpServer()
-            .WithStdioServerTransport()
-            .WithTools<ConnectionTools>()
-            .WithTools<SchemaTools>()
-            .WithTools<QueryTools>()
-            .WithTools<CommandTools>()
-            .WithTools<ExcelExportTools>()
-            .WithTools<DocumentationTools>();
+            .WithStdioServerTransport();
+
+        foreach (var registration in DatabaseMcpToolCatalog.Registrations)
+        {
+            builder = registration.RegisterWithMcp(builder);
+        }
+
+        return builder;
     }
 }
