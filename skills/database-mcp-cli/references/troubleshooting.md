@@ -1,104 +1,166 @@
 # DatabaseMcpServer CLI Troubleshooting
 
-## 1. 缺少 `--yes`
+Use this file as a symptom-to-diagnosis matrix when CLI behavior is unclear.
 
-现象：
+## Quick Navigation
+
+- `--yes` and destructive confirmation
+- option parsing and unknown command failures
+- config resolution failures
+- stdout/stderr and JSON parsing issues
+- SQL Server quoting and encryption issues
+- `success: false` vs CLI usage failure
+- broad verification guidance
+
+## Quick Triage
+
+| Symptom | Meaning | Next action |
+| --- | --- | --- |
+| exit code `0` + parseable JSON | invocation succeeded | inspect payload semantics |
+| exit code `1` | tool returned structured failure | treat as backend/tool failure first |
+| exit code `2` | CLI usage failure | inspect parameters, config resolution, help output |
+| help text on `stderr` | often expected for help/list commands | do not misclassify as failure |
+| command result on `stdout` | normal | parse JSON before judging |
+
+## 1. Missing `--yes`
+
+Symptom:
 
 ```text
 tool 'execute_command' 需要显式确认。请追加 '--yes'。
 ```
 
-结论：
+Or for config removal:
 
-- 这是 CLI 使用错误
-- 不是数据库连接错误
+```text
+命令 'remove' 需要显式确认。请追加 '--yes'。
+```
 
-处理：
+Meaning:
 
-- 给高风险命令追加 `--yes`
+- CLI usage error
+- not a database connection failure
+- exit code should be `2`
 
----
+Fix:
 
-## 2. 缺少必填参数
+- add `--yes`
+- keep diagnosis in the CLI layer, not the database layer
 
-现象：
+## 2. Missing or invalid options
+
+Typical symptoms:
 
 ```text
 缺少必填选项 '--table-name'
+未知选项: '--table'
+选项 '--config' 缺少值。
+无法识别的参数: 'users'
+选项 '--max-retries' 需要 int 值。
+选项 '--test-connections' 需要 bool 值。
 ```
 
-结论：
+Meaning:
 
-- 这是 CLI 参数绑定错误
-- 退出码通常是 `2`
+- parameter binding or parsing failure inside CLI
+- exit code should be `2`
 
-处理：
+Fix:
 
-- 先跑 `DatabaseMcpServer tool help <tool_name>`
-- 按帮助补齐参数名
+- run `DatabaseMcpServer tool help <tool_name>` or `DatabaseMcpServer config help <subcommand>`
+- use kebab-case option names such as `--table-name`, not ad-hoc variants
+- keep JSON, bool, and integer arguments in the expected format
 
----
+## 3. Unknown command or tool name
 
-## 3. `stdout` 不是纯 JSON
-
-正常情况：
-
-- 成功 tool 调用应只输出 JSON 到 `stdout`
-
-如果混入额外文本：
-
-- 优先怀疑底层库直接写 `Console.Out`
-- CLI 层应尽量吞掉运行期 stray stdout/stderr
-
-处理：
-
-- 先记录具体命令和 stdout 内容
-- 区分是 CLI 自己打印，还是数据库驱动/第三方库打印
-
----
-
-## 4. SQL Server `Encrypt=True` 失败
-
-现象示例：
+Typical symptoms:
 
 ```text
-您试图连接的 SQL Server 实例要求加密，但是此计算机不支持
+未知命令: 'tools'。可用顶层命令: tool, init, config
+未知 tool: 'get-table-schema'。
+未知 config 命令: 'lists'。
 ```
 
-结论：
+Meaning:
 
-- 这是驱动 / TLS 能力问题
-- 不是 tool 名称或参数错误
+- wrong command family or wrong naming form
+- tool names are `snake_case`
+- option names are `kebab-case`
 
-处理：
+Fix:
 
-1. 原样报告错误
-2. 不要静默修改连接串
-3. 如果用户明确允许诊断，再尝试：
+- switch to `tool`, `init`, or `config`
+- use `DatabaseMcpServer tool list`
+- use `DatabaseMcpServer tool help <tool_name>`
+- if the CLI prints “最接近的命令”, prefer one of those suggestions
+
+## 4. Config file not found
+
+Typical symptom:
 
 ```text
-Encrypt=False;TrustServerCertificate=True
+未找到数据库配置文件。CLI 查找顺序: --config -> ./databases.json -> ./local-databases.json -> DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json
 ```
 
-说明：
+Or:
 
-- 这只是诊断 fallback
-- 不是与 `Encrypt=True` 等价的安全设置
+```text
+配置文件不存在: D:\path\to\databases.json
+```
 
----
+Meaning:
 
-## 5. PowerShell JSON 转义错误
+- the CLI could not resolve a usable config file
+- exit code should be `2`
 
-现象：
+Fix:
 
-- `--commands` / `--queries-json` / `--parameters` 报 JSON 解析错误
+- prefer explicit `--config 'D:\config\databases.json'`
+- or place a config in `./databases.json` or `./local-databases.json`
+- or set `DB_CONFIG_PATH`
+- remember `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json`
 
-处理：
+## 5. `stdout` is not pure JSON
 
-- 用单引号包住整个 JSON
-- 保证 JSON 本身是一个完整参数
+Normal behavior:
 
-正确示例：
+- successful `tool`, `config`, and `init` invocations write JSON payloads to `stdout`
+
+If extra text appears:
+
+- suspect a library or driver writing directly to `Console.Out`
+- do not assume the CLI contract is broken until you capture exact `stdout` and `stderr`
+
+Fix:
+
+- record the full command, `stdout`, and `stderr`
+- separate help output on `stderr` from stray runtime output
+- if JSON is mixed with other text, note that as a CLI-contract regression
+
+## 6. JSON argument parsing failures
+
+Typical symptom:
+
+```text
+选项 '--parameters' 需要有效 JSON。
+```
+
+Common triggers:
+
+- `--parameters`
+- `--input-parameters`
+- `--output-parameters`
+- `--commands`
+- `--queries-json`
+- `--in-values`
+- `--column-info`
+
+Fix:
+
+- wrap the whole JSON payload in single quotes
+- pass one JSON object or array as one argument
+
+Examples:
 
 ```powershell
 --parameters '{"age":18}'
@@ -106,70 +168,87 @@ Encrypt=False;TrustServerCertificate=True
 --queries-json '{"users":"select * from users","roles":"select * from roles"}'
 ```
 
----
+## 7. SQL Server `add_default_value` string literal confusion
 
-## 6. SQL Server `add_default_value` 字符串默认值
-
-这个命令要传 SQL 字面量，不是裸文本。
-
-错误示例：
+Wrong:
 
 ```powershell
 --default-value 'active'
 ```
 
-正确示例：
+Correct:
 
 ```powershell
 --default-value '''active'''
 ```
 
-解释：
+Meaning:
 
-- SQL Server 需要收到 `'active'`
-- PowerShell 单引号里要写成 `'''active'''`
+- the command expects a SQL literal, not plain text
+- SQL Server needs `'active'`, while PowerShell single-quote escaping requires `'''active'''`
 
----
+## 8. SQL Server `Encrypt=True` failure
 
-## 7. 大规模 CLI 测试建议
+Typical symptom:
 
-如果要“测试所有 tool”：
+```text
+您试图连接的 SQL Server 实例要求加密，但是此计算机不支持
+```
 
-- 先只读
-- 再用唯一前缀创建隔离对象
-- 每个工具记录：
-  - 命令
-  - 退出码
-  - `stdout`
-  - `stderr`
-  - `success` / `errorMessage`
-- 最后做清理
+Meaning:
 
-推荐前缀：
+- driver or TLS capability problem
+- not a tool-name or CLI-parameter issue
+
+Fix:
+
+1. report the exact error first
+2. do not silently weaken security
+3. only if the user explicitly allows diagnosis, try a one-off diagnostic config:
+
+```text
+Encrypt=False;TrustServerCertificate=True
+```
+
+Important:
+
+- this is diagnostic fallback only
+- it is not equivalent to `Encrypt=True`
+
+## 9. `success: false` vs CLI failure
+
+If the payload is valid JSON and includes:
+
+```json
+{ "success": false }
+```
+
+Meaning:
+
+- the command reached the tool layer
+- exit code should usually be `1`
+- classify this as tool/backend/database failure unless proven otherwise
+
+Examples:
+
+- object does not exist
+- backend capability not supported
+- permission denied
+- database-specific limitation
+
+## 10. Large CLI verification runs
+
+When testing many tools:
+
+- start with read-only commands
+- create isolated temporary objects for write and DDL coverage
+- record command, exit code, stdout, stderr, and parsed success for each invocation
+- keep cleanup status explicit
+
+Recommended object prefix:
 
 ```text
 cli_<yyyyMMdd_HHmmss>_<shortid>
 ```
 
----
-
-## 8. 后端不支持 vs CLI 问题
-
-要明确区分两类失败：
-
-### CLI 问题
-
-- 缺少参数
-- 缺少 `--yes`
-- JSON/PowerShell 转义错误
-- `stderr` 出帮助文本
-
-### 后端/数据库问题
-
-- `success: false`
-- 数据库对象不存在
-- 存储过程/函数/触发器不支持
-- 驱动能力不支持
-- 权限不足
-
-汇报时要把两类问题分开写。
+Prefer `scripts/verify-cli-tools.ps1` when broad coverage is required.
