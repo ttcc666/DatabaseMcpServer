@@ -16,16 +16,174 @@ public class CliCommandParserTests
     [Fact]
     public void Parse_ShouldReturnToolHelp_WhenHelpFlagIsPresent()
     {
-        var result = _parser.Parse(["switch_database", "--help"]);
+        var result = _parser.Parse(["tool", "switch_database", "--help"]);
 
         Assert.Equal(CliCommandKind.ToolHelp, result.Kind);
         Assert.Equal("switch_database", result.Tool?.Name);
     }
 
     [Fact]
+    public void Parse_ShouldReturnConfigHelp_WhenHelpFlagIsPresent()
+    {
+        var result = _parser.Parse(["config", "add", "--help"]);
+
+        Assert.Equal(CliCommandKind.ConfigHelp, result.Kind);
+        Assert.Equal("config add", result.Command?.Name);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigPresetsCommand()
+    {
+        var result = _parser.Parse(["config", "presets"]);
+
+        Assert.Equal(CliCommandKind.ConfigPresets, result.Kind);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigPresetCommand()
+    {
+        var result = _parser.Parse(["config", "preset", "--db-type", "Sqlite"]);
+
+        Assert.Equal(CliCommandKind.ConfigPreset, result.Kind);
+        Assert.Equal("Sqlite", result.OptionValues?["db-type"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigCreateCommand()
+    {
+        var result = _parser.Parse(["config", "create", "--from-preset", "Sqlite", "--name", "sqlite-dev", "--connection-string", "Data Source=dev.db;", "--description", "dev", "--set-default", "--print-only"]);
+
+        Assert.Equal(CliCommandKind.ConfigCreate, result.Kind);
+        Assert.Equal("Sqlite", result.OptionValues?["from-preset"]);
+        Assert.Equal("sqlite-dev", result.OptionValues?["name"]);
+        Assert.Equal("Data Source=dev.db;", result.OptionValues?["connection-string"]);
+        Assert.Equal("dev", result.OptionValues?["description"]);
+        Assert.Equal("true", result.OptionValues?["set-default"]);
+        Assert.Equal("true", result.OptionValues?["print-only"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigUpdateWithClearDescription()
+    {
+        var result = _parser.Parse(["config", "update", "--name", "sqlite-dev", "--clear-description"]);
+
+        Assert.Equal(CliCommandKind.ConfigUpdate, result.Kind);
+        Assert.Equal("sqlite-dev", result.OptionValues?["name"]);
+        Assert.Equal("true", result.OptionValues?["clear-description"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseInitCommand()
+    {
+        var result = _parser.Parse(["init", "--force"]);
+
+        Assert.Equal(CliCommandKind.InitInvoke, result.Kind);
+        Assert.Equal("true", result.OptionValues?["force"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigAddCommand()
+    {
+        var result = _parser.Parse([
+            "config",
+            "add",
+            "--name", "sqlite-local",
+            "--db-type", "Sqlite",
+            "--connection-string", "Data Source=test.db;",
+            "--set-default"
+        ]);
+
+        Assert.Equal(CliCommandKind.ConfigAdd, result.Kind);
+        Assert.Equal("sqlite-local", result.OptionValues?["name"]);
+        Assert.Equal("Sqlite", result.OptionValues?["db-type"]);
+        Assert.Equal("Data Source=test.db;", result.OptionValues?["connection-string"]);
+        Assert.Equal("true", result.OptionValues?["set-default"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigExportCommand()
+    {
+        var result = _parser.Parse(["config", "export", "--output", ".\\backup.json", "--force"]);
+
+        Assert.Equal(CliCommandKind.ConfigExport, result.Kind);
+        Assert.Equal(".\\backup.json", result.OptionValues?["output"]);
+        Assert.Equal("true", result.OptionValues?["force"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigImportCommand()
+    {
+        var result = _parser.Parse(["config", "import", "--input", ".\\import.json"]);
+
+        Assert.Equal(CliCommandKind.ConfigImport, result.Kind);
+        Assert.Equal(".\\import.json", result.OptionValues?["input"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigUseCommand()
+    {
+        var result = _parser.Parse(["config", "use", "--name", "sqlite-local"]);
+
+        Assert.Equal(CliCommandKind.ConfigUse, result.Kind);
+        Assert.Equal("sqlite-local", result.OptionValues?["name"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigRenameCommand()
+    {
+        var result = _parser.Parse(["config", "rename", "--name", "sqlite-local", "--new-name", "sqlite-dev"]);
+
+        Assert.Equal(CliCommandKind.ConfigRename, result.Kind);
+        Assert.Equal("sqlite-local", result.OptionValues?["name"]);
+        Assert.Equal("sqlite-dev", result.OptionValues?["new-name"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigUpdateCommand()
+    {
+        var result = _parser.Parse(["config", "update", "--name", "sqlite-local", "--db-type", "SqlServer", "--set-default"]);
+
+        Assert.Equal(CliCommandKind.ConfigUpdate, result.Kind);
+        Assert.Equal("sqlite-local", result.OptionValues?["name"]);
+        Assert.Equal("SqlServer", result.OptionValues?["db-type"]);
+        Assert.Equal("true", result.OptionValues?["set-default"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigValidateCommand()
+    {
+        var result = _parser.Parse(["config", "validate"]);
+
+        Assert.Equal(CliCommandKind.ConfigValidate, result.Kind);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigCloneCommand()
+    {
+        var result = _parser.Parse(["config", "clone", "--name", "sqlite-dev", "--new-name", "sqlite-ci", "--set-default"]);
+
+        Assert.Equal(CliCommandKind.ConfigClone, result.Kind);
+        Assert.Equal("sqlite-dev", result.OptionValues?["name"]);
+        Assert.Equal("sqlite-ci", result.OptionValues?["new-name"]);
+        Assert.Equal("true", result.OptionValues?["set-default"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseConfigDoctorCommand()
+    {
+        var result = _parser.Parse(["config", "doctor", "--name", "sqlite-dev", "--test-connections", "false", "--fix-suggestions", "true", "--summary-only"]);
+
+        Assert.Equal(CliCommandKind.ConfigDoctor, result.Kind);
+        Assert.Equal("sqlite-dev", result.OptionValues?["name"]);
+        Assert.Equal("false", result.OptionValues?["test-connections"]);
+        Assert.Equal("true", result.OptionValues?["fix-suggestions"]);
+        Assert.Equal("true", result.OptionValues?["summary-only"]);
+    }
+
+    [Fact]
     public void Parse_ShouldRejectUnknownOption()
     {
-        var result = _parser.Parse(["switch_database", "--unknown-option", "value"]);
+        var result = _parser.Parse(["tool", "switch_database", "--unknown-option", "value"]);
 
         Assert.Equal(CliCommandKind.Error, result.Kind);
         Assert.Contains("未知选项", result.ErrorMessage, StringComparison.Ordinal);
@@ -34,7 +192,7 @@ public class CliCommandParserTests
     [Fact]
     public void Parse_ShouldSuggestClosestToolNames_ForUnknownTool()
     {
-        var result = _parser.Parse(["list_database"]);
+        var result = _parser.Parse(["tool", "list_database"]);
 
         Assert.Equal(CliCommandKind.Error, result.Kind);
         Assert.Contains("list_databases", result.ErrorMessage, StringComparison.Ordinal);

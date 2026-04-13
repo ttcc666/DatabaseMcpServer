@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
@@ -315,7 +316,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
             currentDatabase = connection.Name,
             databaseType = connection.DbType,
             description = connection.Description,
-            connectionString = MaskSensitiveInfo(connection.ConnectionString),
+            connectionString = ConnectionStringMasker.Mask(connection.ConnectionString),
             message = "配置有效"
         });
     }
@@ -428,23 +429,6 @@ internal class DatabaseConfigService : IDatabaseConfigService
             TotalDatabases = totalDatabases,
             PreservedCurrentDatabase = true
         };
-    }
-
-    private static readonly System.Text.RegularExpressions.Regex SensitiveInfoPattern =
-        new(@"(?i)(password|pwd)=([^;]*)", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    private static string MaskSensitiveInfo(string connectionString)
-    {
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return string.Empty;
-        }
-
-        return SensitiveInfoPattern.Replace(connectionString, match =>
-        {
-            var key = match.Groups[1].Value;
-            return $"{key}=****";
-        });
     }
 
     private sealed record ConfigurationSnapshot(

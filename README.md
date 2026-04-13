@@ -113,14 +113,33 @@ DatabaseMcpServer --version
 
 ## 💻 命令行模式（CLI）
 
-从当前版本开始，`DatabaseMcpServer` 在保留原有 MCP stdio 模式的同时，也支持直接从命令行调用已暴露的 tool。
+从当前版本开始，`DatabaseMcpServer` 在保留原有 MCP stdio 模式的同时，也支持直接从命令行做两类事情：
 
 - **无参数**：启动 stdio MCP server（兼容现有 MCP 客户端配置）
-- **`tool` 子命令**：进入 CLI 模式
+- **`tool` 子命令**：直接调用已暴露的 MCP tool
+- **`init` / `config` 子命令**：初始化并维护本地 `databases.json`
 
 ### 基本用法
 
 ```bash
+# 初始化默认配置文件（默认写到 %USERPROFILE%/.database-mcp/databases.json）
+DatabaseMcpServer init
+
+# 查看 / 管理本地连接配置
+DatabaseMcpServer config list
+DatabaseMcpServer config presets
+DatabaseMcpServer config preset --db-type Sqlite
+DatabaseMcpServer config create --from-preset Sqlite --name sqlite-local --connection-string "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;" --description "local sqlite" --set-default
+DatabaseMcpServer config create --from-preset Sqlite --name sqlite-preview --print-only
+DatabaseMcpServer config add --name sqlite-local --db-type Sqlite --connection-string "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;" --set-default
+DatabaseMcpServer config rename --name sqlite-local --new-name sqlite-dev
+DatabaseMcpServer config update --name sqlite-dev --description "dev sqlite" --set-default
+DatabaseMcpServer config validate
+DatabaseMcpServer config clone --name sqlite-dev --new-name sqlite-ci
+DatabaseMcpServer config doctor
+DatabaseMcpServer config export --output ".\\backup-databases.json"
+DatabaseMcpServer config import --input ".\\backup-databases.json" --config "D:\config\databases.json" --force
+
 # 列出所有可调用的 tool
 DatabaseMcpServer tool list
 
@@ -134,6 +153,18 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
 
 ### 参数规则
 
+- `init` / `config` 主要用于**本地配置管理**
+  - 默认操作 `%USERPROFILE%/.database-mcp/databases.json`
+  - 可以用 `--config <path>` 临时覆盖目标配置文件
+  - `config use` 用来切换默认连接
+  - `config rename` / `config update` 用来演进已有连接
+  - `config validate` 用来做配置文件层校验（不是连通性测试）
+  - `config clone` 用来快速复制连接
+  - `config presets` / `config preset` 用来查看内置连接模板
+  - `config create --from-preset` 用来直接基于模板生成连接骨架，也可顺手覆盖连接串/描述
+  - `config update --clear-description` 用来显式清空说明
+  - `config doctor` 用来做诊断，默认会测试各连接连通性，并给出修复建议；`--summary-only` 适合脚本
+  - `config export` / `config import` 用来备份和迁移配置文件
 - tool 名称与 MCP 中保持一致，使用 `snake_case`
   - 例如：`list_databases`、`get_table_schema`、`execute_command`
 - tool 参数统一映射为 `kebab-case` 选项
@@ -144,9 +175,9 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
   - `--yes`：执行写操作 / 高风险 schema tool 时必须显式确认
   - `--help`：显示帮助
 
-### 配置文件查找顺序
+### tool 模式下的配置文件查找顺序
 
-如果没有显式传 `--config`，CLI 会按以下顺序查找数据库配置：
+如果执行的是 `DatabaseMcpServer tool ...`，且没有显式传 `--config`，CLI 会按以下顺序查找数据库配置：
 
 1. 当前目录 `./databases.json`
 2. 当前目录 `./local-databases.json`
@@ -162,7 +193,7 @@ DatabaseMcpServer tool drop_table --table-name users --config "D:\config\databas
 DatabaseMcpServer tool execute_command --sql "delete from users where id = 1" --config "D:\config\databases.json" --yes
 ```
 
-CLI 模式下，tool 的 JSON 结果输出到 `stdout`，帮助和日志输出到 `stderr`，便于脚本集成。
+CLI 模式下，命令结果 JSON 输出到 `stdout`，帮助和日志输出到 `stderr`，便于脚本集成。
 
 详细命令说明见：
 

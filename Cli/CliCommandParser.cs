@@ -2,16 +2,39 @@ namespace DatabaseMcpServer.Cli;
 
 internal enum CliCommandKind
 {
+    RootHelp,
     ToolRootHelp,
     ToolList,
     ToolHelp,
     ToolInvoke,
+    InitHelp,
+    InitInvoke,
+    ConfigRootHelp,
+    ConfigHelp,
+    ConfigList,
+    ConfigShow,
+    ConfigPresets,
+    ConfigPreset,
+    ConfigCreate,
+    ConfigAdd,
+    ConfigRename,
+    ConfigUpdate,
+    ConfigClone,
+    ConfigRemove,
+    ConfigSetDefault,
+    ConfigUse,
+    ConfigTest,
+    ConfigValidate,
+    ConfigDoctor,
+    ConfigExport,
+    ConfigImport,
     Error
 }
 
 internal sealed record CliParseResult(
     CliCommandKind Kind,
     CliToolMetadata? Tool = null,
+    CliCommandMetadata? Command = null,
     IReadOnlyDictionary<string, string?>? OptionValues = null,
     string? ConfigPath = null,
     bool ConfirmationAccepted = false,
@@ -30,6 +53,33 @@ internal sealed class CliCommandParser
     {
         if (args.Count == 0)
         {
+            return new CliParseResult(CliCommandKind.RootHelp);
+        }
+
+        if (IsHelpToken(args[0]))
+        {
+            return new CliParseResult(CliCommandKind.RootHelp);
+        }
+
+        return args[0] switch
+        {
+            "tool" => ParseToolCommand(args.Skip(1).ToArray()),
+            "init" => ParseStandaloneCommand(
+                args.Skip(1).ToArray(),
+                CliBuiltinCommandCatalog.Init,
+                CliCommandKind.InitHelp,
+                CliCommandKind.InitInvoke),
+            "config" => ParseConfigCommand(args.Skip(1).ToArray()),
+            _ => new CliParseResult(
+                CliCommandKind.Error,
+                ErrorMessage: $"未知命令: '{args[0]}'。可用顶层命令: tool, init, config")
+        };
+    }
+
+    private CliParseResult ParseToolCommand(IReadOnlyList<string> args)
+    {
+        if (args.Count == 0)
+        {
             return new CliParseResult(CliCommandKind.ToolRootHelp, ErrorMessage: "缺少 tool 名称。");
         }
 
@@ -40,12 +90,12 @@ internal sealed class CliCommandParser
 
         if (string.Equals(args[0], "list", StringComparison.Ordinal))
         {
-            return ParseNoToolCommand(args.Skip(1).ToArray(), CliCommandKind.ToolList);
+            return ParseNoCommandOptions(args.Skip(1).ToArray(), CliCommandKind.ToolList);
         }
 
         if (string.Equals(args[0], "help", StringComparison.Ordinal))
         {
-            return ParseHelpCommand(args.Skip(1).ToArray());
+            return ParseToolHelpCommand(args.Skip(1).ToArray());
         }
 
         if (!_catalog.TryGetTool(args[0], out var tool))
@@ -57,10 +107,17 @@ internal sealed class CliCommandParser
             return new CliParseResult(CliCommandKind.Error, ErrorMessage: $"未知 tool: '{args[0]}'。{suggestionText}");
         }
 
-        var parsedOptions = ParseOptions(args.Skip(1).ToArray(), tool.Parameters);
+        var parsedOptions = ParseOptions(
+            args.Skip(1).ToArray(),
+            tool.Parameters.Select(parameter => new CliCommandOptionMetadata(
+                parameter.OptionName,
+                parameter.Description,
+                parameter.EffectiveType,
+                parameter.IsRequired,
+                parameter.DefaultValue)).ToArray());
         if (parsedOptions.ErrorMessage != null)
         {
-            return new CliParseResult(CliCommandKind.Error, ErrorMessage: parsedOptions.ErrorMessage);
+            return new CliParseResult(CliCommandKind.Error, Tool: tool, ErrorMessage: parsedOptions.ErrorMessage);
         }
 
         if (parsedOptions.HelpRequested)
@@ -80,7 +137,7 @@ internal sealed class CliCommandParser
             ConfirmationAccepted: parsedOptions.YesAccepted);
     }
 
-    private CliParseResult ParseNoToolCommand(IReadOnlyList<string> args, CliCommandKind kind)
+    private CliParseResult ParseNoCommandOptions(IReadOnlyList<string> args, CliCommandKind kind)
     {
         var parsedOptions = ParseOptions(args, []);
         if (parsedOptions.ErrorMessage != null)
@@ -91,7 +148,7 @@ internal sealed class CliCommandParser
         return new CliParseResult(kind, ConfigPath: parsedOptions.ConfigPath, ConfirmationAccepted: parsedOptions.YesAccepted);
     }
 
-    private CliParseResult ParseHelpCommand(IReadOnlyList<string> args)
+    private CliParseResult ParseToolHelpCommand(IReadOnlyList<string> args)
     {
         if (args.Count == 0)
         {
@@ -115,7 +172,7 @@ internal sealed class CliCommandParser
         var parsedOptions = ParseOptions(args.Skip(1).ToArray(), []);
         if (parsedOptions.ErrorMessage != null)
         {
-            return new CliParseResult(CliCommandKind.Error, ErrorMessage: parsedOptions.ErrorMessage);
+            return new CliParseResult(CliCommandKind.Error, Tool: tool, ErrorMessage: parsedOptions.ErrorMessage);
         }
 
         return new CliParseResult(
@@ -125,9 +182,105 @@ internal sealed class CliCommandParser
             ConfirmationAccepted: parsedOptions.YesAccepted);
     }
 
+    private CliParseResult ParseStandaloneCommand(
+        IReadOnlyList<string> args,
+        CliCommandMetadata command,
+        CliCommandKind helpKind,
+        CliCommandKind invokeKind)
+    {
+        var parsedOptions = ParseOptions(args, command.Options);
+        if (parsedOptions.ErrorMessage != null)
+        {
+            return new CliParseResult(CliCommandKind.Error, Command: command, ErrorMessage: parsedOptions.ErrorMessage);
+        }
+
+        return parsedOptions.HelpRequested
+            ? new CliParseResult(helpKind, Command: command)
+            : new CliParseResult(
+                invokeKind,
+                Command: command,
+                OptionValues: parsedOptions.OptionValues,
+                ConfigPath: parsedOptions.ConfigPath,
+                ConfirmationAccepted: parsedOptions.YesAccepted);
+    }
+
+    private CliParseResult ParseConfigCommand(IReadOnlyList<string> args)
+    {
+        if (args.Count == 0 || IsHelpToken(args[0]))
+        {
+            return new CliParseResult(CliCommandKind.ConfigRootHelp);
+        }
+
+        if (string.Equals(args[0], "help", StringComparison.Ordinal))
+        {
+            if (args.Count == 1 || IsHelpToken(args[1]))
+            {
+                return new CliParseResult(CliCommandKind.ConfigRootHelp);
+            }
+
+            if (!CliBuiltinCommandCatalog.TryGetConfigCommand(args[1], out var helpCommand))
+            {
+                return new CliParseResult(CliCommandKind.Error, ErrorMessage: $"未知 config 命令: '{args[1]}'。");
+            }
+
+            var parsedHelpOptions = ParseOptions(args.Skip(2).ToArray(), []);
+            if (parsedHelpOptions.ErrorMessage != null)
+            {
+                return new CliParseResult(CliCommandKind.Error, Command: helpCommand, ErrorMessage: parsedHelpOptions.ErrorMessage);
+            }
+
+            return new CliParseResult(CliCommandKind.ConfigHelp, Command: helpCommand);
+        }
+
+        if (!CliBuiltinCommandCatalog.TryGetConfigCommand(args[0], out var command))
+        {
+            return new CliParseResult(CliCommandKind.Error, ErrorMessage: $"未知 config 命令: '{args[0]}'。");
+        }
+
+        var parsedOptions = ParseOptions(args.Skip(1).ToArray(), command.Options);
+        if (parsedOptions.ErrorMessage != null)
+        {
+            return new CliParseResult(CliCommandKind.Error, Command: command, ErrorMessage: parsedOptions.ErrorMessage);
+        }
+
+        if (parsedOptions.HelpRequested)
+        {
+            return new CliParseResult(CliCommandKind.ConfigHelp, Command: command);
+        }
+
+        var kind = args[0] switch
+        {
+            "list" => CliCommandKind.ConfigList,
+            "show" => CliCommandKind.ConfigShow,
+            "presets" => CliCommandKind.ConfigPresets,
+            "preset" => CliCommandKind.ConfigPreset,
+            "create" => CliCommandKind.ConfigCreate,
+            "add" => CliCommandKind.ConfigAdd,
+            "rename" => CliCommandKind.ConfigRename,
+            "update" => CliCommandKind.ConfigUpdate,
+            "clone" => CliCommandKind.ConfigClone,
+            "remove" => CliCommandKind.ConfigRemove,
+            "set-default" => CliCommandKind.ConfigSetDefault,
+            "use" => CliCommandKind.ConfigUse,
+            "test" => CliCommandKind.ConfigTest,
+            "validate" => CliCommandKind.ConfigValidate,
+            "doctor" => CliCommandKind.ConfigDoctor,
+            "export" => CliCommandKind.ConfigExport,
+            "import" => CliCommandKind.ConfigImport,
+            _ => CliCommandKind.Error
+        };
+
+        return new CliParseResult(
+            kind,
+            Command: command,
+            OptionValues: parsedOptions.OptionValues,
+            ConfigPath: parsedOptions.ConfigPath,
+            ConfirmationAccepted: parsedOptions.YesAccepted);
+    }
+
     private static ParsedOptions ParseOptions(
         IReadOnlyList<string> args,
-        IReadOnlyList<CliToolParameterMetadata> parameters)
+        IReadOnlyList<CliCommandOptionMetadata> parameters)
     {
         var optionMap = parameters.ToDictionary(item => item.OptionName, StringComparer.Ordinal);
         var values = new Dictionary<string, string?>(StringComparer.Ordinal);
