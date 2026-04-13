@@ -15,19 +15,6 @@ static async Task<int> MainAsync(string[] args)
         return 0;
     }
 
-    if (string.Equals(args[0], "tool", StringComparison.Ordinal))
-    {
-        var cliRunner = new CliRunner();
-        return await cliRunner.RunAsync(args.Skip(1).ToArray(), Console.Out, Console.Error);
-    }
-
-    if (string.Equals(args[0], "--help", StringComparison.Ordinal) ||
-        string.Equals(args[0], "-h", StringComparison.Ordinal))
-    {
-        await CliRunner.WriteRootHelpAsync(Console.Error);
-        return 0;
-    }
-
-    await CliRunner.WriteRootHelpAsync(Console.Error);
-    return 2;
+    var cliRunner = new CliRunner();
+    return await cliRunner.RunAsync(args, Console.Out, Console.Error);
 }

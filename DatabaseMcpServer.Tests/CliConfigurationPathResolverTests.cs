@@ -113,6 +113,35 @@ public class CliConfigurationPathResolverTests
         }
     }
 
+    [Fact]
+    public void ResolveWritablePath_ShouldReturnExplicitPath_WhenProvided()
+    {
+        var path = CliConfigurationPathResolver.ResolveWritablePath(".\\temp\\databases.json", "C:\\Users\\Tester");
+
+        Assert.True(path.Success);
+        Assert.EndsWith(Path.Combine("temp", "databases.json"), path.Path, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("--config", path.Source);
+    }
+
+    [Fact]
+    public void ResolveWritablePath_ShouldDefaultToUserProfileLocation()
+    {
+        var userDirectory = CreateTempDirectory();
+
+        try
+        {
+            var result = CliConfigurationPathResolver.ResolveWritablePath(null, userDirectory);
+
+            Assert.True(result.Success);
+            Assert.Equal(Path.Combine(userDirectory, ".database-mcp", "databases.json"), result.Path);
+            Assert.Equal("user-profile/.database-mcp/databases.json", result.Source);
+        }
+        finally
+        {
+            DeleteDirectory(userDirectory);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"dbmcp-cli-{Guid.NewGuid():N}");

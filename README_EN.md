@@ -686,6 +686,13 @@ CLI command reference:
 
 - [CLI Command Guide](Doc/cli.md)
 
+CLI highlights:
+
+- `DatabaseMcpServer` with no arguments still starts the stdio MCP server.
+- `DatabaseMcpServer tool ...` invokes existing MCP tools directly.
+- `DatabaseMcpServer init` creates a local config file, defaulting to `%USERPROFILE%/.database-mcp/databases.json`.
+- `DatabaseMcpServer config presets|preset|create|list|show|add|rename|update|clone|remove|set-default|use|test|validate|doctor|export|import` manages connection entries, built-in templates, and config files from the CLI.
+
 ## 🆕 Release Notes
 
 - **2.1.1**

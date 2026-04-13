@@ -9,17 +9,33 @@
 `DatabaseMcpServer` 现在有两种运行模式：
 
 - **无参数**：启动 stdio MCP Server
-- **`tool` 子命令**：进入 CLI 模式，直接执行某个 tool
+- **`tool` 子命令**：直接执行某个 MCP tool
+- **`init` / `config` 子命令**：初始化和维护本地连接配置
 
 CLI 模式的基本格式：
 
 ```powershell
+DatabaseMcpServer init [--config path] [--force]
+DatabaseMcpServer config <subcommand> [options]
 DatabaseMcpServer tool <tool_name> [--option value...]
 ```
 
 示例：
 
 ```powershell
+DatabaseMcpServer init
+DatabaseMcpServer config list
+DatabaseMcpServer config presets
+DatabaseMcpServer config preset --db-type 'Sqlite'
+DatabaseMcpServer config create --from-preset 'Sqlite' --name 'sqlite-local' --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' --description 'local sqlite' --set-default
+DatabaseMcpServer config add --name 'sqlite-local' --db-type 'Sqlite' --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' --set-default
+DatabaseMcpServer config rename --name 'sqlite-local' --new-name 'sqlite-dev'
+DatabaseMcpServer config update --name 'sqlite-dev' --description 'dev sqlite'
+DatabaseMcpServer config validate
+DatabaseMcpServer config clone --name 'sqlite-dev' --new-name 'sqlite-ci'
+DatabaseMcpServer config doctor
+DatabaseMcpServer config export --output '.\backup-databases.json'
+DatabaseMcpServer config import --input '.\backup-databases.json' --config 'D:\config\databases.json' --force
 DatabaseMcpServer tool list
 DatabaseMcpServer tool help switch_database
 DatabaseMcpServer tool test_connection --config 'D:\config\databases.json'
@@ -66,33 +82,121 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
 | `1` | tool 返回结构化失败结果（通常是 `success: false`） |
 | `2` | 参数错误、缺少必填项、未知命令、缺少 `--yes` 等 CLI 使用错误 |
 
-### 2.5 配置文件查找顺序
+### 2.5 配置文件定位规则
 
-如果没有显式传 `--config`，CLI 按以下顺序查找配置文件：
+- 对 `init` / `config` 命令：
+  - 默认目标文件为 `%USERPROFILE%/.database-mcp/databases.json`
+  - 传入 `--config` 时，始终优先使用显式路径
+- 对 `tool` 命令：
+  - 如果没有显式传 `--config`，CLI 按以下顺序查找配置文件：
 
-1. `./databases.json`
-2. `./local-databases.json`
-3. 环境变量 `DB_CONFIG_PATH`
-4. `%USERPROFILE%/.database-mcp/databases.json`
+    1. `./databases.json`
+    2. `./local-databases.json`
+    3. 环境变量 `DB_CONFIG_PATH`
+    4. `%USERPROFILE%/.database-mcp/databases.json`
 
 ---
 
-## 3. 常用辅助命令
+## 3. 配置管理命令
 
-### 3.1 列出所有可用命令
+### 3.1 查看内置模板
+
+```powershell
+DatabaseMcpServer config presets
+DatabaseMcpServer config preset --db-type 'Sqlite'
+DatabaseMcpServer config preset --db-type 'SqlServer'
+DatabaseMcpServer config create --from-preset 'Sqlite' --name 'sqlite-local'
+DatabaseMcpServer config create --from-preset 'SqlServer' --name 'sqlserver-crm' --connection-string 'Server=localhost;Database=crm;User Id=sa;Password=123456;Encrypt=True;TrustServerCertificate=True;'
+DatabaseMcpServer config create --from-preset 'Sqlite' --name 'sqlite-preview' --print-only
+```
+
+### 3.2 初始化默认配置文件
+
+```powershell
+DatabaseMcpServer init
+DatabaseMcpServer init --config 'D:\config\databases.json'
+DatabaseMcpServer init --config 'D:\config\databases.json' --force
+```
+
+### 3.3 列出连接
+
+```powershell
+DatabaseMcpServer config list
+DatabaseMcpServer config list --config 'D:\config\databases.json'
+```
+
+### 3.4 新增连接
+
+```powershell
+DatabaseMcpServer config add `
+  --name 'sqlite-local' `
+  --db-type 'Sqlite' `
+  --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' `
+  --description '本地 SQLite 开发库' `
+  --set-default
+```
+
+### 3.5 重命名 / 更新连接
+
+```powershell
+DatabaseMcpServer config rename --name 'sqlite-local' --new-name 'sqlite-dev'
+DatabaseMcpServer config update --name 'sqlite-dev' --description '开发环境 SQLite' --set-default
+DatabaseMcpServer config update --name 'sqlite-dev' --clear-description
+```
+
+### 3.6 查看 / 测试 / 删除连接
+
+```powershell
+DatabaseMcpServer config show --name 'sqlite-local'
+DatabaseMcpServer config test --name 'sqlite-local'
+DatabaseMcpServer config use --name 'sqlite-local'
+DatabaseMcpServer config remove --name 'sqlite-local' --yes
+```
+
+### 3.7 校验配置文件
+
+```powershell
+DatabaseMcpServer config validate
+DatabaseMcpServer config validate --config 'D:\config\databases.json'
+```
+
+### 3.8 克隆 / 诊断连接
+
+```powershell
+DatabaseMcpServer config clone --name 'sqlite-dev' --new-name 'sqlite-ci'
+DatabaseMcpServer config doctor
+DatabaseMcpServer config doctor --test-connections false
+DatabaseMcpServer config doctor --name 'sqlite-dev'
+DatabaseMcpServer config doctor --fix-suggestions true
+DatabaseMcpServer config doctor --summary-only
+```
+
+### 3.9 导出 / 导入配置文件
+
+```powershell
+DatabaseMcpServer config export --output '.\backup-databases.json'
+DatabaseMcpServer config import --input '.\backup-databases.json' --config 'D:\config\databases.json' --force
+```
+
+---
+
+## 4. 常用辅助命令
+
+### 4.1 列出所有可用命令
 
 ```powershell
 DatabaseMcpServer tool list
 ```
 
-### 3.2 查看某个命令的帮助
+### 4.2 查看某个命令的帮助
 
 ```powershell
 DatabaseMcpServer tool help get_table_schema
 DatabaseMcpServer tool get_table_schema --help
+DatabaseMcpServer config add --help
 ```
 
-### 3.3 查看程序根帮助
+### 4.3 查看程序根帮助
 
 ```powershell
 DatabaseMcpServer --help
@@ -100,11 +204,11 @@ DatabaseMcpServer --help
 
 ---
 
-## 4. PowerShell 传参建议
+## 5. PowerShell 传参建议
 
 Windows PowerShell 下，SQL 和 JSON 参数建议优先用**单引号**包裹，避免转义混乱。
 
-### 4.1 SQL 示例
+### 5.1 SQL 示例
 
 ```powershell
 DatabaseMcpServer tool sql_query `
@@ -112,7 +216,7 @@ DatabaseMcpServer tool sql_query `
   --config 'D:\config\databases.json'
 ```
 
-### 4.2 JSON 参数示例
+### 5.2 JSON 参数示例
 
 ```powershell
 DatabaseMcpServer tool sql_query `
@@ -121,7 +225,7 @@ DatabaseMcpServer tool sql_query `
   --config 'D:\config\databases.json'
 ```
 
-### 4.3 JSON 数组示例
+### 5.3 JSON 数组示例
 
 ```powershell
 DatabaseMcpServer tool sql_query_with_in_parameter `
@@ -131,7 +235,7 @@ DatabaseMcpServer tool sql_query_with_in_parameter `
   --config 'D:\config\databases.json'
 ```
 
-### 4.4 批量命令示例
+### 5.4 批量命令示例
 
 ```powershell
 DatabaseMcpServer tool batch_execute_commands `
@@ -142,7 +246,7 @@ DatabaseMcpServer tool batch_execute_commands `
 
 ---
 
-## 5. 高风险命令与 `--yes`
+## 6. 高风险命令与 `--yes`
 
 以下命令必须显式追加 `--yes`：
 
@@ -179,9 +283,9 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 
 ---
 
-## 6. 命令清单
+## 7. 命令清单
 
-## 6.1 连接与配置
+## 7.1 连接与配置
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -196,7 +300,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `health_check` | 健康检查 | `DatabaseMcpServer tool health_check --config 'D:\config\databases.json'` |
 | `test_connection_with_retry` | 带重试测试连接 | `DatabaseMcpServer tool test_connection_with_retry --max-retries 3 --initial-delay-ms 1000 --config 'D:\config\databases.json'` |
 
-## 6.2 架构查询
+## 7.2 架构查询
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -212,7 +316,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `get_trigger_names` | 获取触发器列表 | `DatabaseMcpServer tool get_trigger_names --table-name 'users' --config 'D:\config\databases.json'` |
 | `get_table_schema` | 获取汇总表结构 | `DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config\databases.json'` |
 
-## 6.3 存在性检查
+## 7.3 存在性检查
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -221,7 +325,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `is_any_constraint` | 判断约束是否存在 | `DatabaseMcpServer tool is_any_constraint --constraint-name 'PK_users' --config 'D:\config\databases.json'` |
 | `is_any_table_remark` | 判断表描述是否存在 | `DatabaseMcpServer tool is_any_table_remark --table-name 'users' --config 'D:\config\databases.json'` |
 
-## 6.4 查询
+## 7.4 查询
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -231,7 +335,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `get_scalar` | 查询标量值 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'` |
 | `sql_query_with_in_parameter` | 带 IN 参数查询 | `DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]' --config 'D:\config\databases.json'` |
 
-## 6.5 数据写入
+## 7.5 数据写入
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -241,7 +345,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `call_stored_procedure_with_output` | 调用带输出参数的存储过程 | `DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes --config 'D:\config\databases.json'` |
 | `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | `DatabaseMcpServer tool execute_command_with_go --sql \"UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2\" --yes --config 'D:\config\databases.json'` |
 
-## 6.6 架构变更
+## 7.6 架构变更
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -265,7 +369,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `drop_func` | 删除函数 | `DatabaseMcpServer tool drop_func --function-name 'fn_calc_score' --yes --config 'D:\config\databases.json'` |
 | `drop_proc` | 删除存储过程 | `DatabaseMcpServer tool drop_proc --procedure-name 'sp_cleanup_logs' --yes --config 'D:\config\databases.json'` |
 
-## 6.7 导出
+## 7.7 导出
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -273,7 +377,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `export_table_to_excel` | 整表导出为 Excel | `DatabaseMcpServer tool export_table_to_excel --table-name 'users' --file-path 'D:\exports\users.xlsx' --return-format 'path' --config 'D:\config\databases.json'` |
 | `export_multiple_queries_to_excel` | 多查询导出为多工作表 Excel | `DatabaseMcpServer tool export_multiple_queries_to_excel --queries-json '{"users":"select * from users","roles":"select * from roles"}' --file-path 'D:\exports\multi.xlsx' --return-format 'path' --config 'D:\config\databases.json'` |
 
-## 6.8 文档生成
+## 7.8 文档生成
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
@@ -281,9 +385,9 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 
 ---
 
-## 7. 推荐调用顺序
+## 8. 推荐调用顺序
 
-### 7.1 看连接
+### 8.1 看连接
 
 ```powershell
 DatabaseMcpServer tool validate_configuration --config 'D:\config\databases.json'
@@ -291,7 +395,7 @@ DatabaseMcpServer tool test_connection --config 'D:\config\databases.json'
 DatabaseMcpServer tool get_database_config --config 'D:\config\databases.json'
 ```
 
-### 7.2 看表结构
+### 8.2 看表结构
 
 ```powershell
 DatabaseMcpServer tool is_any_table --table-name 'users' --config 'D:\config\databases.json'
@@ -299,7 +403,7 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
 DatabaseMcpServer tool get_index_list --table-name 'users' --config 'D:\config\databases.json'
 ```
 
-### 7.3 先查再改
+### 8.3 先查再改
 
 ```powershell
 DatabaseMcpServer tool sql_query --sql 'select top 20 * from users where status=''inactive''' --config 'D:\config\databases.json'
@@ -308,7 +412,7 @@ DatabaseMcpServer tool execute_command --sql 'update users set status=''active''
 
 ---
 
-## 8. 相关文档
+## 9. 相关文档
 
 - [README.md](../README.md)
 - [TOOLS.md](../TOOLS.md)

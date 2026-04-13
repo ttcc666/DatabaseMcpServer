@@ -19,6 +19,12 @@ internal static class CliConfigurationPathResolver
         return Resolve(explicitConfigPath, currentDirectory, environmentPath, userProfile);
     }
 
+    public static CliConfigurationPathResolution ResolveWritablePath(string? explicitConfigPath)
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return ResolveWritablePath(explicitConfigPath, userProfile);
+    }
+
     internal static CliConfigurationPathResolution Resolve(
         string? explicitConfigPath,
         string currentDirectory,
@@ -63,5 +69,26 @@ internal static class CliConfigurationPathResolver
             null,
             null,
             "未找到数据库配置文件。CLI 查找顺序: --config -> ./databases.json -> ./local-databases.json -> DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json");
+    }
+
+    internal static CliConfigurationPathResolution ResolveWritablePath(
+        string? explicitConfigPath,
+        string? userProfileDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitConfigPath))
+        {
+            return new CliConfigurationPathResolution(Path.GetFullPath(explicitConfigPath), "--config", null);
+        }
+
+        if (string.IsNullOrWhiteSpace(userProfileDirectory))
+        {
+            return new CliConfigurationPathResolution(
+                null,
+                null,
+                "无法确定用户目录，且未提供 '--config'。");
+        }
+
+        var userConfigPath = Path.Combine(userProfileDirectory, ".database-mcp", "databases.json");
+        return new CliConfigurationPathResolution(userConfigPath, "user-profile/.database-mcp/databases.json", null);
     }
 }

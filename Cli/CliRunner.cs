@@ -15,47 +15,229 @@ internal sealed class CliRunner
 
     private readonly CliToolCatalog _catalog;
     private readonly CliCommandParser _parser;
+    private readonly CliConfigCommandHandler _configCommandHandler;
 
     public CliRunner()
-        : this(new CliToolCatalog())
+        : this(new CliToolCatalog(), new CliConfigCommandHandler())
     {
     }
 
-    internal CliRunner(CliToolCatalog catalog)
+    internal CliRunner(CliToolCatalog catalog, CliConfigCommandHandler configCommandHandler)
     {
         _catalog = catalog;
         _parser = new CliCommandParser(catalog);
+        _configCommandHandler = configCommandHandler;
     }
 
     public async Task<int> RunAsync(IReadOnlyList<string> args, TextWriter stdout, TextWriter stderr)
     {
         var parseResult = _parser.Parse(args);
 
-        switch (parseResult.Kind)
+        try
         {
-            case CliCommandKind.ToolRootHelp:
-                await WriteToolRootHelpAsync(stderr);
-                return parseResult.ErrorMessage == null ? SuccessExitCode : UsageErrorExitCode;
+            switch (parseResult.Kind)
+            {
+                case CliCommandKind.RootHelp:
+                    if (!string.IsNullOrWhiteSpace(parseResult.ErrorMessage))
+                    {
+                        await stderr.WriteLineAsync(parseResult.ErrorMessage);
+                        await WriteRootHelpAsync(stderr);
+                        return UsageErrorExitCode;
+                    }
 
-            case CliCommandKind.ToolList:
-                await WriteToolListAsync(stderr);
-                return SuccessExitCode;
+                    await WriteRootHelpAsync(stderr);
+                    return SuccessExitCode;
 
-            case CliCommandKind.ToolHelp:
-                await WriteToolHelpAsync(parseResult.Tool!, stderr);
-                return SuccessExitCode;
+                case CliCommandKind.ToolRootHelp:
+                    if (!string.IsNullOrWhiteSpace(parseResult.ErrorMessage))
+                    {
+                        await stderr.WriteLineAsync(parseResult.ErrorMessage);
+                    }
 
-            case CliCommandKind.Error:
-                await stderr.WriteLineAsync(parseResult.ErrorMessage);
-                await WriteToolRootHelpAsync(stderr);
-                return UsageErrorExitCode;
+                    await WriteToolRootHelpAsync(stderr);
+                    return parseResult.ErrorMessage == null ? SuccessExitCode : UsageErrorExitCode;
 
-            case CliCommandKind.ToolInvoke:
-                return await ExecuteToolAsync(parseResult, stdout, stderr);
+                case CliCommandKind.ToolList:
+                    await WriteToolListAsync(stderr);
+                    return SuccessExitCode;
 
-            default:
-                await stderr.WriteLineAsync("未知 CLI 状态。");
-                return UsageErrorExitCode;
+                case CliCommandKind.ToolHelp:
+                    await WriteToolHelpAsync(parseResult.Tool!, stderr);
+                    return SuccessExitCode;
+
+                case CliCommandKind.ToolInvoke:
+                    return await ExecuteToolAsync(parseResult, stdout, stderr);
+
+                case CliCommandKind.InitHelp:
+                    await WriteCommandHelpAsync(parseResult.Command!, stderr);
+                    return SuccessExitCode;
+
+                case CliCommandKind.InitInvoke:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Initialize(
+                            parseResult.ConfigPath,
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "force")),
+                        stdout);
+
+                case CliCommandKind.ConfigRootHelp:
+                    await stderr.WriteAsync(CliBuiltinCommandCatalog.WriteConfigRootHelp());
+                    return SuccessExitCode;
+
+                case CliCommandKind.ConfigHelp:
+                    await WriteCommandHelpAsync(parseResult.Command!, stderr);
+                    return SuccessExitCode;
+
+                case CliCommandKind.ConfigList:
+                    return await ExecuteConfigPayloadAsync(_configCommandHandler.List(parseResult.ConfigPath), stdout);
+
+                case CliCommandKind.ConfigShow:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Show(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name")),
+                        stdout);
+
+                case CliCommandKind.ConfigPresets:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.ListPresets(),
+                        stdout);
+
+                case CliCommandKind.ConfigPreset:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.ShowPreset(GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "db-type")),
+                        stdout);
+
+                case CliCommandKind.ConfigCreate:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.CreateFromPreset(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "from-preset"),
+                            GetOptionalStringOption(parseResult.OptionValues, "name"),
+                            GetOptionalStringOption(parseResult.OptionValues, "connection-string"),
+                            GetOptionalStringOption(parseResult.OptionValues, "description"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "print-only")),
+                        stdout);
+
+                case CliCommandKind.ConfigAdd:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Add(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name"),
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "db-type"),
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "connection-string"),
+                            GetOptionalStringOption(parseResult.OptionValues, "description"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default")),
+                        stdout);
+
+                case CliCommandKind.ConfigRename:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Rename(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name"),
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "new-name")),
+                        stdout);
+
+                case CliCommandKind.ConfigUpdate:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Update(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name"),
+                            GetOptionalStringOption(parseResult.OptionValues, "db-type"),
+                            GetOptionalStringOption(parseResult.OptionValues, "connection-string"),
+                            GetOptionalStringOption(parseResult.OptionValues, "description"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "clear-description"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default"),
+                            HasOption(parseResult.OptionValues, "db-type"),
+                            HasOption(parseResult.OptionValues, "connection-string"),
+                            HasOption(parseResult.OptionValues, "description"),
+                            HasOption(parseResult.OptionValues, "clear-description"),
+                            HasOption(parseResult.OptionValues, "set-default")),
+                        stdout);
+
+                case CliCommandKind.ConfigClone:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Clone(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name"),
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "new-name"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default")),
+                        stdout);
+
+                case CliCommandKind.ConfigRemove:
+                    if (parseResult.Command!.RequiresConfirmation && !parseResult.ConfirmationAccepted)
+                    {
+                        await stderr.WriteLineAsync($"命令 '{parseResult.Command.Name}' 需要显式确认。请追加 '--yes'。");
+                        return UsageErrorExitCode;
+                    }
+
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Remove(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name")),
+                        stdout);
+
+                case CliCommandKind.ConfigSetDefault:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.SetDefault(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name")),
+                        stdout);
+
+                case CliCommandKind.ConfigUse:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Use(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name")),
+                        stdout);
+
+                case CliCommandKind.ConfigTest:
+                    return await ExecuteConfigPayloadAsync(
+                        await _configCommandHandler.TestAsync(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name")),
+                        stdout);
+
+                case CliCommandKind.ConfigValidate:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Validate(parseResult.ConfigPath),
+                        stdout);
+
+                case CliCommandKind.ConfigDoctor:
+                    return await ExecuteConfigPayloadAsync(
+                        await _configCommandHandler.DoctorAsync(
+                            parseResult.ConfigPath,
+                            GetOptionalStringOption(parseResult.OptionValues, "name"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "test-connections"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "fix-suggestions"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "summary-only")),
+                        stdout);
+
+                case CliCommandKind.ConfigExport:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Export(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "output"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "force")),
+                        stdout);
+
+                case CliCommandKind.ConfigImport:
+                    return await ExecuteConfigPayloadAsync(
+                        _configCommandHandler.Import(
+                            parseResult.ConfigPath,
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "input"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "force")),
+                        stdout);
+
+                case CliCommandKind.Error:
+                    await stderr.WriteLineAsync(parseResult.ErrorMessage);
+                    await WriteRootHelpAsync(stderr);
+                    return UsageErrorExitCode;
+
+                default:
+                    await stderr.WriteLineAsync("未知 CLI 状态。");
+                    return UsageErrorExitCode;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            await stderr.WriteLineAsync(ex.Message);
+            if (parseResult.Command != null)
+            {
+                await WriteCommandHelpAsync(parseResult.Command, stderr);
+            }
+
+            return UsageErrorExitCode;
         }
     }
 
@@ -64,6 +246,8 @@ internal sealed class CliRunner
         var builder = new StringBuilder();
         builder.AppendLine("Usage:");
         builder.AppendLine("  DatabaseMcpServer");
+        builder.AppendLine("  DatabaseMcpServer init [--config path] [--force]");
+        builder.AppendLine("  DatabaseMcpServer config <subcommand> [options]");
         builder.AppendLine("  DatabaseMcpServer tool list");
         builder.AppendLine("  DatabaseMcpServer tool help <tool_name>");
         builder.AppendLine("  DatabaseMcpServer tool <tool_name> [--option value...] [--config path] [--yes]");
@@ -71,9 +255,11 @@ internal sealed class CliRunner
         builder.AppendLine("Notes:");
         builder.AppendLine("  No arguments starts the stdio MCP server.");
         builder.AppendLine("  CLI help and metadata are written to stderr.");
-        builder.AppendLine("  Tool JSON results are written to stdout.");
+        builder.AppendLine("  CLI command results are written to stdout as JSON.");
         builder.AppendLine();
         builder.AppendLine("Examples:");
+        builder.AppendLine("  DatabaseMcpServer init");
+        builder.AppendLine("  DatabaseMcpServer config list");
         builder.AppendLine("  DatabaseMcpServer tool list");
         builder.AppendLine("  DatabaseMcpServer tool get_database_config --config '.\\local-databases.json'");
         builder.AppendLine("  DatabaseMcpServer tool switch_database --database-name 'sqlite-local' --config '.\\local-databases.json'");
@@ -238,6 +424,12 @@ internal sealed class CliRunner
             : exception;
     }
 
+    private static async Task<int> ExecuteConfigPayloadAsync(string payload, TextWriter stdout)
+    {
+        await stdout.WriteAsync(payload);
+        return IsToolFailure(payload) ? ToolFailureExitCode : SuccessExitCode;
+    }
+
     private Task WriteToolListAsync(TextWriter stderr)
     {
         var builder = new StringBuilder();
@@ -323,6 +515,51 @@ internal sealed class CliRunner
         return stderr.WriteAsync(builder.ToString());
     }
 
+    private static Task WriteCommandHelpAsync(CliCommandMetadata command, TextWriter stderr)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"Command: {command.Name}");
+        builder.AppendLine(command.Description);
+        builder.AppendLine();
+        builder.AppendLine("Usage:");
+        builder.AppendLine($"  {command.Usage}");
+        builder.AppendLine();
+        builder.AppendLine($"Requires --yes: {(command.RequiresConfirmation ? "yes" : "no")}");
+        builder.AppendLine();
+        builder.AppendLine("Options:");
+        if (command.Options.Count == 0)
+        {
+            builder.AppendLine("  (none)");
+        }
+        else
+        {
+            foreach (var option in command.Options)
+            {
+                var requiredText = option.IsRequired ? "required" : "optional";
+                var defaultText = option.IsRequired
+                    ? string.Empty
+                    : $" default: {FormatDefaultValue(option.DefaultValue)}";
+                builder.AppendLine($"  --{option.OptionName} <{option.DisplayTypeName}>  {requiredText}{defaultText}");
+                if (!string.IsNullOrWhiteSpace(option.Description))
+                {
+                    builder.AppendLine($"      {option.Description}");
+                }
+            }
+        }
+
+        builder.AppendLine("  --config <path>  optional");
+        builder.AppendLine("      Override the target config path for this invocation.");
+        if (command.RequiresConfirmation)
+        {
+            builder.AppendLine("  --yes  optional");
+            builder.AppendLine("      Confirm execution for destructive config commands.");
+        }
+
+        builder.AppendLine("  --help, -h");
+        builder.AppendLine("      Show this help.");
+        return stderr.WriteAsync(builder.ToString());
+    }
+
     private static string FormatDefaultValue(object? value)
     {
         return value switch
@@ -333,5 +570,49 @@ internal sealed class CliRunner
             bool boolValue => boolValue ? "true" : "false",
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
+    }
+
+    private static bool GetBoolOption(
+        CliCommandMetadata command,
+        IReadOnlyDictionary<string, string?>? optionValues,
+        string optionName)
+    {
+        if (optionValues == null || !optionValues.TryGetValue(optionName, out var rawValue))
+        {
+            var option = command.Options.First(item => string.Equals(item.OptionName, optionName, StringComparison.Ordinal));
+            return option.DefaultValue is bool defaultBool && defaultBool;
+        }
+
+        if (bool.TryParse(rawValue, out var value))
+        {
+            return value;
+        }
+
+        throw new InvalidOperationException($"选项 '--{optionName}' 需要 bool 值。");
+    }
+
+    private static string GetRequiredStringOption(
+        CliCommandMetadata command,
+        IReadOnlyDictionary<string, string?>? optionValues,
+        string optionName)
+    {
+        if (optionValues != null && optionValues.TryGetValue(optionName, out var rawValue) && !string.IsNullOrWhiteSpace(rawValue))
+        {
+            return rawValue;
+        }
+
+        throw new InvalidOperationException($"缺少必填选项 '--{optionName}'。命令: {command.Name}");
+    }
+
+    private static string? GetOptionalStringOption(IReadOnlyDictionary<string, string?>? optionValues, string optionName)
+    {
+        return optionValues != null && optionValues.TryGetValue(optionName, out var rawValue)
+            ? rawValue
+            : null;
+    }
+
+    private static bool HasOption(IReadOnlyDictionary<string, string?>? optionValues, string optionName)
+    {
+        return optionValues != null && optionValues.ContainsKey(optionName);
     }
 }
