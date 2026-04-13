@@ -11,7 +11,7 @@ internal static class SqlSugarProviderWarmup
         {
             ("SqlSugar.ClickHouseCore", "ClickHouseProvider"),
             ("SqlSugar.MongoDbCore", "MongoDbProvider"),
-            ("SqlSugar.GaussDBNativeCore", "GaussDBProvider"),
+            ("SqlSugar.GaussDBCore", "SqlSugar.GaussDBCore.GaussDBDataAdapter"),
             ("SqlSugar.OceanBaseForOracleCore", "OceanBaseForOracleProvider")
         };
 
@@ -26,9 +26,12 @@ internal static class SqlSugarProviderWarmup
                     continue;
                 }
 
-                var providerType = assembly
-                    .GetTypes()
-                    .FirstOrDefault(type => string.Equals(type.Name, providerTypeName, StringComparison.OrdinalIgnoreCase));
+                var providerType = assembly.GetType(providerTypeName, throwOnError: false, ignoreCase: true)
+                    ?? assembly
+                        .GetTypes()
+                        .FirstOrDefault(type =>
+                            string.Equals(type.Name, providerTypeName, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type.FullName, providerTypeName, StringComparison.OrdinalIgnoreCase));
 
                 if (providerType != null)
                 {
