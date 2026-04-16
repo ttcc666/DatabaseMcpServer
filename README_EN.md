@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.1-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.2-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@2.2.1 --yes
+dnx DatabaseMcpServer@2.2.2 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@2.2.1 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.2.1", "--yes"],
+      "args": ["DatabaseMcpServer@2.2.2", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -702,6 +702,11 @@ CLI highlights:
   - Reset cached SqlSugar clients during config refresh so subsequent requests use updated connections
   - Expand tests for config reload and client recreation before release
 
+- **2.2.2**
+  - Fix `switch_database` in CLI mode so the selected current connection persists per config file path instead of only lasting for one process
+  - Add tests for state restore, per-config-path isolation, and fallback to the default connection when a saved selection disappears
+  - Update NuGet, MCP manifest, and README version metadata for the `2.2.2` package release
+
 - **2.2.1**
   - Refine `database-mcp-cli` skill triggers, CLI workflow guidance, and troubleshooting matrix
   - Add `agents/openai.yaml` so the skill has consistent UI metadata and invocation semantics
@@ -827,7 +832,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 2.2.1
+- This project has released version 2.2.2
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data

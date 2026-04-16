@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.1-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.2-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -233,7 +233,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.2.1 --yes
+dnx DatabaseMcpServer@2.2.2 --yes
 ```
 
 **MCP 配置**：
@@ -242,7 +242,7 @@ dnx DatabaseMcpServer@2.2.1 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.2.1", "--yes"],
+      "args": ["DatabaseMcpServer@2.2.2", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -753,6 +753,11 @@ dotnet pack -c Release
   - 刷新配置时同步清空客户端缓存，确保后续请求使用新的连接信息
   - 增补配置刷新与客户端重建测试，发版前验证覆盖更完整
 
+- **2.2.2**
+  - 修复 CLI 模式下 `switch_database` 仅在单次进程内生效的问题，改为按配置文件路径持久化“当前连接”
+  - 新增状态恢复 / 配置路径隔离 / 失效连接回退默认连接的测试覆盖
+  - 更新 NuGet / MCP manifest / README 版本元数据，便于 `2.2.2` 打包发布
+
 - **2.2.1**
   - 收敛并优化 `database-mcp-cli` skill 的触发词、CLI 工作流说明与故障排查矩阵
   - 新增 `agents/openai.yaml`，补齐 UI metadata，使 skill 展示与触发语义一致
@@ -874,7 +879,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.2.1 正式版本
+- 本项目已发布 2.2.2 正式版本
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据
