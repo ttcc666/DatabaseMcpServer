@@ -16,20 +16,24 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private readonly IDatabaseHelperService _databaseHelper;
     private readonly ISqlSugarClientFactory _clientFactory;
     private readonly IJsonResultSerializer _resultSerializer;
+    private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
     private readonly object _stateLock = new();
     private readonly Dictionary<string, DatabaseConnection> _connections = new(StringComparer.Ordinal);
+    private string _configPath = string.Empty;
     private string? _currentDatabaseName;
 
     public DatabaseConfigService(
         ILogger<DatabaseConfigService> logger,
         IDatabaseHelperService databaseHelper,
         ISqlSugarClientFactory clientFactory,
-        IJsonResultSerializer resultSerializer)
+        IJsonResultSerializer resultSerializer,
+        ICurrentDatabaseStateStore currentDatabaseStateStore)
     {
         _logger = logger;
         _databaseHelper = databaseHelper;
         _clientFactory = clientFactory;
         _resultSerializer = resultSerializer;
+        _currentDatabaseStateStore = currentDatabaseStateStore;
 
         LoadDatabaseConnections();
     }
@@ -37,7 +41,8 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private void LoadDatabaseConnections()
     {
         var configPath = GetConfiguredPath();
-        if (!TryLoadConfigurationSnapshot(configPath, preferredDatabaseName: null, out var snapshot, out _))
+        var preferredDatabaseName = _currentDatabaseStateStore.GetCurrentDatabaseName(configPath);
+        if (!TryLoadConfigurationSnapshot(configPath, preferredDatabaseName, out var snapshot, out _))
         {
             throw new InvalidOperationException(
                 $"无法加载配置文件: {configPath}\n\n" +
@@ -50,8 +55,15 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
         lock (_stateLock)
         {
+            _configPath = configPath;
             ApplyConfigurationSnapshot(snapshot);
             _logger.LogInformation("已从配置文件加载 {Count} 个数据库连接", _connections.Count);
+        }
+
+        if (!string.IsNullOrWhiteSpace(preferredDatabaseName) &&
+            !string.Equals(preferredDatabaseName, snapshot.CurrentDatabaseName, StringComparison.Ordinal))
+        {
+            _currentDatabaseStateStore.SaveCurrentDatabaseName(configPath, snapshot.CurrentDatabaseName);
         }
     }
 
@@ -331,6 +343,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
 
     public bool SwitchDatabase(string databaseName)
     {
+        string currentDatabaseName;
         lock (_stateLock)
         {
             if (!_connections.ContainsKey(databaseName))
@@ -340,9 +353,12 @@ internal class DatabaseConfigService : IDatabaseConfigService
             }
 
             _currentDatabaseName = databaseName;
+            currentDatabaseName = _currentDatabaseName;
             _logger.LogInformation("已切换到数据库: {Name}", databaseName);
-            return true;
         }
+
+        _currentDatabaseStateStore.SaveCurrentDatabaseName(_configPath, currentDatabaseName);
+        return true;
     }
 
     public string GetCurrentDatabaseName()
@@ -385,10 +401,13 @@ internal class DatabaseConfigService : IDatabaseConfigService
         lock (_stateLock)
         {
             ApplyConfigurationSnapshot(snapshot);
+            _configPath = configPath;
             _clientFactory.ResetClientPool();
             currentDatabaseName = _currentDatabaseName ?? snapshot.CurrentDatabaseName;
             totalDatabases = _connections.Count;
         }
+
+        _currentDatabaseStateStore.SaveCurrentDatabaseName(configPath, currentDatabaseName);
 
         var preservedCurrentDatabase = string.Equals(previousDatabaseName, currentDatabaseName, StringComparison.Ordinal);
         var message = preservedCurrentDatabase

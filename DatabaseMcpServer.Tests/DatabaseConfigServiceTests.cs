@@ -28,11 +28,22 @@ public class DatabaseConfigServiceTests
             """);
 
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""
+            {
+              "entries": [
+                {
+                  "configPath": "__CONFIG_PATH__",
+                  "currentDatabase": "default",
+                  "updatedAtUtc": "2026-04-16T00:00:00+00:00"
+                }
+              ]
+            }
+            """.Replace("__CONFIG_PATH__", configPath.Replace("\\", "\\\\", StringComparison.Ordinal), StringComparison.Ordinal));
 
         try
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
-            var service = CreateService(new TrackingSqlSugarClientFactory());
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
 
             var summary = service.GetConfigurationSummary();
 
@@ -45,6 +56,114 @@ public class DatabaseConfigServiceTests
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
             DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public void LoadDatabaseConnections_ShouldPreferPersistedCurrentDatabase()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "primary",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "analytics"
+                }
+              ]
+            }
+            """);
+
+        var stateFilePath = WriteStateFile("""
+            {
+              "entries": [
+                {
+                  "configPath": "__CONFIG_PATH__",
+                  "currentDatabase": "analytics",
+                  "updatedAtUtc": "2026-04-16T00:00:00+00:00"
+                }
+              ]
+            }
+            """.Replace("__CONFIG_PATH__", configPath.Replace("\\", "\\\\", StringComparison.Ordinal), StringComparison.Ordinal));
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+
+            Assert.Equal("analytics", service.GetCurrentDatabaseName());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public void LoadDatabaseConnections_ShouldFallbackToDefaultAndRepairPersistedState_WhenSavedConnectionMissing()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "primary",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "analytics"
+                }
+              ]
+            }
+            """);
+
+        var stateFilePath = WriteStateFile("""
+            {
+              "entries": [
+                {
+                  "configPath": "__CONFIG_PATH__",
+                  "currentDatabase": "reporting",
+                  "updatedAtUtc": "2026-04-16T00:00:00+00:00"
+                }
+              ]
+            }
+            """.Replace("__CONFIG_PATH__", configPath.Replace("\\", "\\\\", StringComparison.Ordinal), StringComparison.Ordinal));
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+
+            Assert.Equal("primary", service.GetCurrentDatabaseName());
+
+            using var document = JsonDocument.Parse(File.ReadAllText(stateFilePath));
+            Assert.Equal("primary", document.RootElement.GetProperty("entries")[0].GetProperty("currentDatabase").GetString());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
         }
     }
 
@@ -72,12 +191,13 @@ public class DatabaseConfigServiceTests
             """);
 
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
 
         try
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
             var clientFactory = new TrackingSqlSugarClientFactory();
-            var service = CreateService(clientFactory);
+            var service = CreateService(clientFactory, stateFilePath);
             Assert.True(service.SwitchDatabase("analytics"));
 
             File.WriteAllText(configPath, """
@@ -115,11 +235,15 @@ public class DatabaseConfigServiceTests
             Assert.Equal(3, result.TotalDatabases);
             Assert.Equal("analytics", service.GetCurrentDatabaseName());
             Assert.Equal(1, clientFactory.ResetCount);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(stateFilePath));
+            Assert.Equal("analytics", document.RootElement.GetProperty("entries")[0].GetProperty("currentDatabase").GetString());
         }
         finally
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
             DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
         }
     }
 
@@ -147,12 +271,13 @@ public class DatabaseConfigServiceTests
             """);
 
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
 
         try
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
             var clientFactory = new TrackingSqlSugarClientFactory();
-            var service = CreateService(clientFactory);
+            var service = CreateService(clientFactory, stateFilePath);
             Assert.True(service.SwitchDatabase("analytics"));
 
             File.WriteAllText(configPath, """
@@ -183,11 +308,15 @@ public class DatabaseConfigServiceTests
             Assert.False(result.PreservedCurrentDatabase);
             Assert.Equal("primary", service.GetCurrentDatabaseName());
             Assert.Equal(1, clientFactory.ResetCount);
+
+            using var document = JsonDocument.Parse(File.ReadAllText(stateFilePath));
+            Assert.Equal("primary", document.RootElement.GetProperty("entries")[0].GetProperty("currentDatabase").GetString());
         }
         finally
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
             DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
         }
     }
 
@@ -209,12 +338,13 @@ public class DatabaseConfigServiceTests
             """);
 
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
 
         try
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
             var clientFactory = new TrackingSqlSugarClientFactory();
-            var service = CreateService(clientFactory);
+            var service = CreateService(clientFactory, stateFilePath);
 
             File.WriteAllText(configPath, "{");
 
@@ -232,14 +362,24 @@ public class DatabaseConfigServiceTests
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
             DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
         }
     }
 
-    private static DatabaseConfigService CreateService(TrackingSqlSugarClientFactory clientFactory)
+    private static DatabaseConfigService CreateService(TrackingSqlSugarClientFactory clientFactory, string? stateFilePath = null)
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
         var serializer = new JsonResultSerializer();
-        return new DatabaseConfigService(NullLogger<DatabaseConfigService>.Instance, helper, clientFactory, serializer);
+        var stateStore = new CurrentDatabaseStateStore(
+            NullLogger<CurrentDatabaseStateStore>.Instance,
+            enabled: !string.IsNullOrWhiteSpace(stateFilePath),
+            stateFilePath);
+        return new DatabaseConfigService(
+            NullLogger<DatabaseConfigService>.Instance,
+            helper,
+            clientFactory,
+            serializer,
+            stateStore);
     }
 
     private static string WriteConfigFile(string json)
@@ -247,6 +387,13 @@ public class DatabaseConfigServiceTests
         var configPath = Path.Combine(Path.GetTempPath(), $"dbmcp-{Guid.NewGuid():N}.json");
         File.WriteAllText(configPath, json);
         return configPath;
+    }
+
+    private static string WriteStateFile(string json)
+    {
+        var stateFilePath = Path.Combine(Path.GetTempPath(), $"dbmcp-state-{Guid.NewGuid():N}.json");
+        File.WriteAllText(stateFilePath, json);
+        return stateFilePath;
     }
 
     private static void DeleteFileIfExists(string path)

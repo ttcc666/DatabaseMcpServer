@@ -79,6 +79,264 @@ public class CliRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldPersistCurrentDatabaseAcrossToolInvocations()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "primary",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "analytics"
+                }
+              ]
+            }
+            """);
+        var stateFilePath = Path.Combine(Path.GetTempPath(), $"dbmcp-cli-state-{Guid.NewGuid():N}.json");
+
+        DeleteFileIfExists(stateFilePath);
+
+        try
+        {
+            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), stateFilePath);
+
+            var switchStdout = new StringWriter();
+            var switchStderr = new StringWriter();
+            var switchExitCode = await runner.RunAsync(
+                ["tool", "switch_database", "--config", configPath, "--database-name", "analytics"],
+                switchStdout,
+                switchStderr);
+
+            Assert.Equal(0, switchExitCode);
+            Assert.Equal(string.Empty, switchStderr.ToString());
+
+            var currentStdout = new StringWriter();
+            var currentStderr = new StringWriter();
+            var currentExitCode = await runner.RunAsync(
+                ["tool", "get_current_database", "--config", configPath],
+                currentStdout,
+                currentStderr);
+
+            Assert.Equal(0, currentExitCode);
+            Assert.Equal(string.Empty, currentStderr.ToString());
+
+            using var currentDocument = JsonDocument.Parse(currentStdout.ToString());
+            Assert.Equal("analytics", currentDocument.RootElement.GetProperty("currentDatabase").GetString());
+
+            var listStdout = new StringWriter();
+            var listStderr = new StringWriter();
+            var listExitCode = await runner.RunAsync(
+                ["tool", "list_databases", "--config", configPath],
+                listStdout,
+                listStderr);
+
+            Assert.Equal(0, listExitCode);
+            Assert.Equal(string.Empty, listStderr.ToString());
+
+            using var listDocument = JsonDocument.Parse(listStdout.ToString());
+            Assert.Equal("analytics", listDocument.RootElement.GetProperty("currentDatabase").GetString());
+            Assert.True(listDocument.RootElement.GetProperty("databases")
+                .EnumerateArray()
+                .Single(item => item.GetProperty("name").GetString() == "analytics")
+                .GetProperty("isCurrent")
+                .GetBoolean());
+        }
+        finally
+        {
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldKeepStateIsolatedPerConfigPath()
+    {
+        var primaryConfigPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "primary",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "analytics"
+                }
+              ]
+            }
+            """);
+        var secondaryConfigPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "reporting",
+                  "connectionString": "Server=localhost;Database=reporting;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "reporting",
+                  "isDefault": true
+                },
+                {
+                  "name": "archive",
+                  "connectionString": "Server=localhost;Database=archive;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "archive"
+                }
+              ]
+            }
+            """);
+        var stateFilePath = Path.Combine(Path.GetTempPath(), $"dbmcp-cli-state-{Guid.NewGuid():N}.json");
+
+        DeleteFileIfExists(stateFilePath);
+
+        try
+        {
+            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), stateFilePath);
+
+            var firstSwitchStdout = new StringWriter();
+            var firstSwitchStderr = new StringWriter();
+            var firstSwitchExitCode = await runner.RunAsync(
+                ["tool", "switch_database", "--config", primaryConfigPath, "--database-name", "analytics"],
+                firstSwitchStdout,
+                firstSwitchStderr);
+
+            Assert.Equal(0, firstSwitchExitCode);
+            Assert.Equal(string.Empty, firstSwitchStderr.ToString());
+
+            var secondSwitchStdout = new StringWriter();
+            var secondSwitchStderr = new StringWriter();
+            var secondSwitchExitCode = await runner.RunAsync(
+                ["tool", "switch_database", "--config", secondaryConfigPath, "--database-name", "archive"],
+                secondSwitchStdout,
+                secondSwitchStderr);
+
+            Assert.Equal(0, secondSwitchExitCode);
+            Assert.Equal(string.Empty, secondSwitchStderr.ToString());
+
+            var firstCurrentStdout = new StringWriter();
+            var firstCurrentStderr = new StringWriter();
+            var firstCurrentExitCode = await runner.RunAsync(
+                ["tool", "get_current_database", "--config", primaryConfigPath],
+                firstCurrentStdout,
+                firstCurrentStderr);
+
+            Assert.Equal(0, firstCurrentExitCode);
+            Assert.Equal(string.Empty, firstCurrentStderr.ToString());
+
+            var secondCurrentStdout = new StringWriter();
+            var secondCurrentStderr = new StringWriter();
+            var secondCurrentExitCode = await runner.RunAsync(
+                ["tool", "get_current_database", "--config", secondaryConfigPath],
+                secondCurrentStdout,
+                secondCurrentStderr);
+
+            Assert.Equal(0, secondCurrentExitCode);
+            Assert.Equal(string.Empty, secondCurrentStderr.ToString());
+
+            using var firstCurrentDocument = JsonDocument.Parse(firstCurrentStdout.ToString());
+            using var secondCurrentDocument = JsonDocument.Parse(secondCurrentStdout.ToString());
+
+            Assert.Equal("analytics", firstCurrentDocument.RootElement.GetProperty("currentDatabase").GetString());
+            Assert.Equal("archive", secondCurrentDocument.RootElement.GetProperty("currentDatabase").GetString());
+        }
+        finally
+        {
+            DeleteFileIfExists(primaryConfigPath);
+            DeleteFileIfExists(secondaryConfigPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldFallbackToDefaultDatabase_WhenPersistedCurrentDatabaseNoLongerExists()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "primary",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "description": "analytics"
+                }
+              ]
+            }
+            """);
+        var stateFilePath = Path.Combine(Path.GetTempPath(), $"dbmcp-cli-state-{Guid.NewGuid():N}.json");
+
+        DeleteFileIfExists(stateFilePath);
+
+        try
+        {
+            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), stateFilePath);
+
+            var switchStdout = new StringWriter();
+            var switchStderr = new StringWriter();
+            var switchExitCode = await runner.RunAsync(
+                ["tool", "switch_database", "--config", configPath, "--database-name", "analytics"],
+                switchStdout,
+                switchStderr);
+
+            Assert.Equal(0, switchExitCode);
+            Assert.Equal(string.Empty, switchStderr.ToString());
+
+            File.WriteAllText(configPath, """
+                {
+                  "databases": [
+                    {
+                      "name": "primary",
+                      "connectionString": "Server=localhost;Database=main_v2;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer",
+                      "description": "primary",
+                      "isDefault": true
+                    }
+                  ]
+                }
+                """);
+
+            var currentStdout = new StringWriter();
+            var currentStderr = new StringWriter();
+            var currentExitCode = await runner.RunAsync(
+                ["tool", "get_current_database", "--config", configPath],
+                currentStdout,
+                currentStderr);
+
+            Assert.Equal(0, currentExitCode);
+            Assert.Equal(string.Empty, currentStderr.ToString());
+
+            using var currentDocument = JsonDocument.Parse(currentStdout.ToString());
+            Assert.Equal("primary", currentDocument.RootElement.GetProperty("currentDatabase").GetString());
+
+            using var stateDocument = JsonDocument.Parse(File.ReadAllText(stateFilePath));
+            Assert.Equal("primary", stateDocument.RootElement.GetProperty("entries")[0].GetProperty("currentDatabase").GetString());
+        }
+        finally
+        {
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldExecuteGetDatabaseConfig_WithExplicitConfig()
     {
         var configPath = WriteConfigFile("""

@@ -19,5 +19,6 @@ public class CompositionTests
         Assert.NotNull(host.Services.GetRequiredService<IJsonResultSerializer>());
         Assert.NotNull(host.Services.GetRequiredService<IDatabaseHelperService>());
         Assert.NotNull(host.Services.GetRequiredService<ISqlSugarClientFactory>());
+        Assert.NotNull(host.Services.GetRequiredService<ICurrentDatabaseStateStore>());
     }
 }

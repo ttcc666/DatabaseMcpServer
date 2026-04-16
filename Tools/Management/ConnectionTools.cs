@@ -111,7 +111,7 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool]
-    [Description("Reload the databases.json file from DB_CONFIG_PATH, refresh cached clients, and return the applied currentDatabase plus whether the previous selection was preserved.")]
+    [Description("Reload the databases.json file from DB_CONFIG_PATH, refresh cached clients, and return the applied currentDatabase plus whether the previous selection was preserved. In CLI tool mode, the preserved selection is also persisted for later invocations.")]
     public string ReloadDatabaseConfig()
     {
         return Execute(() => DatabaseConfig.ReloadConfiguration());
@@ -147,7 +147,7 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool]
-    [Description("Switch the active connection to databaseName and return previousDatabase/currentDatabase; throw an error if the name does not exist.")]
+    [Description("Switch the active connection to databaseName and return previousDatabase/currentDatabase; throw an error if the name does not exist. In CLI tool mode, the selected connection is persisted per resolved config path for later invocations.")]
     public string SwitchDatabase([Description("Database connection name to switch to")] string databaseName)
     {
         return Execute(() =>
@@ -171,7 +171,7 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool]
-    [Description("Return the currently active database connection name and database type so callers know the execution context.")]
+    [Description("Return the currently active database connection name and database type so callers know the execution context. In CLI tool mode, this reflects the persisted current selection for the resolved config path.")]
     public string GetCurrentDatabase()
     {
         return Execute(() => new

@@ -690,6 +690,8 @@ CLI highlights:
 
 - `DatabaseMcpServer` with no arguments still starts the stdio MCP server.
 - `DatabaseMcpServer tool ...` invokes existing MCP tools directly.
+- In CLI tool mode, `switch_database` persists the current connection per resolved config path for later `tool` invocations.
+- `config use` / `config set-default` updates the default connection stored in `databases.json`; it is distinct from the persisted CLI current connection.
 - `DatabaseMcpServer init` creates a local config file, defaulting to `%USERPROFILE%/.database-mcp/databases.json`.
 - `DatabaseMcpServer config presets|preset|create|list|show|add|rename|update|clone|remove|set-default|use|test|validate|doctor|export|import` manages connection entries, built-in templates, and config files from the CLI.
 

@@ -95,6 +95,19 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
     3. 环境变量 `DB_CONFIG_PATH`
     4. `%USERPROFILE%/.database-mcp/databases.json`
 
+### 2.6 当前连接 vs 默认连接
+
+- `config use` / `config set-default`
+  - 修改 `databases.json` 中的默认连接
+  - 适合初始化或长期维护默认目标库
+- `tool switch_database`
+  - 修改 CLI `tool` 模式下的当前连接
+  - 会按“已解析后的 config 路径”持久化到 `%USERPROFILE%/.database-mcp/cli-state.json`
+  - 不会改写 `databases.json` 中的默认连接
+- `tool get_current_database` / `tool list_databases` / 其他直接调用 tool 的命令
+  - 优先使用已持久化的当前连接
+  - 只有在没有保存当前连接，或保存的连接已经不存在时，才回退到默认连接
+
 ---
 
 ## 3. 配置管理命令
@@ -149,7 +162,8 @@ DatabaseMcpServer config update --name 'sqlite-dev' --clear-description
 ```powershell
 DatabaseMcpServer config show --name 'sqlite-local'
 DatabaseMcpServer config test --name 'sqlite-local'
-DatabaseMcpServer config use --name 'sqlite-local'
+DatabaseMcpServer config use --name 'sqlite-local'   # 修改默认连接
+DatabaseMcpServer tool switch_database --database-name 'sqlite-local' --config 'D:\config\databases.json'   # 修改当前连接（CLI 下可跨多次调用保留）
 DatabaseMcpServer config remove --name 'sqlite-local' --yes
 ```
 
@@ -293,10 +307,10 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `test_connection_by_name` | 测试指定连接 | `DatabaseMcpServer tool test_connection_by_name --database-name 'reporting' --config 'D:\config\databases.json'` |
 | `get_database_config` | 获取当前配置摘要 | `DatabaseMcpServer tool get_database_config --config 'D:\config\databases.json'` |
 | `validate_configuration` | 验证配置 | `DatabaseMcpServer tool validate_configuration --config 'D:\config\databases.json'` |
-| `reload_database_config` | 重新加载配置 | `DatabaseMcpServer tool reload_database_config --config 'D:\config\databases.json'` |
+| `reload_database_config` | 重新加载配置，并尽量保留当前连接 | `DatabaseMcpServer tool reload_database_config --config 'D:\config\databases.json'` |
 | `list_databases` | 列出所有连接 | `DatabaseMcpServer tool list_databases --config 'D:\config\databases.json'` |
-| `switch_database` | 切换当前连接 | `DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'` |
-| `get_current_database` | 查看当前连接 | `DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'` |
+| `switch_database` | 切换并持久化当前连接（按 config 路径隔离） | `DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'` |
+| `get_current_database` | 查看当前连接（优先读取 CLI 持久化状态） | `DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'` |
 | `health_check` | 健康检查 | `DatabaseMcpServer tool health_check --config 'D:\config\databases.json'` |
 | `test_connection_with_retry` | 带重试测试连接 | `DatabaseMcpServer tool test_connection_with_retry --max-retries 3 --initial-delay-ms 1000 --config 'D:\config\databases.json'` |
 

@@ -16,12 +16,20 @@ namespace DatabaseMcpServer.Extensions;
 
 internal static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddDatabaseMcpApplicationServices(this IServiceCollection services)
+    public static IServiceCollection AddDatabaseMcpApplicationServices(
+        this IServiceCollection services,
+        bool cliToolMode = false,
+        string? currentDatabaseStateFilePath = null)
     {
         services.AddSingleton<IJsonResultSerializer, JsonResultSerializer>();
         services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();
         services.AddSingleton<IDatabaseOptimizationStrategyFactory, DatabaseOptimizationStrategyFactory>();
         services.AddSingleton<ISqlSugarClientFactory, SqlSugarClientFactory>();
+        services.AddSingleton<ICurrentDatabaseStateStore>(serviceProvider =>
+            new CurrentDatabaseStateStore(
+                serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<CurrentDatabaseStateStore>>(),
+                cliToolMode,
+                currentDatabaseStateFilePath));
         services.AddSingleton<IDatabaseConfigService, DatabaseConfigService>();
         services.AddSingleton<DatabaseDocumentationStrategyFactory>();
         services.AddSingleton<IDatabaseDocumentationService, DatabaseDocumentationService>();

@@ -8,7 +8,11 @@ namespace DatabaseMcpServer.Hosting;
 
 internal static class DatabaseHostBuilderFactory
 {
-    public static HostApplicationBuilder CreateBaseBuilder(string[] args, bool silentLogs = false)
+    public static HostApplicationBuilder CreateBaseBuilder(
+        string[] args,
+        bool silentLogs = false,
+        bool cliToolMode = false,
+        string? currentDatabaseStateFilePath = null)
     {
         var builder = Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
@@ -18,7 +22,7 @@ internal static class DatabaseHostBuilderFactory
         builder.Services.AddSerilog(serilogLogger);
 
         SqlSugarProviderWarmup.Warmup(serilogLogger);
-        builder.Services.AddDatabaseMcpApplicationServices();
+        builder.Services.AddDatabaseMcpApplicationServices(cliToolMode, currentDatabaseStateFilePath);
         builder.Services.AddDatabaseMcpToolServices();
 
         return builder;

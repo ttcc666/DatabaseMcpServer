@@ -156,7 +156,7 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
 - `init` / `config` 主要用于**本地配置管理**
   - 默认操作 `%USERPROFILE%/.database-mcp/databases.json`
   - 可以用 `--config <path>` 临时覆盖目标配置文件
-  - `config use` 用来切换默认连接
+  - `config use` / `config set-default` 用来切换默认连接（写回 `databases.json`）
   - `config rename` / `config update` 用来演进已有连接
   - `config validate` 用来做配置文件层校验（不是连通性测试）
   - `config clone` 用来快速复制连接
@@ -170,6 +170,11 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
 - tool 参数统一映射为 `kebab-case` 选项
   - 例如：`databaseName -> --database-name`
   - 例如：`initialDelayMs -> --initial-delay-ms`
+- `tool switch_database` 用来切换**当前连接**
+  - CLI 下会按“已解析 config 路径”持久化当前连接到 `%USERPROFILE%/.database-mcp/cli-state.json`
+  - 不会修改 `databases.json` 里的默认连接
+  - 后续 `tool get_current_database` / `tool list_databases` / 查询类命令都会继续使用这个当前连接
+  - 只有在没有已保存当前连接，或保存的连接已失效时，才会回退到默认连接
 - CLI 全局选项：
   - `--config <path>`：本次调用临时指定配置文件
   - `--yes`：执行写操作 / 高风险 schema tool 时必须显式确认
@@ -194,6 +199,7 @@ DatabaseMcpServer tool execute_command --sql "delete from users where id = 1" --
 ```
 
 CLI 模式下，命令结果 JSON 输出到 `stdout`，帮助和日志输出到 `stderr`，便于脚本集成。
+另外，`tool switch_database` 与 `config use` 语义不同：前者切换并持久化“当前连接”，后者修改配置文件中的“默认连接”。
 
 详细命令说明见：
 

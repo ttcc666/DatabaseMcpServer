@@ -16,17 +16,22 @@ internal sealed class CliRunner
     private readonly CliToolCatalog _catalog;
     private readonly CliCommandParser _parser;
     private readonly CliConfigCommandHandler _configCommandHandler;
+    private readonly string? _currentDatabaseStateFilePath;
 
     public CliRunner()
-        : this(new CliToolCatalog(), new CliConfigCommandHandler())
+        : this(new CliToolCatalog(), new CliConfigCommandHandler(), null)
     {
     }
 
-    internal CliRunner(CliToolCatalog catalog, CliConfigCommandHandler configCommandHandler)
+    internal CliRunner(
+        CliToolCatalog catalog,
+        CliConfigCommandHandler configCommandHandler,
+        string? currentDatabaseStateFilePath)
     {
         _catalog = catalog;
         _parser = new CliCommandParser(catalog);
         _configCommandHandler = configCommandHandler;
+        _currentDatabaseStateFilePath = currentDatabaseStateFilePath;
     }
 
     public async Task<int> RunAsync(IReadOnlyList<string> args, TextWriter stdout, TextWriter stderr)
@@ -256,6 +261,8 @@ internal sealed class CliRunner
         builder.AppendLine("  No arguments starts the stdio MCP server.");
         builder.AppendLine("  CLI help and metadata are written to stderr.");
         builder.AppendLine("  CLI command results are written to stdout as JSON.");
+        builder.AppendLine("  In CLI tool mode, switch_database persists the current connection per resolved config path.");
+        builder.AppendLine("  Use config use / config set-default when you want to change the default connection in databases.json.");
         builder.AppendLine();
         builder.AppendLine("Examples:");
         builder.AppendLine("  DatabaseMcpServer init");
@@ -303,7 +310,11 @@ internal sealed class CliRunner
             Console.SetOut(TextWriter.Null);
             Console.SetError(TextWriter.Null);
 
-            var builder = DatabaseHostBuilderFactory.CreateBaseBuilder([], silentLogs: true);
+            var builder = DatabaseHostBuilderFactory.CreateBaseBuilder(
+                [],
+                silentLogs: true,
+                cliToolMode: true,
+                currentDatabaseStateFilePath: _currentDatabaseStateFilePath);
             using var host = builder.Build();
             var toolInstance = host.Services.GetRequiredService(tool.ToolType);
             var payload = await InvokeToolAsync(tool, toolInstance, arguments);
@@ -461,6 +472,10 @@ internal sealed class CliRunner
         builder.AppendLine("  3. ./local-databases.json");
         builder.AppendLine("  4. DB_CONFIG_PATH");
         builder.AppendLine("  5. %USERPROFILE%/.database-mcp/databases.json");
+        builder.AppendLine();
+        builder.AppendLine("Current database behavior:");
+        builder.AppendLine("  switch_database persists the current connection per resolved config path for later CLI tool invocations.");
+        builder.AppendLine("  config use / config set-default changes the default connection stored in databases.json.");
         return stderr.WriteAsync(builder.ToString());
     }
 
