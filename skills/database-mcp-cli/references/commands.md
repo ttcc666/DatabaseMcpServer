@@ -1,19 +1,8 @@
-# DatabaseMcpServer CLI Commands
+# DatabaseMcpServer CLI — PowerShell Gotchas & Quick Reference
 
-Use this file as a high-frequency command sheet, not as the full CLI spec.
+This file is **not** a command catalog. The full catalog lives in `references/cli.md` §4 (config management), §6 (PowerShell quoting), §7 (high-risk commands), and §8 (tool catalog). Read this file for the PowerShell-specific patterns and CLI quirks that tripped real users up.
 
-For exhaustive `config` and `init` behavior, read `Doc/cli.md`.
-
-## Quick Navigation
-
-- Root and help commands
-- Config bootstrap and repair
-- Safe read-only tool flow
-- High-risk write and schema examples
-- Export and documentation examples
-- Broad verification workflow
-
-## Root and Help Commands
+## Root and Help
 
 ```powershell
 DatabaseMcpServer --help
@@ -23,147 +12,85 @@ DatabaseMcpServer tool get_table_schema --help
 DatabaseMcpServer config help add
 ```
 
-Notes:
+Important: both root help and `tool list` write to **stderr**, not stdout. Don't misclassify a working help invocation as a failure just because stdout is empty.
 
-- Root help and help text are written to `stderr`.
-- `tool list` also writes to `stderr` even on success.
-- Actual command results are written to `stdout` as JSON.
+## Config file vs CLI current connection
 
-## Config Bootstrap and Repair
+The single most common source of confusion, surfaced here so Claude can route the user correctly without a full file-dive.
 
-### Initialize or choose a config file
+| Command | Changes | Persists where |
+| --- | --- | --- |
+| `config use --name X` | `databases.json` `isDefault` | The config file (durable, visible, shared) |
+| `tool switch_database --database-name X` | CLI current-connection pointer | `%USERPROFILE%/.database-mcp/cli-state.json`, keyed by the resolved config path |
 
-```powershell
-DatabaseMcpServer init
-DatabaseMcpServer init --config 'D:\config\databases.json'
-DatabaseMcpServer init --config 'D:\config\databases.json' --force
-```
-
-### Create and maintain named connections
+`tool` calls pick the CLI current connection first; they only fall back to `isDefault` when cli-state is absent or points to a removed name. Sanity check:
 
 ```powershell
-DatabaseMcpServer config presets
-DatabaseMcpServer config preset --db-type 'Sqlite'
-
-DatabaseMcpServer config add `
-  --name 'sqlite-local' `
-  --db-type 'Sqlite' `
-  --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' `
-  --description 'local sqlite' `
-  --set-default
-
-DatabaseMcpServer config list
-DatabaseMcpServer config show --name 'sqlite-local'
-DatabaseMcpServer config test --name 'sqlite-local'
-DatabaseMcpServer config validate
-DatabaseMcpServer config doctor
-DatabaseMcpServer config export --output '.\backup-databases.json'
-DatabaseMcpServer config import --input '.\backup-databases.json' --config 'D:\config\databases.json' --force
-DatabaseMcpServer config remove --name 'sqlite-local' --yes
-```
-
-Config resolution reminder:
-
-- `tool` without `--config` searches `./databases.json`, then `./local-databases.json`, then `DB_CONFIG_PATH`, then `%USERPROFILE%/.database-mcp/databases.json`.
-- `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json` unless `--config` is supplied.
-
-## Safe Read-only Tool Flow
-
-Run these in order when the user wants verification, troubleshooting, or discovery:
-
-```powershell
-DatabaseMcpServer tool validate_configuration --config 'D:\config\databases.json'
-DatabaseMcpServer tool test_connection --config 'D:\config\databases.json'
-DatabaseMcpServer tool test_connection_by_name --database-name 'reporting' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_database_config --config 'D:\config\databases.json'
-DatabaseMcpServer tool reload_database_config --config 'D:\config\databases.json'
-DatabaseMcpServer tool list_databases --config 'D:\config\databases.json'
-DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'
 DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'
-DatabaseMcpServer tool health_check --config 'D:\config\databases.json'
+DatabaseMcpServer config show --name '<expected>' --config 'D:\config\databases.json'
 ```
 
-Before querying or mutating a table, inspect schema first:
+## PowerShell quoting gotchas
+
+The tool catalog in `cli.md` shows vanilla examples; these are the sharp edges.
+
+### 1. Single quotes around SQL and JSON — always
 
 ```powershell
-DatabaseMcpServer tool is_any_table --table-name 'users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_table_info_list --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_column_infos_by_table_name --table-name 'users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_primaries --table-name 'users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_index_list --table-name 'users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_trigger_names --table-name 'users' --config 'D:\config\databases.json'
+--sql 'select * from users where status=''active'''
+--parameters '{"age":18,"city":"北京"}'
+--in-values '[1,2,3]'
+--queries-json '{"users":"select * from users","roles":"select * from roles"}'
+--commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]'
 ```
 
-## Query Patterns
+Why: single quotes disable PowerShell variable expansion, so `$` and backtick inside SQL won't be interpreted. Within a single-quoted string, a literal single quote is written as `''` (two in a row).
+
+### 2. SQL Server `add_default_value` needs a SQL literal, not text
 
 ```powershell
-DatabaseMcpServer tool sql_query --sql 'select top 10 * from users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool sql_query_single --sql 'select top 1 * from users order by id desc' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]' --config 'D:\config\databases.json'
+# Wrong — passes the bare word 'active' as default, which is not valid SQL
+--default-value 'active'
+
+# Right — the tool expects SQL syntax, and SQL literal is 'active', which in PowerShell single-quoted form is '''active'''
+--default-value '''active'''
 ```
 
-Use single quotes around SQL and JSON arguments in PowerShell.
-
-## High-risk Write and Schema Examples
-
-Always add `--yes`.
-
-### DML and procedure calls
+### 3. `execute_command_with_go` needs embedded newlines and `GO` in one argument
 
 ```powershell
-DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '{"year":2025,"month":11}' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes --config 'D:\config\databases.json'
+DatabaseMcpServer tool execute_command_with_go `
+  --sql "UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2" `
+  --yes --config 'D:\config\databases.json'
 ```
 
-### SQL Server `GO`
+Double quotes here because we want `` `n `` to become a newline; inside SQL, ordinary single quotes are fine.
 
-```powershell
-DatabaseMcpServer tool execute_command_with_go --sql "UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2" --yes --config 'D:\config\databases.json'
+### 4. Scripted automation — skip the shell entirely
+
+```csharp
+var psi = new ProcessStartInfo("DatabaseMcpServer") {
+    RedirectStandardOutput = true,
+    RedirectStandardError = true,
+    UseShellExecute = false
+};
+psi.ArgumentList.Add("tool");
+psi.ArgumentList.Add("execute_command");
+psi.ArgumentList.Add("--sql");
+psi.ArgumentList.Add(sql); // literal, no escaping
+psi.ArgumentList.Add("--yes");
 ```
 
-### Common schema changes
+`ArgumentList` hands each argv entry to the OS verbatim — no quoting bugs possible.
 
-```powershell
-DatabaseMcpServer tool backup_table --old-table-name 'users' --new-table-name 'users_backup' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool rename_table --old-table-name 'users_tmp' --new-table-name 'users_archive' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool truncate_table --table-name 'temp_users' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool add_column --table-name 'users' --column-info '{"DbColumnName":"mobile","DataType":"nvarchar","Length":20,"IsNullable":true}' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool update_column --table-name 'users' --column-info '{"DbColumnName":"mobile","DataType":"nvarchar","Length":30,"IsNullable":true}' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool rename_column --table-name 'users' --old-column-name 'mobile' --new-column-name 'phone' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool drop_column --table-name 'users' --column-name 'mobile' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool create_index --table-name 'users' --index-name 'IX_users_email' --column-name 'email' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool add_default_value --table-name 'users' --column-name 'status' --default-value '''active''' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool add_table_remark --table-name 'users' --description '用户表' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool add_column_remark --table-name 'users' --column-name 'email' --description '邮箱地址' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool drop_view --view-name 'v_active_users' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool drop_func --function-name 'fn_calc_score' --yes --config 'D:\config\databases.json'
-DatabaseMcpServer tool drop_proc --procedure-name 'sp_cleanup_logs' --yes --config 'D:\config\databases.json'
-```
+## Broad verification workflow
 
-## Export and Documentation Examples
+When the user asks to "test all CLI commands" or run a smoke test across many tools:
 
-```powershell
-DatabaseMcpServer tool export_query_to_excel --sql 'select * from users' --file-path 'D:\exports\users.xlsx' --return-format 'path' --config 'D:\config\databases.json'
-DatabaseMcpServer tool export_table_to_excel --table-name 'users' --file-path 'D:\exports\users.xlsx' --return-format 'path' --config 'D:\config\databases.json'
-DatabaseMcpServer tool export_multiple_queries_to_excel --queries-json '{"users":"select * from users","roles":"select * from roles"}' --file-path 'D:\exports\multi.xlsx' --return-format 'path' --config 'D:\config\databases.json'
-DatabaseMcpServer tool generate_database_documentation --format 'markdown' --return-mode 'path' --file-path 'D:\exports\db-doc.md' --config 'D:\config\databases.json'
-```
-
-## Broad Verification Workflow
-
-When the user asks to test many tools or “test all CLI commands”:
-
-1. Build the executable once.
-2. Create a temporary config and isolated database objects.
-3. Run read-only checks first.
-4. Run high-risk tools only against disposable objects.
-5. Capture command, exit code, stdout, stderr, and parsed JSON status for each invocation.
-6. Clean up temp configs and temporary database objects.
-
-Prefer reusing `scripts/verify-cli-tools.ps1` instead of rebuilding this loop manually.
+1. Confirm `DatabaseMcpServer --version` prints the expected version; run `dotnet tool update --global DatabaseMcpServer` if it's stale.
+2. Generate a temporary config in `%TEMP%` with a throwaway database connection — never aim the smoke test at a business database.
+3. Create isolated temporary objects with prefix `cli_<yyyyMMdd_HHmmss>_<shortid>`.
+4. Run read-only tools first (`validate_configuration`, `test_connection`, `list_databases`, `get_table_info_list`). Any failure here means the rest won't tell you anything useful.
+5. Run write and DDL tools only against the temporary objects. Every write-class command needs `--yes`.
+6. Capture for each invocation: executable path, full argv, exit code, stdout, stderr, parsed `success` field.
+7. Clean up: drop temp objects, delete temp config (especially if it held credentials).

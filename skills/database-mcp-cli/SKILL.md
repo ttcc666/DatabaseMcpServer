@@ -1,40 +1,65 @@
 ---
 name: database-mcp-cli
-description: "Use when the user wants to run, configure, script, explain, or troubleshoot DatabaseMcpServer in CLI / 命令行模式 instead of MCP stdio client integration. Trigger for `DatabaseMcpServer tool ...`, `DatabaseMcpServer config ...`, `DatabaseMcpServer init`, `DatabaseMcpServer --help`, `tool list`, `tool help`, `config doctor`, `config import`, `config export`, `switch_database`, or `reload_database_config`. Also trigger on requests involving `databases.json`, `local-databases.json`, `DB_CONFIG_PATH`, temporary config generation from a connection string, CLI command examples/docs, stdout/stderr/exit code or 返回码 verification, PowerShell quoting, script integration, `--config`, `--yes`, config repair, or CLI smoke tests. Chinese trigger examples: “命令行模式”, “命令行调用”, “CLI 测试”, “生成 databases.json”, “切换数据库”, “重载配置”, “检查退出码”, “看 stdout/stderr”, “脚本集成”, “PowerShell 转义”."
+description: "Use when the user wants to run, configure, script, or troubleshoot DatabaseMcpServer in CLI mode / 命令行模式 (not MCP stdio client integration). Trigger for `DatabaseMcpServer tool ...`, `DatabaseMcpServer config ...`, `DatabaseMcpServer init`; questions about `databases.json`, `local-databases.json`, `cli-state.json`, `DB_CONFIG_PATH`, current-vs-default connection confusion, temp config generation from a connection string, `switch_database` vs `config use`, `--config`, `--yes`, exit codes, stdout/stderr triage, PowerShell quoting for SQL/JSON args, or `config doctor` output. Chinese triggers: 命令行模式, CLI 测试, 生成 databases.json, 切换数据库, 当前连接没变, 重载配置, 检查退出码, PowerShell 转义, 从连接串生成临时配置."
 ---
 
 # DatabaseMcpServer CLI
 
 Drive `DatabaseMcpServer` from the shell safely and repeatably.
 
+## Mental Model
+
+DatabaseMcpServer CLI has two state layers. Confusing them is the most common source of wasted time.
+
+- **Config file** (`databases.json`): a static, human-edited list of named connections plus an `isDefault` flag. Changed by `config add / update / remove / use / clone / rename / import`.
+- **CLI current-connection state** (`%USERPROFILE%/.database-mcp/cli-state.json`): a dynamic per-session pointer remembered across `tool` invocations. Changed by `tool switch_database`. Keyed by the *resolved* config path so two different config files keep independent current connections.
+
+Consequences worth internalizing:
+
+- `tool switch_database` does **not** rewrite `databases.json`. Users who expect "switch" to persist into the config file will be surprised; point them at `config use` instead.
+- A fresh `tool` call reads cli-state first. It only falls back to `isDefault` when no state file exists or the saved name was removed from the config.
+- `tool reload_database_config` reloads the config file but deliberately preserves the current connection when possible — this is a feature, not a bug.
+
+When the user is confused about "which database am I actually on", run `tool get_current_database` and compare against `config list` / `config show` rather than trusting assumptions.
+
 ## Start Here
 
-- Confirm the user wants CLI behavior, not MCP stdio transport.
-- Prefer `DatabaseMcpServer` on PATH.
-- Inside this repo, prefer a built executable under `bin/<Configuration>/<Framework>/DatabaseMcpServer.exe`; use `net9.0` unless the task says otherwise.
-- Build before testing if the binary may be stale:
+- Confirm the user wants CLI behavior, not MCP stdio transport. If the intent is "connect Claude Desktop / Cursor / Cline to this server", CLI is the wrong answer.
+- `DatabaseMcpServer` is distributed as a .NET Global Tool. The user should have it on PATH via:
 
 ```powershell
-dotnet build 'DatabaseMcpServer.csproj' --framework 'net9.0'
+dotnet tool install --global DatabaseMcpServer
+DatabaseMcpServer --version
 ```
 
-- Avoid `dotnet run -- tool ...` for large loops; it is slower and more likely to hit file locks.
+- If the CLI reports an old version or behaves unexpectedly, upgrade before debugging:
 
-## Pick the Command Family
+```powershell
+dotnet tool update --global DatabaseMcpServer
+```
 
-- Use `DatabaseMcpServer tool ...` to invoke MCP tools directly.
-- Use `DatabaseMcpServer config ...` or `DatabaseMcpServer init` to create, inspect, validate, import, export, or repair config files.
-- Use `DatabaseMcpServer tool list`, `DatabaseMcpServer tool help <tool_name>`, or `DatabaseMcpServer config <subcommand> --help` when parameter names are unclear.
+- If the `DatabaseMcpServer` command isn't found, `%USERPROFILE%\.dotnet\tools` (or the platform equivalent) is missing from `PATH` — tell the user to add it rather than trying to invoke a binary by absolute path.
+
+## Command Families
+
+| Family | Purpose | Typical use |
+| --- | --- | --- |
+| `DatabaseMcpServer tool <name>` | Invoke one MCP tool. Real work happens here. | Query, schema, DDL, export, health |
+| `DatabaseMcpServer config <subcommand>` | Create, inspect, validate, import, export, repair connections inside a config file. | First-time setup, maintenance |
+| `DatabaseMcpServer init` | Seed a default config file skeleton. | Bootstrapping a machine |
+| `tool list` / `tool help <name>` / `config help <subcommand>` / `--help` | Discover exact parameter names before guessing. | Whenever naming is unclear |
+
+Naming convention is strict: tool names are `snake_case`, options are `kebab-case`. When the CLI prints "最接近的命令" suggestions, prefer one of them — it means you got the naming form wrong.
 
 ## Handle Config Deliberately
 
-- Prefer explicit `--config <path>` when the user already has a target config file.
-- If the user only provides a connection string, create a temporary one-entry `databases.json` under `%TEMP%`.
+- Prefer explicit `--config <path>` when the user has a target file. It makes behavior deterministic and keeps cli-state scoped correctly.
+- If the user only gives a connection string, create a one-entry `databases.json` under `%TEMP%` rather than editing their real config.
 - Keep secrets out of repo-tracked files unless the user explicitly asks to persist them.
 - Delete temporary configs after testing if they contain credentials.
-- For repeatable local usage, suggest moving the final config to a stable path after validation.
+- For repeatable local usage, move the validated config to a stable path before handing it off.
 
-Use this minimal shape for ad-hoc config generation:
+Minimal ad-hoc config shape:
 
 ```json
 {
@@ -50,105 +75,121 @@ Use this minimal shape for ad-hoc config generation:
 }
 ```
 
-Config resolution matters:
+Config resolution rules (memorize or re-derive from help):
 
-- `tool` without `--config` searches in this order:
-  1. `./databases.json`
-  2. `./local-databases.json`
-  3. `DB_CONFIG_PATH`
-  4. `%USERPROFILE%/.database-mcp/databases.json`
+- `tool` without `--config` searches: `./databases.json` → `./local-databases.json` → `DB_CONFIG_PATH` → `%USERPROFILE%/.database-mcp/databases.json`.
 - `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json` unless `--config` is supplied.
 
-## Follow This Workflow
+## Operating Principles
 
-### 1. Read-only first
+These are ordered from low to high risk. Don't skip ahead without a reason.
 
-Start with:
+### Read-only first
+
+Establishing trust before touching anything saves retries later:
 
 1. `validate_configuration`
-2. `test_connection`
+2. `test_connection` (or `test_connection_by_name` for a specific connection)
 3. `get_database_config`
-4. `list_databases` or `get_current_database`
+4. `list_databases` and `get_current_database` when connection identity matters
 5. `health_check` when broader connectivity matters
 
-### 2. Inspect schema before SQL
+### Schema before SQL
 
-Before querying or changing objects:
+Guessing table or column names produces wrong SQL or silent mismatches. Before querying or changing objects:
 
 1. `is_any_table` or `get_table_info_list`
 2. `get_table_schema` or `get_column_infos_by_table_name`
 3. `get_primaries`, `get_index_list`, or `get_trigger_names` when relevant
 
-Do not guess table names, column names, or constraint names.
+### Isolate writes and DDL
 
-### 3. Isolate write and DDL coverage
+Write tools can damage real data, so isolate them:
 
-- Never test write or schema tools on business tables unless the user explicitly asks.
-- Create uniquely prefixed temporary objects such as `cli_<yyyyMMdd_HHmmss>_<shortid>`.
-- Clean up created objects before finishing.
-- If the user has not approved write or high-risk behavior, stop at read-only validation or provide a plan only.
+- Never exercise write or schema tools on business tables unless the user explicitly asks.
+- For verification loops, create uniquely prefixed temporary objects: `cli_<yyyyMMdd_HHmmss>_<shortid>`.
+- Clean up created objects before finishing, and report cleanup status.
+- Without explicit approval for writes, stop at read-only validation or deliver a plan only.
 
 ## Respect the CLI Contract
 
-- Successful tool calls write their payload to `stdout`.
-- Help text and CLI usage errors go to `stderr`.
-- Exit code `0` means success.
-- Exit code `1` means the tool ran and returned a structured failure, usually `success: false`.
-- Exit code `2` means CLI usage failure, such as missing parameters, unknown options, or missing `--yes`.
-- `get_database_config` can still be valid on exit code `0` even when there is no top-level `success` field; treat `exit code 0 + parseable JSON` as success.
+Classifying a failure correctly is half the diagnosis. The contract:
 
-Classify failures correctly:
+- Successful tool calls write their payload to `stdout` as JSON.
+- Help text and CLI usage errors go to `stderr` (this includes root help and `tool list` — don't misclassify).
+- Exit code `0`: success. Parse stdout JSON.
+- Exit code `1`: tool ran and returned a structured failure — usually `success: false`. Backend / database / permission / capability issues live here.
+- Exit code `2`: CLI usage failure. Missing `--yes`, missing option, unknown option, malformed JSON argument, quoting bug, config not found.
+- `get_database_config` can return valid JSON on exit `0` without a top-level `success` field. Treat `exit 0 + parseable JSON` as success.
 
-- CLI issue: missing `--yes`, missing required option, unknown option, help text on `stderr`, malformed JSON argument, quoting bug.
-- Backend issue: `success: false`, unsupported database capability, missing database object, driver/TLS problem, permission problem.
+When triaging, first ask: did the tool even run? Exit `2` + stderr usage hint = it didn't, fix the command. Exit `1` + `success: false` = it did, look at the backend.
 
 ## Use `--yes` Correctly
 
-Add `--yes` for write or high-risk commands, including:
+`--yes` is an explicit acknowledgement that you accept the side effect. The CLI requires it for anything that mutates rows or schema:
 
 - DML and batch execution
-- Stored procedure calls
+- Stored procedure calls (input-only and with-output)
 - Table, column, index, constraint, remark, and default-value changes
 - Drop, truncate, rename, backup, and similar destructive operations
+- `config remove`
 
-If the CLI says `需要显式确认。请追加 '--yes'。`, treat it as a CLI usage error and fix the command. Do not misclassify it as a database failure.
+If the CLI prints `需要显式确认。请追加 '--yes'。`, the exit code is `2` and the diagnosis is CLI-layer: add `--yes`, don't chase a backend problem.
 
 ## Quote PowerShell Arguments Carefully
 
-- Prefer single quotes around SQL and JSON arguments.
-- Keep each JSON object or array as one argument.
-- For `batch_execute_commands`, pass one JSON array string.
+PowerShell quoting eats more debugging time than the database ever will. Guardrails:
+
+- Wrap SQL and JSON arguments in **single quotes**. That disables PowerShell variable expansion and preserves literal content.
+- Keep each JSON object or array as one argument — never split them across multiple `--foo` flags.
+- For `batch_execute_commands`, pass one JSON array string: `'["cmd1","cmd2"]'`.
 - For `execute_command_with_go`, pass one SQL argument containing embedded newlines and `GO`.
-- For SQL Server `add_default_value`, pass the SQL literal itself, not bare text:
-
-```powershell
---default-value '''active'''
-```
-
-- For scripted automation or long verification loops, prefer `ProcessStartInfo.ArgumentList` over composing a single shell string.
+- For SQL Server `add_default_value`, the tool expects a SQL literal, not bare text. Escape the inner quotes: `--default-value '''active'''` (outer single quotes + doubled inner quotes).
+- For scripted automation, prefer `ProcessStartInfo.ArgumentList` over composing a shell string — it sidesteps quoting entirely.
 
 ## Diagnose Without Weakening Security
 
-If SQL Server fails with `Encrypt=True` and the error says encryption is required but unsupported on the machine:
+When SQL Server connections fail with `Encrypt=True` and the error says encryption is required but unsupported on the machine:
 
-- Report the exact error first.
-- Do not silently weaken the connection string.
-- Only if the user explicitly wants diagnosis, try a one-off diagnostic config such as `Encrypt=False;TrustServerCertificate=True`.
-- Label that fallback as diagnostic only, not equivalent security posture.
+1. Report the exact error first.
+2. Do not silently swap in `Encrypt=False;TrustServerCertificate=True` — that hides a real infrastructure problem and lowers security.
+3. Only if the user explicitly wants diagnosis, run a one-off with a diagnostic config and label it as diagnostic only, not equivalent posture.
 
-## Reuse Existing Verification Assets
+## Reference Index
 
-- Read `references/commands.md` for exact command names and common PowerShell examples.
-- Read `references/troubleshooting.md` for `--yes`, stdout/stderr, quoting, SQL Server encryption, and backend-vs-CLI diagnosis.
-- Read `Doc/cli.md` when the task involves `config` or `init` behavior, config search order, or the full CLI contract.
-- Prefer `scripts/verify-cli-tools.ps1` when the user wants broad CLI coverage against a real database instead of inventing a new exhaustive loop from scratch.
+Three bundled reference files, always available inside the skill folder. Route to the right one based on what the user is asking:
+
+| User's question or symptom | Read first |
+| --- | --- |
+| "What's the exact command / option to X?" (syntax lookup) | `references/cli.md` §4 (config) / §8 (tool catalog) |
+| "Walk me through installing and getting started." | `references/cli.md` §2 用户使用流程 |
+| "My PowerShell command has weird quoting" or "why does `add_default_value` fail" | `references/commands.md` |
+| "CLI returned this error / exit 1 / exit 2 / `需要显式确认`" | `references/troubleshooting.md` |
+| "`switch_database` didn't change my default" or "which DB am I actually on" | Stay in this SKILL.md Mental Model + `references/troubleshooting.md` #10 |
+| "Is this a CLI bug or a backend issue?" | `references/troubleshooting.md` Quick Triage table |
+
+File summaries:
+
+- `references/commands.md` — PowerShell quoting gotchas, the single-quote convention, `add_default_value` SQL-literal escape, `execute_command_with_go` newline trick, broad verification workflow, config-vs-current-connection summary.
+- `references/troubleshooting.md` — symptom → diagnosis matrix for `--yes`, unknown command, config not found, stdout/stderr mix, JSON argument parsing, SQL Server quoting, encryption, `success:false` vs CLI failure, current-vs-default confusion, and `reload_database_config` semantics.
+- `references/cli.md` — the authoritative CLI spec mirrored from the source repo's `Doc/cli.md`. §2 is the end-to-end user lifecycle; §3.6 covers the current-vs-default state model; §4 is config management; §6 is PowerShell traps; §7 lists every `--yes`-required command; §8 is the full tool catalog. When the skill lives inside the source repo, the upstream `Doc/cli.md` is canonical — keep this copy in sync if the repo file changes.
 
 ## Report Results Clearly
 
-When you verify or troubleshoot CLI behavior, report:
+A verification or troubleshooting report is useful only if someone else can reproduce it. Use this exact structure when writing up a CLI run:
 
-- executable path and config source
-- exact command or generated argument list
-- exit code, stdout, stderr, and parsed JSON outcome
-- whether the failure belongs to the CLI layer or the database/driver layer
-- cleanup status for temp configs and temporary database objects
+```
+**Executable**: `DatabaseMcpServer` on PATH, version <from `--version`>
+**Config**: <absolute path>, source: <--config flag | DB_CONFIG_PATH | ./databases.json | ./local-databases.json | %USERPROFILE% default>
+**Current connection**: <name from get_current_database>  (default in databases.json: <name>)
+**Command**: <exact argv, one space per argument>
+**Exit code**: <0 | 1 | 2>
+**Stdout** (trimmed):
+    <JSON payload, or "(empty)">
+**Stderr** (trimmed):
+    <help / warning / "(empty)">
+**Classification**: <CLI-layer usage error | backend/tool failure (success: false) | success>
+**Cleanup**: <temp config deleted at <path> | temp DB objects dropped: <list> | none required>
+```
+
+Fill every field, even with `(empty)` or `none required`. A blank field reads as "I forgot to check" and forces the reader to guess.

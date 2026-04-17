@@ -10,6 +10,8 @@ Use this file as a symptom-to-diagnosis matrix when CLI behavior is unclear.
 - stdout/stderr and JSON parsing issues
 - SQL Server quoting and encryption issues
 - `success: false` vs CLI usage failure
+- current connection vs default connection confusion
+- `reload_database_config` preserving current connection
 - broad verification guidance
 
 ## Quick Triage
@@ -46,6 +48,8 @@ Fix:
 
 - add `--yes`
 - keep diagnosis in the CLI layer, not the database layer
+
+Related: SKILL.md "Use `--yes` Correctly" lists every command that requires it.
 
 ## 2. Missing or invalid options
 
@@ -236,7 +240,62 @@ Examples:
 - permission denied
 - database-specific limitation
 
-## 10. Large CLI verification runs
+## 10. Current connection vs default connection
+
+Typical symptom:
+
+```text
+# user ran:
+DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'
+
+# then they opened databases.json, see isDefault still on the old connection, and ask:
+#   "switch_database didn't work? my default connection didn't change."
+```
+
+Meaning:
+
+- `tool switch_database` writes the current connection to `%USERPROFILE%/.database-mcp/cli-state.json` (keyed by the resolved config path). It does **not** rewrite `databases.json`.
+- `config use --name X` is the command that changes `isDefault` inside the config file.
+- Both are working as designed — they target different state layers.
+
+Fix:
+
+- If the user wants the CLI to remember a connection across `tool` calls without editing the config file, `switch_database` already did the right thing. Prove it with `tool get_current_database`.
+- If the user wants `databases.json` to show the change, use `config use --name X`.
+- To reset CLI-only state, delete `%USERPROFILE%/.database-mcp/cli-state.json` or run `switch_database` back to the intended connection name.
+
+Sanity check pattern:
+
+```powershell
+DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'
+DatabaseMcpServer tool list_databases --config 'D:\config\databases.json'
+DatabaseMcpServer config show --name '<expected-name>' --config 'D:\config\databases.json'
+```
+
+Related: SKILL.md "Mental Model" explains the two-layer state design; `references/cli.md` §3.6 has the full specification.
+
+## 11. `reload_database_config` seems to ignore a connection change
+
+Typical symptom:
+
+```text
+# user edited databases.json, removed or renamed the current connection, ran:
+DatabaseMcpServer tool reload_database_config --config 'D:\config\databases.json'
+# then expects the CLI to fall back to the new isDefault, but it doesn't until the saved name becomes invalid.
+```
+
+Meaning:
+
+- `reload_database_config` intentionally preserves the current connection when the saved name still exists in the reloaded file.
+- It only falls back to `isDefault` if the saved name was removed.
+
+Fix:
+
+- If the user wants the reload to also drop the CLI-only current connection, follow up with `tool switch_database --database-name '<new-target>'`, or delete `cli-state.json`.
+
+Related: SKILL.md "Mental Model" explains why the current connection is preserved across reloads.
+
+## 12. Large CLI verification runs
 
 When testing many tools:
 
@@ -250,5 +309,3 @@ Recommended object prefix:
 ```text
 cli_<yyyyMMdd_HHmmss>_<shortid>
 ```
-
-Prefer `scripts/verify-cli-tools.ps1` when broad coverage is required.
