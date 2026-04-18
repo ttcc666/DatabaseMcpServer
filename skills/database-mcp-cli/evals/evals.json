@@ -1,0 +1,117 @@
+{
+  "skill_name": "database-mcp-cli",
+  "evals": [
+    {
+      "id": 1,
+      "name": "version-discovery",
+      "prompt": "I just installed DatabaseMcpServer via `dotnet tool install --global DatabaseMcpServer`. How do I confirm which version is actually running on this machine right now? Please actually run the check and tell me the version number.",
+      "expected_output": "Uses `dotnet tool list --global` (or an equivalent that actually works). Notices `DatabaseMcpServer --version` exits 2 (unknown command) and does NOT mislead the user. Must report an actual version number.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Reports an actual version number matching the installed tool (2.2.2)"},
+        {"id": "a2", "text": "Uses or recommends `dotnet tool list --global` (the working approach) rather than leaving the user with a broken method"},
+        {"id": "a3", "text": "Either avoids `DatabaseMcpServer --version` or flags that it fails with exit code 2 (unknown command). Does NOT claim it returns the version."},
+        {"id": "a4", "text": "Does not modify the user's real ~/.database-mcp/ configuration or cli-state"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "switch-vs-use-confusion",
+      "prompt": "我刚跑了 `DatabaseMcpServer tool switch_database --database-name reporting --config D:\\test\\databases.json`，命令输出看起来是成功的。但是我打开 databases.json 看，里面的 isDefault 还是指向老的连接。switch_database 没生效？",
+      "expected_output": "Explains two-layer state model. switch_database writes cli-state.json, not databases.json. Points at `config use --name X` for persistence.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Explains that switch_database writes to cli-state.json (%USERPROFILE%/.database-mcp/cli-state.json), NOT to databases.json"},
+        {"id": "a2", "text": "Points user at `config use --name X` (or `config set-default`) as the command that actually modifies databases.json"},
+        {"id": "a3", "text": "Clarifies that both commands are working as designed — they target different state layers"},
+        {"id": "a4", "text": "Suggests `tool get_current_database` as a sanity check for which connection is actually in effect"},
+        {"id": "a5", "text": "Does not claim switch_database is broken or buggy"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "add-default-value-quoting",
+      "prompt": "PowerShell 里跑 `DatabaseMcpServer tool add_default_value --default-value 'active' --yes ...` 失败了。报错是默认值语法不对。到底要怎么写？",
+      "expected_output": "Explains SQL literal + PowerShell quoting. Shows `'''active'''`.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Explains that --default-value expects a SQL literal, not bare text"},
+        {"id": "a2", "text": "Shows the corrected argument: `--default-value '''active'''` (outer PowerShell single quotes + doubled inner single quotes)"},
+        {"id": "a3", "text": "Explains the PowerShell rule: within single-quoted string, literal single quote is `''` (two in a row)"},
+        {"id": "a4", "text": "Provides a full corrected command line, not just the fragment"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "yes-triage",
+      "prompt": "Exit code 2 and stderr says `tool 'execute_command' 需要显式确认。请追加 '--yes'。`. Is this a DB permissions problem?",
+      "expected_output": "Classifies as CLI-layer error, not backend. Fix: add --yes. Don't chase DB grants.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Classifies this as a CLI-layer usage error, NOT a backend/database failure"},
+        {"id": "a2", "text": "Explicitly states that the CLI did NOT reach the database, so DB grants/permissions are irrelevant here"},
+        {"id": "a3", "text": "Fix is to re-run the same command with `--yes` appended"},
+        {"id": "a4", "text": "Connects exit code 2 to CLI usage errors specifically (vs exit 1 = backend failure)"},
+        {"id": "a5", "text": "Does NOT send the user on a wild goose chase to check DB user grants or SQL syntax"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "temp-config-from-connection-string",
+      "prompt": "Given a SQLite connection string, run a quick test_connection without cluttering my default config. Clean up after.",
+      "expected_output": "Temp config under %TEMP%, minimal shape, test_connection ran, cleanup confirmed.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Created temp databases.json under /tmp/ or %TEMP%, NOT under ~/.database-mcp/"},
+        {"id": "a2", "text": "Temp config has minimal ad-hoc shape: single entry with name, connectionString, dbType Sqlite, isDefault true"},
+        {"id": "a3", "text": "Ran test_connection (or equivalent) via --config pointing at the temp file and captured the result"},
+        {"id": "a4", "text": "Cleaned up the temp databases.json and any SQLite files created — confirmed cleanup happened"},
+        {"id": "a5", "text": "Did not modify the user's real ~/.database-mcp/databases.json or cli-state.json"}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "sql-server-encryption-diagnosis",
+      "prompt": "SQL Server 连接失败，要求加密但机器不支持。Encrypt=True。帮我改成能连上的。",
+      "expected_output": "Don't silently weaken security. Report error first. Offer Encrypt=False only as labeled diagnostic fallback with user consent.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Does NOT silently change the connection string to Encrypt=False; TrustServerCertificate=True on the user's behalf"},
+        {"id": "a2", "text": "Reports the actual error first and explains it as a TLS/driver capability issue on the client machine, not a CLI or backend bug"},
+        {"id": "a3", "text": "If suggesting the Encrypt=False fallback, labels it explicitly as diagnostic/temporary — not an equivalent security posture"},
+        {"id": "a4", "text": "Requires or requests explicit user approval before weakening encryption"},
+        {"id": "a5", "text": "Mentions at least one alternative remediation (install client cert, update SQL Server driver/OS TLS stack, use proper TLS chain) rather than only offering the downgrade"}
+      ]
+    },
+    {
+      "id": 7,
+      "name": "exit1-vs-exit2",
+      "prompt": "sql_query exits 1 with `{\"success\":false,\"errorMessage\":\"object name 'customers' not found\"}`. CLI bug? Reinstall?",
+      "expected_output": "Backend/tool failure (not CLI bug, not install). Customers table missing. Diagnose with is_any_table, get_table_info_list, get_current_database.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Classifies this as backend/tool failure (exit 1 + `success:false`), NOT a CLI bug, NOT an install problem"},
+        {"id": "a2", "text": "Explicitly tells the user they do NOT need to reinstall DatabaseMcpServer"},
+        {"id": "a3", "text": "Identifies that the root cause is the `customers` table not existing in the current database"},
+        {"id": "a4", "text": "Suggests read-only diagnostic tools: `is_any_table`, `get_table_info_list`, and/or `get_current_database` to pinpoint the cause"},
+        {"id": "a5", "text": "Distinguishes exit 1 (backend) from exit 2 (CLI usage) somewhere in the response"}
+      ]
+    },
+    {
+      "id": 8,
+      "name": "sqlite-smoke-test",
+      "prompt": "Set up throwaway SQLite and run broad smoke test across CLI. Read-only first, prefixed temp table, --yes where required, cleanup, structured report.",
+      "expected_output": "End-to-end execution. Temp files under %TEMP%. Prefixed temp table. Read-only first. --yes only on writes. Clean up everything. Report with command/exit/stdout/stderr per step.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Placed temp databases.json and sqlite file under /tmp/ or %TEMP%, NOT under ~/.database-mcp/"},
+        {"id": "a2", "text": "Used a uniquely-prefixed temp table name (cli_<timestamp>_<shortid> pattern or equivalent)"},
+        {"id": "a3", "text": "Ran read-only commands (validate_configuration, test_connection, list_databases) before any writes"},
+        {"id": "a4", "text": "Used --yes on DML/DDL commands (execute_command, drop_table, etc.) but NOT on read-only commands"},
+        {"id": "a5", "text": "Captured command, exit code, stdout, stderr for every step"},
+        {"id": "a6", "text": "Cleaned up temp table, temp config file, and temp sqlite file — and reported cleanup status explicitly"},
+        {"id": "a7", "text": "Final report is structured and reproducible (reader could re-run the sequence)"}
+      ]
+    }
+  ]
+}

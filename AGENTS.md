@@ -10,7 +10,7 @@
 - `dotnet test` — run all xUnit projects; document required env vars before enabling integration suites.
 - `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run` — launch the stdio MCP server for smoke testing.
 - `dotnet pack -c Release` — produce the NuGet/global tool artifact.
-- `DatabaseMcpServer --version` — verify an installed CLI matches current source.
+- `dotnet tool list --global | Select-String databasemcpserver` — verify an installed CLI matches current source. The binary itself has no `--version` flag (exits 2 on it); the .NET tool manifest is authoritative.
 
 ## Coding Style & Naming Conventions
 - C# 12, implicit usings, nullable enabled, four-space indentation, braces on the next line. Prefer file-scoped namespaces and constructor injection.

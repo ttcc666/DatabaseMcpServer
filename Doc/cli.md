@@ -54,8 +54,10 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
 
 ```powershell
 dotnet tool install --global DatabaseMcpServer
-DatabaseMcpServer --version
+dotnet tool list --global | Select-String databasemcpserver
 ```
+
+> 查安装版本请用 `dotnet tool list --global`。CLI 本身不识别 `--version`——传给它会得到退出码 `2` 和 `未知命令: '--version'`。.NET 工具清单是权威来源。
 
 升级到最新版：
 

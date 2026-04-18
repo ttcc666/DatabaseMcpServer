@@ -87,7 +87,7 @@ psi.ArgumentList.Add("--yes");
 
 When the user asks to "test all CLI commands" or run a smoke test across many tools:
 
-1. Confirm `DatabaseMcpServer --version` prints the expected version; run `dotnet tool update --global DatabaseMcpServer` if it's stale.
+1. Confirm the installed version with `dotnet tool list --global` (the CLI binary itself has no `--version` flag — it returns exit `2` on that argument); run `dotnet tool update --global DatabaseMcpServer` if it's stale.
 2. Generate a temporary config in `%TEMP%` with a throwaway database connection — never aim the smoke test at a business database.
 3. Create isolated temporary objects with prefix `cli_<yyyyMMdd_HHmmss>_<shortid>`.
 4. Run read-only tools first (`validate_configuration`, `test_connection`, `list_databases`, `get_table_info_list`). Any failure here means the rest won't tell you anything useful.

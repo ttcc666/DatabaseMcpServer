@@ -29,10 +29,11 @@ When the user is confused about "which database am I actually on", run `tool get
 
 ```powershell
 dotnet tool install --global DatabaseMcpServer
-DatabaseMcpServer --version
+dotnet tool list --global | Select-String databasemcpserver
 ```
 
-- If the CLI reports an old version or behaves unexpectedly, upgrade before debugging:
+- Verify the installed version via `dotnet tool list --global`, not via the binary. The CLI itself does not accept `--version` — it exits `2` with `未知命令: '--version'`. The .NET tool manifest is authoritative.
+- If the installed version is stale or the tool misbehaves, upgrade before debugging:
 
 ```powershell
 dotnet tool update --global DatabaseMcpServer
@@ -147,13 +148,21 @@ PowerShell quoting eats more debugging time than the database ever will. Guardra
 - For SQL Server `add_default_value`, the tool expects a SQL literal, not bare text. Escape the inner quotes: `--default-value '''active'''` (outer single quotes + doubled inner quotes).
 - For scripted automation, prefer `ProcessStartInfo.ArgumentList` over composing a shell string — it sidesteps quoting entirely.
 
-## Diagnose Without Weakening Security
+## Don't Weaken Security Quietly
+
+Some CLI "fixes" work by downgrading the connection's security posture. Downgrades need explicit, informed consent — urgency is not consent.
 
 When SQL Server connections fail with `Encrypt=True` and the error says encryption is required but unsupported on the machine:
 
-1. Report the exact error first.
-2. Do not silently swap in `Encrypt=False;TrustServerCertificate=True` — that hides a real infrastructure problem and lowers security.
-3. Only if the user explicitly wants diagnosis, run a one-off with a diagnostic config and label it as diagnostic only, not equivalent posture.
+1. **Report the exact error first.** The wording is misleading — on Microsoft.Data.SqlClient 4.0+ this is almost always a TLS 1.2 or server-cert-chain problem on the client, not literal "no crypto support".
+2. **Don't silently swap in `Encrypt=False;TrustServerCertificate=True`.** That hides a real infrastructure problem and downgrades security.
+3. **Offer ranked options, not a single fix.** Lead with the safest:
+   1. Fix the client: enable TLS 1.2 in SCHANNEL, install the server's CA cert, update OS/driver.
+   2. Keep encryption, skip cert check: `Encrypt=True;TrustServerCertificate=True`. Traffic still encrypted; only the server identity check is skipped. Acceptable on trusted intranet.
+   3. Disable encryption entirely: `Encrypt=False`. Diagnostic fallback only — requires explicit consent and shouldn't land in the user's real config.
+4. **Keep the tradeoff visible.** If the user says "just make it work", surface what they're giving up before changing the string. A temp config under `%TEMP%` is a safer diagnostic vehicle than editing their real `databases.json`.
+
+The same pattern generalizes: if the next CLI quirk has a "silently downgrade" shortcut, rank by safety, name the tradeoff, get consent.
 
 ## Reference Index
 
@@ -179,7 +188,7 @@ File summaries:
 A verification or troubleshooting report is useful only if someone else can reproduce it. Use this exact structure when writing up a CLI run:
 
 ```
-**Executable**: `DatabaseMcpServer` on PATH, version <from `--version`>
+**Executable**: `DatabaseMcpServer` on PATH, version <from `dotnet tool list --global`>
 **Config**: <absolute path>, source: <--config flag | DB_CONFIG_PATH | ./databases.json | ./local-databases.json | %USERPROFILE% default>
 **Current connection**: <name from get_current_database>  (default in databases.json: <name>)
 **Command**: <exact argv, one space per argument>

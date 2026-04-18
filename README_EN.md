@@ -58,8 +58,8 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 # Install latest version
 dotnet tool install --global DatabaseMcpServer
 
-# Verify installation
-DatabaseMcpServer --version
+# Verify installation (the CLI has no --version flag; it exits 2 on that)
+dotnet tool list --global | Select-String databasemcpserver
 ```
 
 ### Step 2: Create Database Configuration File

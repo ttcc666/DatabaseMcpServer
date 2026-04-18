@@ -55,8 +55,8 @@
 # 安装最新版本
 dotnet tool install --global DatabaseMcpServer
 
-# 验证安装
-DatabaseMcpServer --version
+# 验证安装（CLI 本身没有 --version 参数；传入会得到退出码 2）
+dotnet tool list --global | Select-String databasemcpserver
 ```
 
 ### 第二步：创建数据库配置文件

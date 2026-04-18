@@ -18,8 +18,8 @@ dotnet run --project D:\Demo\my-mcp\DatabaseMcpServer
 # Package as NuGet global tool
 dotnet pack -c Release
 
-# Verify installed CLI version
-DatabaseMcpServer --version
+# Verify installed CLI version (the binary has no --version flag; exits 2 on it)
+dotnet tool list --global | Select-String databasemcpserver
 ```
 
 There are no test projects in the repository. AGENTS.md references xUnit but no tests exist yet.
