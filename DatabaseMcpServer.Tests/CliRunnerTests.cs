@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DatabaseMcpServer.Cli;
+using DatabaseMcpServer.Web;
 
 namespace DatabaseMcpServer.Tests;
 
@@ -31,6 +32,38 @@ public class CliRunnerTests
         Assert.Equal(2, exitCode);
         Assert.Contains("--yes", stderr.ToString(), StringComparison.Ordinal);
         Assert.Equal(string.Empty, stdout.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldDispatchWebMode()
+    {
+        var webHost = new TestCliWebHost();
+        var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), webHost, null);
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+
+        var exitCode = await runner.RunAsync(["-web", "--config", ".\\web-config.json", "--port", "5317", "--no-browser"], stdout, stderr);
+
+        Assert.Equal(0, exitCode);
+        Assert.NotNull(webHost.LastOptions);
+        Assert.Equal(".\\web-config.json", webHost.LastOptions!.ConfigPath);
+        Assert.Equal(5317, webHost.LastOptions.Port);
+        Assert.False(webHost.LastOptions.OpenBrowser);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldRejectOutOfRangeWebPort()
+    {
+        var webHost = new TestCliWebHost();
+        var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), webHost, null);
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+
+        var exitCode = await runner.RunAsync(["-web", "--port", "70000"], stdout, stderr);
+
+        Assert.Equal(2, exitCode);
+        Assert.Null(webHost.LastOptions);
+        Assert.Contains("0-65535", stderr.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -106,7 +139,7 @@ public class CliRunnerTests
 
         try
         {
-            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), stateFilePath);
+            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), new TestCliWebHost(), stateFilePath);
 
             var switchStdout = new StringWriter();
             var switchStderr = new StringWriter();
@@ -203,7 +236,7 @@ public class CliRunnerTests
 
         try
         {
-            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), stateFilePath);
+            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), new TestCliWebHost(), stateFilePath);
 
             var firstSwitchStdout = new StringWriter();
             var firstSwitchStderr = new StringWriter();
@@ -287,7 +320,7 @@ public class CliRunnerTests
 
         try
         {
-            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), stateFilePath);
+            var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), new TestCliWebHost(), stateFilePath);
 
             var switchStdout = new StringWriter();
             var switchStderr = new StringWriter();
@@ -1171,6 +1204,17 @@ public class CliRunnerTests
             catch (IOException)
             {
             }
+        }
+    }
+
+    private sealed class TestCliWebHost : ICliWebHost
+    {
+        public CliWebCommandOptions? LastOptions { get; private set; }
+
+        public Task RunAsync(CliWebCommandOptions options, TextWriter stdout, TextWriter stderr, CancellationToken cancellationToken = default)
+        {
+            LastOptions = options;
+            return Task.CompletedTask;
         }
     }
 }

@@ -27,6 +27,15 @@ internal sealed record CliCommandMetadata(
 
 internal static class CliBuiltinCommandCatalog
 {
+    public static CliCommandMetadata Web { get; } = new(
+        "-web",
+        "启动本地 Web 配置管理页，并默认自动打开浏览器。",
+        "DatabaseMcpServer -web [--config path] [--port 0-65535] [--no-browser true|false]",
+        [
+            new CliCommandOptionMetadata("port", "本地 Web 服务端口；不传时自动分配可用端口。", typeof(int), false, null),
+            new CliCommandOptionMetadata("no-browser", "启动后不自动打开浏览器。", typeof(bool), false, false)
+        ]);
+
     public static CliCommandMetadata Init { get; } = new(
         "init",
         "初始化本地 databases.json 配置文件；默认写入 %USERPROFILE%/.database-mcp/databases.json。",

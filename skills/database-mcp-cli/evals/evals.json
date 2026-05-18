@@ -8,7 +8,7 @@
       "expected_output": "Uses `dotnet tool list --global` (or an equivalent that actually works). Notices `DatabaseMcpServer --version` exits 2 (unknown command) and does NOT mislead the user. Must report an actual version number.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Reports an actual version number matching the installed tool (2.2.2)"},
+        {"id": "a1", "text": "Reports an actual version number matching the installed tool (2.5.0)"},
         {"id": "a2", "text": "Uses or recommends `dotnet tool list --global` (the working approach) rather than leaving the user with a broken method"},
         {"id": "a3", "text": "Either avoids `DatabaseMcpServer --version` or flags that it fails with exit code 2 (unknown command). Does NOT claim it returns the version."},
         {"id": "a4", "text": "Does not modify the user's real ~/.database-mcp/ configuration or cli-state"}

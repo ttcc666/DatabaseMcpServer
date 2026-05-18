@@ -1,0 +1,409 @@
+using System.Text.Json;
+using DatabaseMcpServer.Cli;
+using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Models;
+using DatabaseMcpServer.Tools.Management;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace DatabaseMcpServer.Web;
+
+internal sealed class CliWebApiService
+{
+    private readonly CliWebConfigContext _context;
+    private readonly CliConfigFileService _configFileService;
+    private readonly CliConfigCommandHandler _configCommandHandler;
+    private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
+    private readonly IServiceProvider _serviceProvider;
+
+    public CliWebApiService(
+        CliWebConfigContext context,
+        CliConfigFileService configFileService,
+        CliConfigCommandHandler configCommandHandler,
+        ICurrentDatabaseStateStore currentDatabaseStateStore,
+        IServiceProvider serviceProvider)
+    {
+        _context = context;
+        _configFileService = configFileService;
+        _configCommandHandler = configCommandHandler;
+        _currentDatabaseStateStore = currentDatabaseStateStore;
+        _serviceProvider = serviceProvider;
+    }
+
+    public object GetContext()
+    {
+        return new
+        {
+            success = true,
+            configPath = _context.ConfigPath,
+            configSource = _context.Source,
+            configExists = _context.ConfigExists
+        };
+    }
+
+    public object GetDashboard()
+    {
+        if (!_context.ConfigExists)
+        {
+            return new
+            {
+                success = true,
+                configPath = _context.ConfigPath,
+                configSource = _context.Source,
+                configExists = false,
+                totalDatabases = 0,
+                currentDefaultDatabase = (string?)null,
+                currentDatabase = (string?)null,
+                databases = Array.Empty<object>(),
+                message = "配置文件不存在，可以先初始化。"
+            };
+        }
+
+        try
+        {
+            var config = _configFileService.Load(_context.ConfigPath);
+            var currentDefaultDatabase = CliConfigFileService.GetCurrentDefaultDatabaseName(config);
+            var currentDatabase = ResolveCurrentDatabaseName(config, currentDefaultDatabase);
+
+            return new
+            {
+                success = true,
+                configPath = _context.ConfigPath,
+                configSource = _context.Source,
+                configExists = true,
+                totalDatabases = config.Databases.Count,
+                currentDefaultDatabase,
+                currentDatabase,
+                databases = config.Databases.Select(db => new
+                {
+                    name = db.Name,
+                    dbType = db.DbType,
+                    description = db.Description,
+                    connectionString = ConnectionStringMasker.Mask(db.ConnectionString),
+                    isDefault = db.IsDefault,
+                    isCurrent = string.Equals(db.Name, currentDatabase, StringComparison.Ordinal),
+                    optimizationSettings = db.OptimizationSettings
+                }).ToArray()
+            };
+        }
+        catch (Exception ex)
+        {
+            return new
+            {
+                success = false,
+                configPath = _context.ConfigPath,
+                configSource = _context.Source,
+                configExists = true,
+                totalDatabases = 0,
+                currentDefaultDatabase = (string?)null,
+                currentDatabase = (string?)null,
+                databases = Array.Empty<object>(),
+                message = ex.Message
+            };
+        }
+    }
+
+    public object GetDatabase(string name)
+    {
+        if (!_context.ConfigExists)
+        {
+            return new
+            {
+                success = false,
+                configPath = _context.ConfigPath,
+                message = "配置文件不存在，请先初始化。"
+            };
+        }
+
+        try
+        {
+            var config = _configFileService.Load(_context.ConfigPath);
+            var database = config.Databases.FirstOrDefault(db => string.Equals(db.Name, name, StringComparison.Ordinal));
+            if (database == null)
+            {
+                return new
+                {
+                    success = false,
+                    configPath = _context.ConfigPath,
+                    databaseName = name,
+                    message = $"数据库连接 '{name}' 不存在。"
+                };
+            }
+
+            return new
+            {
+                success = true,
+                configPath = _context.ConfigPath,
+                database = CliConfigFileService.ToMaskedConnection(database)
+            };
+        }
+        catch (Exception ex)
+        {
+            return new
+            {
+                success = false,
+                configPath = _context.ConfigPath,
+                databaseName = name,
+                message = ex.Message
+            };
+        }
+    }
+
+    public object GetPresets()
+    {
+        return new
+        {
+            success = true,
+            totalPresets = CliConfigPresetCatalog.Presets.Count,
+            presets = CliConfigPresetCatalog.Presets
+                .OrderBy(item => item.DbType, StringComparer.OrdinalIgnoreCase)
+                .Select(item => new
+                {
+                    dbType = item.DbType,
+                    exampleName = item.ExampleName,
+                    description = item.Description
+                })
+                .ToArray()
+        };
+    }
+
+    public object GetPreset(string dbType)
+    {
+        if (!CliConfigPresetCatalog.TryGet(dbType, out var preset))
+        {
+            return new
+            {
+                success = false,
+                dbType,
+                message = $"未找到数据库类型 '{dbType}' 的内置模板。"
+            };
+        }
+
+        return new
+        {
+            success = true,
+            preset = new
+            {
+                dbType = preset.DbType,
+                exampleName = preset.ExampleName,
+                exampleConnectionString = preset.ExampleConnectionString,
+                description = preset.Description
+            }
+        };
+    }
+
+    public string Initialize(bool force)
+    {
+        var payload = _configCommandHandler.Initialize(_context.ConfigPath, force);
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string CreateFromPreset(CliWebCreateFromPresetRequest request)
+    {
+        var payload = _configCommandHandler.CreateFromPreset(
+            _context.ConfigPath,
+            request.DbType,
+            request.Name,
+            request.ConnectionString,
+            request.Description,
+            request.SetDefault,
+            request.PrintOnly);
+
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string AddDatabase(CliWebAddDatabaseRequest request)
+    {
+        var payload = _configCommandHandler.Add(
+            _context.ConfigPath,
+            request.Name,
+            request.DbType,
+            request.ConnectionString,
+            request.Description,
+            request.SetDefault);
+
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string RenameDatabase(string name, CliWebRenameDatabaseRequest request)
+    {
+        var currentDatabase = _currentDatabaseStateStore.GetCurrentDatabaseName(_context.ConfigPath);
+        var payload = _configCommandHandler.Rename(_context.ConfigPath, name, request.NewName);
+
+        if (IsSuccess(payload) && string.Equals(currentDatabase, name, StringComparison.Ordinal))
+        {
+            _currentDatabaseStateStore.SaveCurrentDatabaseName(_context.ConfigPath, request.NewName);
+        }
+
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string UpdateDatabase(string name, CliWebUpdateDatabaseRequest request)
+    {
+        var payload = _configCommandHandler.Update(
+            _context.ConfigPath,
+            name,
+            request.DbType,
+            request.ConnectionString,
+            request.Description,
+            request.ClearDescription,
+            request.SetDefault,
+            request.ApplyDbType,
+            request.ApplyConnectionString,
+            request.ApplyDescription,
+            request.ApplyClearDescription,
+            request.ApplySetDefault);
+
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string CloneDatabase(string name, CliWebCloneDatabaseRequest request)
+    {
+        var payload = _configCommandHandler.Clone(_context.ConfigPath, name, request.NewName, request.SetDefault);
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string RemoveDatabase(string name)
+    {
+        var payload = _configCommandHandler.Remove(_context.ConfigPath, name);
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string SetDefaultDatabase(string name)
+    {
+        var payload = _configCommandHandler.SetDefault(_context.ConfigPath, name);
+        TryReloadRuntimeConfiguration(payload);
+        return payload;
+    }
+
+    public string SwitchCurrentDatabase(string databaseName)
+    {
+        try
+        {
+            var tool = _serviceProvider.GetRequiredService<ConnectionTools>();
+            return tool.SwitchDatabase(databaseName);
+        }
+        catch (Exception ex)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                currentDatabase = (string?)null,
+                message = ex.Message
+            });
+        }
+    }
+
+    public string Validate()
+    {
+        return _configCommandHandler.Validate(_context.ConfigPath);
+    }
+
+    public Task<string> DoctorAsync(CliWebDoctorRequest request)
+    {
+        return _configCommandHandler.DoctorAsync(
+            _context.ConfigPath,
+            request.Name,
+            request.TestConnections,
+            request.FixSuggestions,
+            request.SummaryOnly);
+    }
+
+    public Task<string> TestConnectionAsync(string name)
+    {
+        return _configCommandHandler.TestAsync(_context.ConfigPath, name);
+    }
+
+    public async Task<string> ImportAsync(Stream stream, bool force, CancellationToken cancellationToken)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dbmcp-web-import-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            await using (var tempStream = File.Create(tempPath))
+            {
+                await stream.CopyToAsync(tempStream, cancellationToken);
+            }
+
+            var payload = _configCommandHandler.Import(_context.ConfigPath, tempPath, force);
+            TryReloadRuntimeConfiguration(payload);
+            return payload;
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+    }
+
+    public (byte[] Contents, string DownloadName) Export()
+    {
+        if (!_context.ConfigExists)
+        {
+            throw new InvalidOperationException("配置文件不存在，无法导出。");
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(_context.ConfigPath);
+        var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
+        return (File.ReadAllBytes(_context.ConfigPath), $"{fileName}-{timestamp}.json");
+    }
+
+    private string? ResolveCurrentDatabaseName(DatabasesConfig config, string? currentDefaultDatabase)
+    {
+        var persistedCurrentDatabase = _currentDatabaseStateStore.GetCurrentDatabaseName(_context.ConfigPath);
+        if (!string.IsNullOrWhiteSpace(persistedCurrentDatabase) &&
+            config.Databases.Any(db => string.Equals(db.Name, persistedCurrentDatabase, StringComparison.Ordinal)))
+        {
+            return persistedCurrentDatabase;
+        }
+
+        return currentDefaultDatabase ?? config.Databases.FirstOrDefault()?.Name;
+    }
+
+    private void TryReloadRuntimeConfiguration(string payload)
+    {
+        if (!IsSuccess(payload))
+        {
+            return;
+        }
+
+        try
+        {
+            var databaseConfigService = _serviceProvider.GetService<IDatabaseConfigService>();
+            _ = databaseConfigService?.ReloadConfiguration();
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool IsSuccess(string payload)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                   document.RootElement.TryGetProperty("success", out var successElement) &&
+                   successElement.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+}

@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.2-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.5.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@2.2.2 --yes
+dnx DatabaseMcpServer@2.5.0 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@2.2.2 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.2.2", "--yes"],
+      "args": ["DatabaseMcpServer@2.5.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -689,11 +689,13 @@ CLI command reference:
 CLI highlights:
 
 - `DatabaseMcpServer` with no arguments still starts the stdio MCP server.
+- `DatabaseMcpServer -web` starts a localhost-only configuration UI and opens the browser by default.
 - `DatabaseMcpServer tool ...` invokes existing MCP tools directly.
 - In CLI tool mode, `switch_database` persists the current connection per resolved config path for later `tool` invocations.
 - `config use` / `config set-default` updates the default connection stored in `databases.json`; it is distinct from the persisted CLI current connection.
 - `DatabaseMcpServer init` creates a local config file, defaulting to `%USERPROFILE%/.database-mcp/databases.json`.
 - `DatabaseMcpServer config presets|preset|create|list|show|add|rename|update|clone|remove|set-default|use|test|validate|doctor|export|import` manages connection entries, built-in templates, and config files from the CLI.
+- `-web` resolves config files with the same order as CLI tool mode and falls back to `%USERPROFILE%/.database-mcp/databases.json` as the writable target when no existing config is found.
 
 ## 🆕 Release Notes
 
@@ -701,6 +703,11 @@ CLI highlights:
   - Add `reload_database_config` to reload database connections from `DB_CONFIG_PATH` at runtime
   - Reset cached SqlSugar clients during config refresh so subsequent requests use updated connections
   - Expand tests for config reload and client recreation before release
+
+- **2.5.0**
+  - Add a local `-web` configuration console for managing `databases.json` and `cli-state.json` in the browser
+  - Rework the frontend into a `Vue 3 + shadcn-vue` workspace with connection table, editor sheet, diagnostics, and import/export flows
+  - Fix Web API fallback routing, invalid `--port` crashes, and stale frontend asset packaging, and add regression tests
 
 - **2.2.2**
   - Fix `switch_database` in CLI mode so the selected current connection persists per config file path instead of only lasting for one process
@@ -832,7 +839,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 2.2.2
+- This project has released version 2.5.0
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
 - Regularly backup important data

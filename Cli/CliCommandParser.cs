@@ -3,6 +3,8 @@ namespace DatabaseMcpServer.Cli;
 internal enum CliCommandKind
 {
     RootHelp,
+    WebHelp,
+    WebInvoke,
     ToolRootHelp,
     ToolList,
     ToolHelp,
@@ -63,6 +65,11 @@ internal sealed class CliCommandParser
 
         return args[0] switch
         {
+            "-web" or "--web" => ParseStandaloneCommand(
+                args.Skip(1).ToArray(),
+                CliBuiltinCommandCatalog.Web,
+                CliCommandKind.WebHelp,
+                CliCommandKind.WebInvoke),
             "tool" => ParseToolCommand(args.Skip(1).ToArray()),
             "init" => ParseStandaloneCommand(
                 args.Skip(1).ToArray(),
@@ -72,7 +79,7 @@ internal sealed class CliCommandParser
             "config" => ParseConfigCommand(args.Skip(1).ToArray()),
             _ => new CliParseResult(
                 CliCommandKind.Error,
-                ErrorMessage: $"未知命令: '{args[0]}'。可用顶层命令: tool, init, config")
+                ErrorMessage: $"未知命令: '{args[0]}'。可用顶层命令: -web, tool, init, config")
         };
     }
 

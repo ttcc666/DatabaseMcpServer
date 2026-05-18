@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.2.2-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.5.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -116,12 +116,17 @@ dotnet tool list --global | Select-String databasemcpserver
 从当前版本开始，`DatabaseMcpServer` 在保留原有 MCP stdio 模式的同时，也支持直接从命令行做两类事情：
 
 - **无参数**：启动 stdio MCP server（兼容现有 MCP 客户端配置）
+- **`-web`**：启动 localhost Web 配置管理页，并默认自动打开浏览器
 - **`tool` 子命令**：直接调用已暴露的 MCP tool
 - **`init` / `config` 子命令**：初始化并维护本地 `databases.json`
 
 ### 基本用法
 
 ```bash
+# 启动本地 Web 配置页（默认自动打开浏览器）
+DatabaseMcpServer -web
+DatabaseMcpServer -web --config "D:\config\databases.json" --no-browser
+
 # 初始化默认配置文件（默认写到 %USERPROFILE%/.database-mcp/databases.json）
 DatabaseMcpServer init
 
@@ -153,6 +158,13 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
 
 ### 参数规则
 
+- `-web` 主要用于**本地可视化配置管理**
+  - 默认绑定 `localhost / 127.0.0.1`，不对公网暴露
+  - 默认沿用 CLI 配置解析顺序：`--config -> ./databases.json -> ./local-databases.json -> DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json`
+  - 如果没有找到现有配置文件，则回退到 `%USERPROFILE%/.database-mcp/databases.json` 作为可写目标
+  - 页面同时管理两套状态：`databases.json` 中的默认连接，以及 `%USERPROFILE%/.database-mcp/cli-state.json` 中的当前连接
+  - `--port <number>` 可显式指定端口；不传则自动分配可用端口
+  - `--no-browser` 可禁用自动打开浏览器
 - `init` / `config` 主要用于**本地配置管理**
   - 默认操作 `%USERPROFILE%/.database-mcp/databases.json`
   - 可以用 `--config <path>` 临时覆盖目标配置文件
@@ -233,7 +245,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.2.2 --yes
+dnx DatabaseMcpServer@2.5.0 --yes
 ```
 
 **MCP 配置**：
@@ -242,7 +254,7 @@ dnx DatabaseMcpServer@2.2.2 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.2.2", "--yes"],
+      "args": ["DatabaseMcpServer@2.5.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -748,6 +760,11 @@ dotnet pack -c Release
 
 ## 🆕 版本发布
 
+- **2.5.0**
+  - 新增 `-web` 本地配置管理页，支持浏览器内维护 `databases.json` 与 `cli-state.json`
+  - 前端重构为 `Vue 3 + shadcn-vue` 风格工作台，并补齐连接表格、编辑抽屉、诊断与导入导出交互
+  - 修复 Web API fallback、非法 `--port` 崩溃和前端产物过期打包问题，补充对应测试覆盖
+
 - **2.1.1**
   - 新增 `reload_database_config`，支持运行时重新加载 `DB_CONFIG_PATH` 指向的数据库配置
   - 刷新配置时同步清空客户端缓存，确保后续请求使用新的连接信息
@@ -879,7 +896,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.2.2 正式版本
+- 本项目已发布 2.5.0 正式版本
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据

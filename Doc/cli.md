@@ -9,12 +9,14 @@
 `DatabaseMcpServer` 现在有两种运行模式：
 
 - **无参数**：启动 stdio MCP Server
+- **`-web`**：启动本地 Web 配置管理页
 - **`tool` 子命令**：直接执行某个 MCP tool
 - **`init` / `config` 子命令**：初始化和维护本地连接配置
 
 CLI 模式的基本格式：
 
 ```powershell
+DatabaseMcpServer -web [--config path] [--port number] [--no-browser]
 DatabaseMcpServer init [--config path] [--force]
 DatabaseMcpServer config <subcommand> [options]
 DatabaseMcpServer tool <tool_name> [--option value...]
@@ -23,6 +25,8 @@ DatabaseMcpServer tool <tool_name> [--option value...]
 示例：
 
 ```powershell
+DatabaseMcpServer -web
+DatabaseMcpServer -web --config 'D:\config\databases.json' --no-browser
 DatabaseMcpServer init
 DatabaseMcpServer config list
 DatabaseMcpServer config presets
@@ -41,6 +45,24 @@ DatabaseMcpServer tool help switch_database
 DatabaseMcpServer tool test_connection --config 'D:\config\databases.json'
 DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config\databases.json'
 ```
+
+### 1.1 `-web` 模式说明
+
+`DatabaseMcpServer -web` 会在本机启动一个仅监听 `localhost / 127.0.0.1` 的配置管理站点，默认自动打开浏览器。
+
+- 默认配置解析顺序与 CLI tool 模式一致：
+  - `--config`
+  - `./databases.json`
+  - `./local-databases.json`
+  - `DB_CONFIG_PATH`
+  - `%USERPROFILE%/.database-mcp/databases.json`
+- 如果上述位置都没有现成配置文件，`-web` 仍会启动，但会把 `%USERPROFILE%/.database-mcp/databases.json` 作为默认可写目标，方便先初始化再编辑。
+- 页面同时管理两套状态：
+  - `databases.json` 中的默认连接
+  - `%USERPROFILE%/.database-mcp/cli-state.json` 中按 config 路径隔离的“当前连接”
+- 常用参数：
+  - `--port <number>`：手工指定本地端口
+  - `--no-browser`：只启动服务，不自动打开浏览器
 
 ---
 

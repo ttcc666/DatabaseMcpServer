@@ -32,6 +32,17 @@ public class CliCommandParserTests
     }
 
     [Fact]
+    public void Parse_ShouldParseWebCommand()
+    {
+        var result = _parser.Parse(["-web", "--port", "4317", "--no-browser"]);
+
+        Assert.Equal(CliCommandKind.WebInvoke, result.Kind);
+        Assert.Equal("-web", result.Command?.Name);
+        Assert.Equal("4317", result.OptionValues?["port"]);
+        Assert.Equal("true", result.OptionValues?["no-browser"]);
+    }
+
+    [Fact]
     public void Parse_ShouldParseConfigPresetsCommand()
     {
         var result = _parser.Parse(["config", "presets"]);

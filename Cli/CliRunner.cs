@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DatabaseMcpServer.Hosting;
+using DatabaseMcpServer.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DatabaseMcpServer.Cli;
@@ -16,21 +17,24 @@ internal sealed class CliRunner
     private readonly CliToolCatalog _catalog;
     private readonly CliCommandParser _parser;
     private readonly CliConfigCommandHandler _configCommandHandler;
+    private readonly ICliWebHost _webHost;
     private readonly string? _currentDatabaseStateFilePath;
 
     public CliRunner()
-        : this(new CliToolCatalog(), new CliConfigCommandHandler(), null)
+        : this(new CliToolCatalog(), new CliConfigCommandHandler(), new CliWebHost(), null)
     {
     }
 
     internal CliRunner(
         CliToolCatalog catalog,
         CliConfigCommandHandler configCommandHandler,
+        ICliWebHost webHost,
         string? currentDatabaseStateFilePath)
     {
         _catalog = catalog;
         _parser = new CliCommandParser(catalog);
         _configCommandHandler = configCommandHandler;
+        _webHost = webHost;
         _currentDatabaseStateFilePath = currentDatabaseStateFilePath;
     }
 
@@ -51,6 +55,20 @@ internal sealed class CliRunner
                     }
 
                     await WriteRootHelpAsync(stderr);
+                    return SuccessExitCode;
+
+                case CliCommandKind.WebHelp:
+                    await WriteCommandHelpAsync(parseResult.Command!, stderr);
+                    return SuccessExitCode;
+
+                case CliCommandKind.WebInvoke:
+                    await _webHost.RunAsync(
+                        new CliWebCommandOptions(
+                            parseResult.ConfigPath,
+                            GetOptionalIntOption(parseResult.Command!, parseResult.OptionValues, "port"),
+                            !GetBoolOption(parseResult.Command!, parseResult.OptionValues, "no-browser")),
+                        stdout,
+                        stderr);
                     return SuccessExitCode;
 
                 case CliCommandKind.ToolRootHelp:
@@ -251,6 +269,7 @@ internal sealed class CliRunner
         var builder = new StringBuilder();
         builder.AppendLine("Usage:");
         builder.AppendLine("  DatabaseMcpServer");
+        builder.AppendLine("  DatabaseMcpServer -web [--config path] [--port 0-65535] [--no-browser]");
         builder.AppendLine("  DatabaseMcpServer init [--config path] [--force]");
         builder.AppendLine("  DatabaseMcpServer config <subcommand> [options]");
         builder.AppendLine("  DatabaseMcpServer tool list");
@@ -259,12 +278,15 @@ internal sealed class CliRunner
         builder.AppendLine();
         builder.AppendLine("Notes:");
         builder.AppendLine("  No arguments starts the stdio MCP server.");
+        builder.AppendLine("  -web starts a local Web configuration UI on localhost.");
         builder.AppendLine("  CLI help and metadata are written to stderr.");
         builder.AppendLine("  CLI command results are written to stdout as JSON.");
         builder.AppendLine("  In CLI tool mode, switch_database persists the current connection per resolved config path.");
         builder.AppendLine("  Use config use / config set-default when you want to change the default connection in databases.json.");
         builder.AppendLine();
         builder.AppendLine("Examples:");
+        builder.AppendLine("  DatabaseMcpServer -web");
+        builder.AppendLine("  DatabaseMcpServer -web --config '.\\local-databases.json' --no-browser");
         builder.AppendLine("  DatabaseMcpServer init");
         builder.AppendLine("  DatabaseMcpServer config list");
         builder.AppendLine("  DatabaseMcpServer tool list");
@@ -604,6 +626,29 @@ internal sealed class CliRunner
         }
 
         throw new InvalidOperationException($"选项 '--{optionName}' 需要 bool 值。");
+    }
+
+    private static int? GetOptionalIntOption(
+        CliCommandMetadata command,
+        IReadOnlyDictionary<string, string?>? optionValues,
+        string optionName)
+    {
+        if (optionValues == null || !optionValues.TryGetValue(optionName, out var rawValue) || string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        if (int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            if (value is < 0 or > 65535)
+            {
+                throw new InvalidOperationException($"选项 '--{optionName}' 必须在 0-65535 之间。命令: {command.Name}");
+            }
+
+            return value;
+        }
+
+        throw new InvalidOperationException($"选项 '--{optionName}' 需要整数值。命令: {command.Name}");
     }
 
     private static string GetRequiredStringOption(

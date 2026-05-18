@@ -28,7 +28,7 @@ internal static class DatabaseHostBuilderFactory
         return builder;
     }
 
-    private static Serilog.ILogger CreateLogger(bool silentLogs)
+    internal static Serilog.ILogger CreateLogger(bool silentLogs)
     {
         var loggerConfig = new LoggerConfiguration();
 
