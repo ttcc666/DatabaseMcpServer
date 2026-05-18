@@ -1,6 +1,6 @@
 ---
 name: database-mcp-cli
-description: "Use when the user wants to run, configure, script, or troubleshoot DatabaseMcpServer in CLI mode / 命令行模式 (not MCP stdio client integration). Trigger for `DatabaseMcpServer tool ...`, `DatabaseMcpServer config ...`, `DatabaseMcpServer init`; questions about `databases.json`, `local-databases.json`, `cli-state.json`, `DB_CONFIG_PATH`, current-vs-default connection confusion, temp config generation from a connection string, `switch_database` vs `config use`, `--config`, `--yes`, exit codes, stdout/stderr triage, PowerShell quoting for SQL/JSON args, or `config doctor` output. Chinese triggers: 命令行模式, CLI 测试, 生成 databases.json, 切换数据库, 当前连接没变, 重载配置, 检查退出码, PowerShell 转义, 从连接串生成临时配置."
+description: "Use when the user wants to run, configure, script, or troubleshoot DatabaseMcpServer in CLI mode / 命令行模式 (not MCP stdio client integration). Trigger for `DatabaseMcpServer tool ...`, `DatabaseMcpServer config ...`, `DatabaseMcpServer init`, `DatabaseMcpServer -web`; questions about `databases.json`, `local-databases.json`, `cli-state.json`, `DB_CONFIG_PATH`, current-vs-default connection confusion, temp config generation from a connection string, `switch_database` vs `config use`, `--config`, `--yes`, `--port`, `--no-browser`, exit codes, stdout/stderr triage, PowerShell quoting for SQL/JSON args, browser-based config management, or `config doctor` output. Chinese triggers: 命令行模式, CLI 测试, 生成 databases.json, 切换数据库, 当前连接没变, 重载配置, 检查退出码, PowerShell 转义, 从连接串生成临时配置, 打开配置网页, -web 用法, 本地配置页."
 ---
 
 # DatabaseMcpServer CLI
@@ -45,6 +45,7 @@ dotnet tool update --global DatabaseMcpServer
 
 | Family | Purpose | Typical use |
 | --- | --- | --- |
+| `DatabaseMcpServer -web` | Start the localhost-only configuration UI. | Browser-based config maintenance, visual inspection, import/export |
 | `DatabaseMcpServer tool <name>` | Invoke one MCP tool. Real work happens here. | Query, schema, DDL, export, health |
 | `DatabaseMcpServer config <subcommand>` | Create, inspect, validate, import, export, repair connections inside a config file. | First-time setup, maintenance |
 | `DatabaseMcpServer init` | Seed a default config file skeleton. | Bootstrapping a machine |
@@ -80,6 +81,8 @@ Config resolution rules (memorize or re-derive from help):
 
 - `tool` without `--config` searches: `./databases.json` → `./local-databases.json` → `DB_CONFIG_PATH` → `%USERPROFILE%/.database-mcp/databases.json`.
 - `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json` unless `--config` is supplied.
+- `-web` uses the same discovery order as `tool` when locating an existing config. If nothing exists yet, it still starts and treats `%USERPROFILE%/.database-mcp/databases.json` as the writable target.
+- `-web` is localhost-only by design. It is not the right answer for “publish a remote admin console” or “let another machine manage my config”.
 
 ## Operating Principles
 
@@ -170,18 +173,19 @@ Three bundled reference files, always available inside the skill folder. Route t
 
 | User's question or symptom | Read first |
 | --- | --- |
+| "How do I open the browser config page?" / "`-web` 怎么用?" | `references/cli.md` §1.1 + this SKILL.md Command Families |
 | "What's the exact command / option to X?" (syntax lookup) | `references/cli.md` §4 (config) / §8 (tool catalog) |
 | "Walk me through installing and getting started." | `references/cli.md` §2 用户使用流程 |
 | "My PowerShell command has weird quoting" or "why does `add_default_value` fail" | `references/commands.md` |
-| "CLI returned this error / exit 1 / exit 2 / `需要显式确认`" | `references/troubleshooting.md` |
+| "CLI returned this error / exit 1 / exit 2 / `需要显式确认` / `--port` invalid" | `references/troubleshooting.md` |
 | "`switch_database` didn't change my default" or "which DB am I actually on" | Stay in this SKILL.md Mental Model + `references/troubleshooting.md` #10 |
 | "Is this a CLI bug or a backend issue?" | `references/troubleshooting.md` Quick Triage table |
 
 File summaries:
 
 - `references/commands.md` — PowerShell quoting gotchas, the single-quote convention, `add_default_value` SQL-literal escape, `execute_command_with_go` newline trick, broad verification workflow, config-vs-current-connection summary.
-- `references/troubleshooting.md` — symptom → diagnosis matrix for `--yes`, unknown command, config not found, stdout/stderr mix, JSON argument parsing, SQL Server quoting, encryption, `success:false` vs CLI failure, current-vs-default confusion, and `reload_database_config` semantics.
-- `references/cli.md` — the authoritative CLI spec mirrored from the source repo's `Doc/cli.md`. §2 is the end-to-end user lifecycle; §3.6 covers the current-vs-default state model; §4 is config management; §6 is PowerShell traps; §7 lists every `--yes`-required command; §8 is the full tool catalog. When the skill lives inside the source repo, the upstream `Doc/cli.md` is canonical — keep this copy in sync if the repo file changes.
+- `references/troubleshooting.md` — symptom → diagnosis matrix for `--yes`, unknown command, config not found, invalid `--port`, stdout/stderr mix, JSON argument parsing, SQL Server quoting, encryption, `success:false` vs CLI failure, current-vs-default confusion, and `reload_database_config` semantics.
+- `references/cli.md` — the authoritative CLI spec mirrored from the source repo's `Doc/cli.md`. §1.1 covers `-web`; §2 is the end-to-end user lifecycle; §3.6 covers the current-vs-default state model; §4 is config management; §6 is PowerShell traps; §7 lists every `--yes`-required command; §8 is the full tool catalog. When the skill lives inside the source repo, the upstream `Doc/cli.md` is canonical — keep this copy in sync if the repo file changes.
 
 ## Report Results Clearly
 

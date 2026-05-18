@@ -6,6 +6,7 @@ This file is **not** a command catalog. The full catalog lives in `references/cl
 
 ```powershell
 DatabaseMcpServer --help
+DatabaseMcpServer -web --help
 DatabaseMcpServer tool list
 DatabaseMcpServer tool help get_table_schema
 DatabaseMcpServer tool get_table_schema --help
@@ -13,6 +14,24 @@ DatabaseMcpServer config help add
 ```
 
 Important: both root help and `tool list` write to **stderr**, not stdout. Don't misclassify a working help invocation as a failure just because stdout is empty.
+
+## `-web` quick usage
+
+```powershell
+DatabaseMcpServer -web
+DatabaseMcpServer -web --config 'D:\config\databases.json'
+DatabaseMcpServer -web --config 'D:\config\databases.json' --port 5129 --no-browser
+```
+
+Quick notes:
+
+- `-web` starts a localhost-only browser UI; it is not a remote admin endpoint.
+- `--no-browser` is useful in terminals / CI / remote sessions where auto-open would be noisy or impossible.
+- Invalid ports are now rejected in the CLI layer. Example symptom:
+
+```text
+选项 '--port' 必须在 0-65535 之间。命令: -web
+```
 
 ## Config file vs CLI current connection
 

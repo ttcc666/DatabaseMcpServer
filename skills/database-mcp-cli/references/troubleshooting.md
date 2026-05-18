@@ -6,6 +6,7 @@ Use this file as a symptom-to-diagnosis matrix when CLI behavior is unclear.
 
 - `--yes` and destructive confirmation
 - option parsing and unknown command failures
+- invalid `-web --port` usage
 - config resolution failures
 - stdout/stderr and JSON parsing issues
 - SQL Server quoting and encryption issues
@@ -98,6 +99,25 @@ Fix:
 - use `DatabaseMcpServer tool help <tool_name>`
 - if the CLI prints “最接近的命令”, prefer one of those suggestions
 
+## 3.1 Invalid `-web --port`
+
+Typical symptom:
+
+```text
+选项 '--port' 必须在 0-65535 之间。命令: -web
+```
+
+Meaning:
+
+- CLI usage failure
+- exit code should be `2`
+- the Web host did not start yet
+
+Fix:
+
+- use an integer between `0` and `65535`
+- omit `--port` entirely if you want the server to auto-pick a free localhost port
+
 ## 4. Config file not found
 
 Typical symptom:
@@ -123,6 +143,7 @@ Fix:
 - or place a config in `./databases.json` or `./local-databases.json`
 - or set `DB_CONFIG_PATH`
 - remember `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json`
+- remember `-web` behaves differently from `tool`: if no config exists yet, it still starts and treats `%USERPROFILE%/.database-mcp/databases.json` as the writable target so the user can initialize it from the page
 
 ## 5. `stdout` is not pure JSON
 
