@@ -743,13 +743,13 @@ DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net9.0
 DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net10.0
 
 # 构建项目
-dotnet build
+dotnet build 'DatabaseMcpServer.slnx'
 
 # 运行测试
-dotnet test
+dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # 打包发布
-dotnet pack -c Release
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 ```
 
 推荐的稳定验证方式：
@@ -796,7 +796,7 @@ dotnet pack -c Release
 
 1. **创建工具类文件**
    ```bash
-   # 在 Tools/ 目录下创建新工具类
+   # 在 src/DatabaseMcpServer/Tools/ 目录下创建新工具类
    # Management/ - 连接和架构管理
    # Query/ - 查询工具
    # Command/ - 命令工具

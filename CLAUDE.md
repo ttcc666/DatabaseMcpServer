@@ -10,19 +10,22 @@ DatabaseMcpServer is a .NET MCP (Model Context Protocol) server published as a .
 
 ```bash
 # Build (multi-target: net9.0 + net10.0)
-dotnet build
+dotnet build 'DatabaseMcpServer.slnx'
 
 # Run locally (requires DB_CONFIG_PATH env var pointing to databases.json)
-dotnet run --project D:\Demo\my-mcp\DatabaseMcpServer
+dotnet run --project 'src\DatabaseMcpServer\DatabaseMcpServer.csproj'
 
 # Package as NuGet global tool
-dotnet pack -c Release
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
+
+# Run tests
+dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # Verify installed CLI version (the binary has no --version flag; exits 2 on it)
 dotnet tool list --global | Select-String databasemcpserver
 ```
 
-There are no test projects in the repository. AGENTS.md references xUnit but no tests exist yet.
+Tests live in `tests/DatabaseMcpServer.Tests/` and use xUnit.
 
 ## Environment Variables
 
@@ -51,21 +54,21 @@ Everything lives in one `.csproj` — no library projects or test projects. Mult
 
 ### Key directories
 
-- **Tools/** — MCP tool implementations, split by concern:
+- **src/DatabaseMcpServer/Tools/** — MCP tool implementations, split by concern:
   - `Management/ConnectionTools.cs` (9 tools) — connection testing, switching, health checks
   - `Management/SchemaTools.cs` (34 tools) — table/column/index/constraint CRUD via `DbMaintenance`
   - `Query/QueryTools.cs` (5 tools) — SELECT queries, scalar, multi-result-set
   - `Command/CommandTools.cs` (5 tools) — INSERT/UPDATE/DELETE, stored procedures, batch execution
   - `Export/ExcelExportTools.cs` (3 tools) — Excel export via ClosedXML
   - `Documentation/DocumentationTools.cs` (1 tool) — database documentation generation
-- **Services/** — `DatabaseConfigService` (loads `databases.json`, manages SqlSugarScope connection pool with double-check locking), `DatabaseDocumentationService`
-- **Strategies/** — Strategy pattern in two areas:
+- **src/DatabaseMcpServer/Services/** — `DatabaseConfigService` (loads `databases.json`, manages SqlSugarScope connection pool with double-check locking), `DatabaseDocumentationService`
+- **src/DatabaseMcpServer/Strategies/** — Strategy pattern in two areas:
   - `DBSetting/` — 22 `IDatabaseOptimizationStrategy` implementations (one per DB type) + factory. Applied when creating SqlSugar clients.
   - `Documentation/` — `IDatabaseDocumentationStrategy` implementations (MySQL, PostgreSQL, SQL Server, Oracle, default) + factory
-- **Helpers/** — `DatabaseHelper` handles SQL parsing, JSON serialization of results, dangerous operation detection (regex-based DDL blocking), parameter binding
-- **Models/** — `DatabaseConnection`, `DatabasesConfig`, `ApiResult<T>`, `DatabaseMcpException` with `DatabaseErrorCode` enum
-- **Filters/** — `McpExceptionFilter` for centralized error handling
-- **Interfaces/** — Service contracts (`IDatabaseConfigService`, `IDatabaseHelperService`, `IDatabaseDocumentationService`)
+- **src/DatabaseMcpServer/Helpers/** — `DatabaseHelper` handles SQL parsing, JSON serialization of results, dangerous operation detection (regex-based DDL blocking), parameter binding
+- **src/DatabaseMcpServer/Models/** — `DatabaseConnection`, `DatabasesConfig`, `ApiResult<T>`, `DatabaseMcpException` with `DatabaseErrorCode` enum
+- **src/DatabaseMcpServer/Filters/** — `McpExceptionFilter` for centralized error handling
+- **src/DatabaseMcpServer/Interfaces/** — Service contracts (`IDatabaseConfigService`, `IDatabaseHelperService`, `IDatabaseDocumentationService`)
 
 ### How MCP tools work
 
@@ -77,10 +80,10 @@ Each tool method is decorated with `[McpServerTool]` and `[Description]`. The ty
 
 ### Adding a new database type
 
-1. Create a new `XxxOptimizationStrategy : IDatabaseOptimizationStrategy` in `Strategies/DBSetting/`
+1. Create a new `XxxOptimizationStrategy : IDatabaseOptimizationStrategy` in `src/DatabaseMcpServer/Strategies/DBSetting/`
 2. Register it in `DatabaseOptimizationStrategyFactory`
 3. Add a `DbType` string mapping in `DatabaseHelper.ParseDbType()`
-4. (Optional) Add a documentation strategy in `Strategies/Documentation/`
+4. (Optional) Add a documentation strategy in `src/DatabaseMcpServer/Strategies/Documentation/`
 5. Add a configuration guide in `DatabaseSetting/`
 
 See `Doc/extending-database-optimization.md` for details.

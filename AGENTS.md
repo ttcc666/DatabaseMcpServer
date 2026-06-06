@@ -1,15 +1,16 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Root files: `DatabaseMcpServer.csproj` and `Program.cs` register MCP tools. Runtime services live in `Services/`; interfaces in `Interfaces/`; helpers (SqlSugar config, serialization guards, argument validators) in `Helpers/`.
-- Tool implementations are grouped under `Tools/Command`, `Tools/Query`, `Tools/Schema`, `Tools/Management`, plus `ConnectionTools/` for environment switches. Keep each class single-purpose.
-- Cross-cutting filters reside in `Filters/`. Client templates are in `.mcp/`, `mcp.json.example`, and `mcp.json.local`. Tests (xUnit) sit beside the solution root for automatic discovery.
+- Solution-level files stay at the repository root. The MCP server project lives in `src/DatabaseMcpServer/` with `DatabaseMcpServer.csproj` and `Program.cs`.
+- Runtime services live in `src/DatabaseMcpServer/Services/`; interfaces in `src/DatabaseMcpServer/Interfaces/`; helpers (SqlSugar config, serialization guards, argument validators) in `src/DatabaseMcpServer/Helpers/`.
+- Tool implementations are grouped under `src/DatabaseMcpServer/Tools/Command`, `src/DatabaseMcpServer/Tools/Query`, `src/DatabaseMcpServer/Tools/Documentation`, `src/DatabaseMcpServer/Tools/Export`, and `src/DatabaseMcpServer/Tools/Management`. Keep each class single-purpose.
+- Cross-cutting filters reside in `src/DatabaseMcpServer/Filters/`. Client templates are in `.mcp/`, `mcp.json.example`, and `mcp.json.local`. Tests (xUnit) live in `tests/DatabaseMcpServer.Tests/`.
 
 ## Build, Test, and Development Commands
-- `dotnet build` — compile the net9.0 target and validate package references.
-- `dotnet test` — run all xUnit projects; document required env vars before enabling integration suites.
-- `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run` — launch the stdio MCP server for smoke testing.
-- `dotnet pack -c Release` — produce the NuGet/global tool artifact.
+- `dotnet build 'DatabaseMcpServer.slnx'` — compile the solution and validate package references.
+- `dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'` — run all xUnit tests; document required env vars before enabling integration suites.
+- `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run --project 'src\DatabaseMcpServer\DatabaseMcpServer.csproj'` — launch the stdio MCP server for smoke testing.
+- `dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release` — produce the NuGet/global tool artifact.
 - `dotnet tool list --global | Select-String databasemcpserver` — verify an installed CLI matches current source. The binary itself has no `--version` flag (exits 2 on it); the .NET tool manifest is authoritative.
 
 ## Coding Style & Naming Conventions
@@ -19,7 +20,7 @@
 
 ## Testing Guidelines
 - Framework: xUnit. Name test classes `ClassUnderTestTests` and keep fixtures isolated/deterministic.
-- Place tests beside the solution root; `dotnet test` should discover them without extra flags.
+- Place tests under `tests/`; `dotnet test 'DatabaseMcpServer.slnx'` should discover them without extra flags.
 - Record any manual prerequisites (e.g., database env vars) in test READMEs before running integration tests.
 
 ## Commit & Pull Request Guidelines

@@ -7,10 +7,10 @@ $ErrorActionPreference = 'Stop'
 Push-Location (Split-Path -Parent $PSScriptRoot)
 
 try {
-    dotnet build 'DatabaseMcpServer.csproj'
+    dotnet build 'src\DatabaseMcpServer\DatabaseMcpServer.csproj'
 
     if (-not $SkipTests) {
-        dotnet test 'DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
+        dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
     }
 }
 finally {

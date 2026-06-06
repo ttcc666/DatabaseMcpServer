@@ -9,10 +9,11 @@ Push-Location (Split-Path -Parent $PSScriptRoot)
 
 try {
     $root = Get-Location
-    $buildOutput = Join-Path $root ('bin\{0}\{1}' -f $Configuration, $Framework)
+    $projectPath = Join-Path $root 'src\DatabaseMcpServer\DatabaseMcpServer.csproj'
+    $buildOutput = Join-Path $root ('src\DatabaseMcpServer\bin\{0}\{1}' -f $Configuration, $Framework)
     $exePath = Join-Path $buildOutput 'DatabaseMcpServer.exe'
 
-    dotnet build 'DatabaseMcpServer.csproj' --framework $Framework --configuration $Configuration | Out-Host
+    dotnet build $projectPath --framework $Framework --configuration $Configuration | Out-Host
 
     $reportRoot = Join-Path $root 'artifacts\cli-tool-verify'
     $sessionName = Get-Date -Format 'yyyyMMdd-HHmmss'

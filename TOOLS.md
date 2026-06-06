@@ -1,6 +1,6 @@
 # DatabaseMcpServer Tools 索引
 
-本文档按照 `Tools/` 目录下的实现，汇总 DatabaseMcpServer 已暴露的 MCP 工具及功能。
+本文档按照 `src/DatabaseMcpServer/Tools/` 目录下的实现，汇总 DatabaseMcpServer 已暴露的 MCP 工具及功能。
 
 ## 目录
 

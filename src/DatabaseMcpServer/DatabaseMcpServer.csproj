@@ -6,6 +6,7 @@
 		<!-- 当前 SDK 环境下并行 inner build 会导致多目标构建异常失败，强制串行保证稳定性 -->
 		<BuildInParallel>false</BuildInParallel>
 		<GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+		<RepositoryRoot>$(MSBuildProjectDirectory)\..\..</RepositoryRoot>
 
 		<OutputType>Exe</OutputType>
 		<Nullable>enable</Nullable>
@@ -31,15 +32,9 @@
 
 	<!-- Include additional files for browsing the MCP server. -->
 	<ItemGroup>
-		<None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
-		<None Include="README.md" Pack="true" PackagePath="/" />
-		<None Include="LICENSE" Pack="true" PackagePath="/" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<Compile Remove="DatabaseMcpServer.Tests\**\*.cs" />
-		<EmbeddedResource Remove="DatabaseMcpServer.Tests\**\*" />
-		<None Remove="DatabaseMcpServer.Tests\**\*" />
+		<None Include="$(RepositoryRoot)\.mcp\server.json" Pack="true" PackagePath="/.mcp/" />
+		<None Include="$(RepositoryRoot)\README.md" Pack="true" PackagePath="/" />
+		<None Include="$(RepositoryRoot)\LICENSE" Pack="true" PackagePath="/" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -59,28 +54,30 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<EmbeddedResource Include="website\dist\**\*" />
+		<EmbeddedResource Include="$(RepositoryRoot)\website\dist\**\*">
+			<Link>website\dist\%(RecursiveDir)%(Filename)%(Extension)</Link>
+		</EmbeddedResource>
 	</ItemGroup>
 
 	<ItemGroup>
-		<WebsiteSourceFiles Include="website\src\**\*;website\index.html;website\package.json;website\package-lock.json;website\components.json;website\vite.config.ts;website\tsconfig*.json" />
+		<WebsiteSourceFiles Include="$(RepositoryRoot)\website\src\**\*;$(RepositoryRoot)\website\index.html;$(RepositoryRoot)\website\package.json;$(RepositoryRoot)\website\package-lock.json;$(RepositoryRoot)\website\components.json;$(RepositoryRoot)\website\vite.config.ts;$(RepositoryRoot)\website\tsconfig*.json" />
 	</ItemGroup>
 
 	<Target Name="RestoreWebsiteDependencies"
 	        BeforeTargets="Build"
-	        Inputs="$(MSBuildProjectDirectory)\website\package.json;$(MSBuildProjectDirectory)\website\package-lock.json"
-	        Outputs="$(MSBuildProjectDirectory)\website\node_modules\.package-lock.json"
-	        Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildProjectDirectory)\website\package.json')">
-		<Exec Command="npm install" WorkingDirectory="$(MSBuildProjectDirectory)\website" />
+	        Inputs="$(RepositoryRoot)\website\package.json;$(RepositoryRoot)\website\package-lock.json"
+	        Outputs="$(RepositoryRoot)\website\node_modules\.package-lock.json"
+	        Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(RepositoryRoot)\website\package.json')">
+		<Exec Command="npm install" WorkingDirectory="$(RepositoryRoot)\website" />
 	</Target>
 
 	<Target Name="BuildWebsiteAssets"
 	        BeforeTargets="BeforeBuild"
 	        DependsOnTargets="RestoreWebsiteDependencies"
 	        Inputs="@(WebsiteSourceFiles)"
-	        Outputs="$(MSBuildProjectDirectory)\website\dist\index.html"
-	        Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildProjectDirectory)\website\package.json')">
-		<Exec Command="npm run build" WorkingDirectory="$(MSBuildProjectDirectory)\website" />
+	        Outputs="$(RepositoryRoot)\website\dist\index.html"
+	        Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(RepositoryRoot)\website\package.json')">
+		<Exec Command="npm run build" WorkingDirectory="$(RepositoryRoot)\website" />
 	</Target>
 
 </Project>

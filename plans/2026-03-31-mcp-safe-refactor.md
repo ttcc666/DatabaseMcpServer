@@ -32,6 +32,6 @@
    - DI/宿主注册 smoke test
 
 ## 验证
-- `dotnet build 'DatabaseMcpServer.csproj' -f 'net9.0'`
-- `dotnet test 'DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'`
-- 如环境允许，再补 `dotnet build 'DatabaseMcpServer.sln'`
+- `dotnet build 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -f 'net9.0'`
+- `dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'`
+- 如环境允许，再补 `dotnet build 'DatabaseMcpServer.slnx'`

@@ -31,7 +31,7 @@ DatabaseHelper / DatabaseConfigService (使用方)
 
 ### 步骤 1: 创建策略类
 
-在 `Strategies/` 目录下创建新的策略类，实现 `IDatabaseOptimizationStrategy` 接口。
+在 `src/DatabaseMcpServer/Strategies/` 目录下创建新的策略类，实现 `IDatabaseOptimizationStrategy` 接口。
 
 **示例**: 为 PostgreSQL 添加优化策略
 
@@ -108,7 +108,7 @@ private Dictionary<DbType, Func<IDatabaseOptimizationStrategy>> InitializeStrate
 编译并测试新策略：
 
 ```bash
-dotnet build
+dotnet build 'DatabaseMcpServer.slnx'
 ```
 
 ---
@@ -117,7 +117,7 @@ dotnet build
 
 ### 案例 1: MySQL 优化策略
 
-**文件**: `Strategies/MySqlOptimizationStrategy.cs`
+**文件**: `src/DatabaseMcpServer/Strategies/MySqlOptimizationStrategy.cs`
 
 ```csharp
 public class MySqlOptimizationStrategy : IDatabaseOptimizationStrategy
@@ -162,7 +162,7 @@ public class MySqlOptimizationStrategy : IDatabaseOptimizationStrategy
 
 ### 案例 2: SQL Server 优化策略
 
-**文件**: `Strategies/SqlServerOptimizationStrategy.cs`
+**文件**: `src/DatabaseMcpServer/Strategies/SqlServerOptimizationStrategy.cs`
 
 ```csharp
 public class SqlServerOptimizationStrategy : IDatabaseOptimizationStrategy
@@ -206,7 +206,7 @@ public class SqlServerOptimizationStrategy : IDatabaseOptimizationStrategy
 
 ### 案例 3: Oracle 优化策略
 
-**文件**: `Strategies/OracleOptimizationStrategy.cs`
+**文件**: `src/DatabaseMcpServer/Strategies/OracleOptimizationStrategy.cs`
 
 ```csharp
 public class OracleOptimizationStrategy : IDatabaseOptimizationStrategy
@@ -490,7 +490,7 @@ public void SqlServerOptimizationStrategy_ShouldRespectDisableNvarcharSetting()
 ### 贡献步骤
 
 1. Fork 项目仓库
-2. 创建策略类 (`Strategies/{DatabaseName}OptimizationStrategy.cs`)
+2. 创建策略类 (`src/DatabaseMcpServer/Strategies/{DatabaseName}OptimizationStrategy.cs`)
 3. 在工厂类中注册策略
 4. 添加单元测试
 5. 更新文档

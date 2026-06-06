@@ -667,13 +667,13 @@ DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net9.0
 DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net10.0
 
 # Build project
-dotnet build
+dotnet build 'DatabaseMcpServer.slnx'
 
 # Run tests
-dotnet test
+dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # Package and publish
-dotnet pack -c Release
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 ```
 
 Recommended stable verification flow:
@@ -736,7 +736,7 @@ CLI highlights:
 1. **Create Tool Class File**
 
    ```bash
-   # Create new tool class in Tools/ directory
+   # Create new tool class in src/DatabaseMcpServer/Tools/ directory
    # Management/ - Connection and schema management
    # Query/ - Query tools
    # Command/ - Command tools
