@@ -6,12 +6,13 @@ using SqlSugar;
 
 namespace DatabaseMcpServer.Services;
 
-internal sealed class SqlSugarClientFactory : ISqlSugarClientFactory
+internal sealed class SqlSugarClientFactory : ISqlSugarClientFactory, IDisposable
 {
     private readonly ILogger<SqlSugarClientFactory> _logger;
     private readonly IDatabaseHelperService _databaseHelper;
     private readonly IDatabaseOptimizationStrategyFactory _strategyFactory;
     private readonly Dictionary<string, SqlSugarScope> _clientPool = new(StringComparer.Ordinal);
+    private readonly List<SqlSugarScope> _retiredClients = [];
     private readonly object _poolLock = new();
 
     public SqlSugarClientFactory(
@@ -58,10 +59,30 @@ internal sealed class SqlSugarClientFactory : ISqlSugarClientFactory
         lock (_poolLock)
         {
             var removedClients = _clientPool.Count;
+            _retiredClients.AddRange(_clientPool.Values);
             _clientPool.Clear();
 
-            // 不主动释放旧的共享 scope，避免在配置刷新时打断正在执行的请求。
-            _logger.LogInformation("已清空 SqlSugar 客户端缓存，等待后续请求按新配置重建: {Count}", removedClients);
+            // 配置刷新时不释放旧的共享 scope，避免打断正在执行的请求；Host 关闭时统一释放。
+            _logger.LogInformation("已清空 SqlSugar 客户端缓存并保留旧客户端待关闭时释放，等待后续请求按新配置重建: {Count}", removedClients);
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_poolLock)
+        {
+            foreach (var scope in _clientPool.Values)
+            {
+                scope.Dispose();
+            }
+
+            foreach (var scope in _retiredClients)
+            {
+                scope.Dispose();
+            }
+
+            _clientPool.Clear();
+            _retiredClients.Clear();
         }
     }
 

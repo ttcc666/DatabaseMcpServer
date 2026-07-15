@@ -34,11 +34,13 @@
 	<ItemGroup>
 		<None Include="$(RepositoryRoot)\.mcp\server.json" Pack="true" PackagePath="/.mcp/" />
 		<None Include="$(RepositoryRoot)\README.md" Pack="true" PackagePath="/" />
+		<None Include="$(RepositoryRoot)\README_EN.md" Pack="true" PackagePath="/" />
+		<None Include="$(RepositoryRoot)\TOOLS.md" Pack="true" PackagePath="/" />
+		<None Include="$(RepositoryRoot)\Doc\cli.md" Pack="true" PackagePath="/Doc/" />
 		<None Include="$(RepositoryRoot)\LICENSE" Pack="true" PackagePath="/" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="ClosedXML" Version="0.105.0" />
 		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
 		<PackageReference Include="ModelContextProtocol" Version="1.0.0" />

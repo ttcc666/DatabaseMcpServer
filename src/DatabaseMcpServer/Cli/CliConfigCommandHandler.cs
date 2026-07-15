@@ -615,7 +615,7 @@ internal sealed class CliConfigCommandHandler
                 {
                     try
                     {
-                        using var db = databaseConfig.CreateClient(connection.Name);
+                        var db = databaseConfig.CreateClient(connection.Name);
                         var connected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
                         connectionResults.Add(new DoctorConnectionResult(
                             connection.Name,

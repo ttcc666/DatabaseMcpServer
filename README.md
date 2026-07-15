@@ -15,7 +15,7 @@
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优
 - 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
-- 💾 **完整功能** - 50+ MCP 工具（当前约 58 个），涵盖查询、操作、架构管理、健康检查等
+- 💾 **完整功能** - 50+ MCP 工具（当前约 55 个），涵盖查询、操作、架构管理、健康检查等
 - 🚀 **生产就绪** - 支持事务、批量操作、存储过程、自动重连
 - 📦 **.NET Global Tool** - 简单安装，一键部署
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
@@ -512,7 +512,9 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 ---
 
-## 📋 完整功能清单（约 58 个工具）
+## 📋 完整功能清单（约 55 个工具）
+
+逐工具参数、返回行为、CLI 示例和 `--yes` 要求见 [TOOLS.md](TOOLS.md)。
 
 ### 🔌 一、连接与配置管理
 
@@ -562,6 +564,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 **高级查询：**
 - **get_data_set_all** - 获取多个结果集，支持一次执行多个查询
 - **sql_query_with_in_parameter** - 处理 IN 参数查询，支持数组参数
+- **batch_sql_query** - 顺序执行 1-5 条只读 SQL，并逐条返回成功结果或错误
 
 **标量值查询：**
 - **get_scalar** - 获取首行首列的值（标量值）
@@ -826,7 +829,7 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
        [Description("你的工具描述")]
        public string YourMethod([Description("参数描述")] string parameter)
        {
-           using var db = _databaseConfig.CreateClient();
+           var db = _databaseConfig.CreateClient();
            // 实现你的功能
            return _databaseHelper.SerializeResult(new { success = true, data = "result" });
        }
@@ -842,9 +845,7 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
        .WithTools<ConnectionTools>()
        .WithTools<SchemaTools>()
        .WithTools<QueryTools>()
-       .WithTools<CommandTools>()
-       .WithTools<ExcelExportTools>()
-       .WithTools<DocumentationTools>();
+       .WithTools<CommandTools>();
    ```
 
 ### 项目架构

@@ -1,6 +1,4 @@
 using DatabaseMcpServer.Tools.Command;
-using DatabaseMcpServer.Tools.Documentation;
-using DatabaseMcpServer.Tools.Export;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,9 +17,7 @@ internal static class DatabaseMcpToolCatalog
         new(typeof(ConnectionTools), static builder => builder.WithTools<ConnectionTools>()),
         new(typeof(SchemaTools), static builder => builder.WithTools<SchemaTools>()),
         new(typeof(QueryTools), static builder => builder.WithTools<QueryTools>()),
-        new(typeof(CommandTools), static builder => builder.WithTools<CommandTools>()),
-        new(typeof(ExcelExportTools), static builder => builder.WithTools<ExcelExportTools>()),
-        new(typeof(DocumentationTools), static builder => builder.WithTools<DocumentationTools>())
+        new(typeof(CommandTools), static builder => builder.WithTools<CommandTools>())
     ];
 
     public static IReadOnlyList<Type> ToolTypes { get; } = Registrations

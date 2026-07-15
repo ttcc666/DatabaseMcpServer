@@ -31,11 +31,6 @@ public enum DatabaseErrorCode
     ConfigurationError = 1005,
 
     /// <summary>
-    /// Excel 导出失败
-    /// </summary>
-    ExcelExportFailed = 1006,
-
-    /// <summary>
     /// 文件生成失败
     /// </summary>
     FileGenerationFailed = 1007,

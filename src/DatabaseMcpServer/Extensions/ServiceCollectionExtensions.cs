@@ -1,11 +1,8 @@
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Services;
-using DatabaseMcpServer.Strategies;
 using DatabaseMcpServer.Strategies.DBSetting;
 using DatabaseMcpServer.Tools.Command;
-using DatabaseMcpServer.Tools.Documentation;
-using DatabaseMcpServer.Tools.Export;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,8 +28,6 @@ internal static class ServiceCollectionExtensions
                 cliToolMode,
                 currentDatabaseStateFilePath));
         services.AddSingleton<IDatabaseConfigService, DatabaseConfigService>();
-        services.AddSingleton<DatabaseDocumentationStrategyFactory>();
-        services.AddSingleton<IDatabaseDocumentationService, DatabaseDocumentationService>();
         return services;
     }
 

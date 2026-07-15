@@ -1,0 +1,4 @@
+interface:
+  display_name: "DatabaseMcpServer CLI"
+  short_description: "Safely run and troubleshoot DatabaseMcpServer CLI"
+  default_prompt: "Use $database-mcp-cli to run or troubleshoot a DatabaseMcpServer CLI workflow safely and reproducibly."

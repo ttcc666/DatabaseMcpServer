@@ -13,6 +13,8 @@ Use this file as a symptom-to-diagnosis matrix when CLI behavior is unclear.
 - `success: false` vs CLI usage failure
 - current connection vs default connection confusion
 - `reload_database_config` preserving current connection
+- batch item failures and maximum query count
+- source tree vs installed global-tool mismatches
 - broad verification guidance
 
 ## Quick Triage
@@ -176,7 +178,8 @@ Common triggers:
 - `--input-parameters`
 - `--output-parameters`
 - `--commands`
-- `--queries-json`
+- `--parameters-array`
+- `--queries`
 - `--in-values`
 - `--column-info`
 
@@ -190,7 +193,7 @@ Examples:
 ```powershell
 --parameters '{"age":18}'
 --in-values '[1,2,3]'
---queries-json '{"users":"select * from users","roles":"select * from roles"}'
+--queries '["select count(*) from users","select count(*) from roles"]'
 ```
 
 ## 7. SQL Server `add_default_value` string literal confusion
@@ -225,20 +228,13 @@ Meaning:
 - driver or TLS capability problem
 - not a tool-name or CLI-parameter issue
 
-Fix:
+Fix, ordered safest first:
 
-1. report the exact error first
-2. do not silently weaken security
-3. only if the user explicitly allows diagnosis, try a one-off diagnostic config:
+1. Enable/update TLS 1.2 support and install the server CA chain on the client.
+2. On a trusted network, keep encryption but skip identity validation only with explicit consent: `Encrypt=True;TrustServerCertificate=True`.
+3. Use `Encrypt=False` only as a temporary diagnostic fallback with explicit consent.
 
-```text
-Encrypt=False;TrustServerCertificate=True
-```
-
-Important:
-
-- this is diagnostic fallback only
-- it is not equivalent to `Encrypt=True`
+Never silently edit the user's real config. Use a temp config for diagnostic downgrades and state exactly what security property changes.
 
 ## 9. `success: false` vs CLI failure
 
@@ -316,7 +312,59 @@ Fix:
 
 Related: SKILL.md "Mental Model" explains why the current connection is preserved across reloads.
 
-## 12. Large CLI verification runs
+## 12. Batch result contains item failures
+
+Typical payload:
+
+```json
+{
+  "success": true,
+  "totalQueries": 3,
+  "successfulQueries": 2,
+  "failedQueries": 1,
+  "results": [
+    { "success": true, "queryIndex": 0 },
+    { "success": false, "queryIndex": 1, "error": "检测到危险操作" }
+  ]
+}
+```
+
+Meaning:
+
+- The batch invocation itself succeeded, but one item failed.
+- `batch_sql_query` accepts 1-5 read-only SQL strings and does not require `--yes`.
+- `batch_execute_commands` requires `--yes`, is not transactional, and can persist earlier successful writes when a later item fails.
+
+Fix:
+
+- inspect every `results[]` item instead of trusting only top-level `success`
+- for `batch_sql_query`, reduce input to at most five items and keep every SQL read-only
+- if atomic writes are required, do not claim `batch_execute_commands` provides rollback
+
+## 13. New source tool is missing from the global CLI
+
+Typical symptom:
+
+```text
+未知 tool: 'batch_sql_query'
+```
+
+Meaning:
+
+- The repository source may contain the tool while the installed global package is older.
+- This is not evidence that source registration is broken.
+
+Diagnosis:
+
+```powershell
+dotnet tool list --global | Select-String databasemcpserver
+dotnet run --project 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -f 'net9.0' -- tool help batch_sql_query
+DatabaseMcpServer tool help batch_sql_query
+```
+
+Report which executable produced each result. Pack and install a newly versioned local package, or update the global tool, before retesting.
+
+## 14. Large CLI verification runs
 
 When testing many tools:
 

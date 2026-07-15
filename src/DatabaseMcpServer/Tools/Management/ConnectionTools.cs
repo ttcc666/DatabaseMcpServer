@@ -200,7 +200,7 @@ internal class ConnectionTools : McpToolBase
 
                 try
                 {
-                    using var db = DatabaseConfig.CreateClient(connection.Name);
+                    var db = DatabaseConfig.CreateClient(connection.Name);
                     var result = db.Ado.GetDataTable("SELECT 1");
 
                     healthResults.Add(new HealthCheckResult
@@ -274,7 +274,7 @@ internal class ConnectionTools : McpToolBase
                     attempts++;
                     Logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
 
-                    using var db = DatabaseConfig.CreateClient();
+                    var db = DatabaseConfig.CreateClient();
                     var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
                     if (isConnected)
                     {

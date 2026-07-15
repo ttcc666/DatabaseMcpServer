@@ -5,6 +5,7 @@ using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Strategies.DBSetting;
 using Microsoft.Extensions.Logging.Abstractions;
 using SqlSugar;
+using System.Reflection;
 
 namespace DatabaseMcpServer.Tests;
 
@@ -15,7 +16,7 @@ public class SqlSugarClientFactoryTests
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
         IDatabaseOptimizationStrategyFactory strategyFactory = new DatabaseOptimizationStrategyFactory();
-        var factory = new SqlSugarClientFactory(NullLogger<SqlSugarClientFactory>.Instance, helper, strategyFactory);
+        using var factory = new SqlSugarClientFactory(NullLogger<SqlSugarClientFactory>.Instance, helper, strategyFactory);
 
         var originalConnection = new DatabaseConnection
         {
@@ -41,9 +42,21 @@ public class SqlSugarClientFactoryTests
 
         factory.ResetClientPool();
 
+        var retiredClients = GetRetiredClients(factory);
+        Assert.Contains(firstClient, retiredClients);
+
         var refreshedClient = factory.CreateClient(updatedConnection);
 
         Assert.NotSame(firstClient, refreshedClient);
         Assert.Equal(updatedConnection.ConnectionString, refreshedClient.CurrentConnectionConfig.ConnectionString);
+
+        factory.Dispose();
+        Assert.Empty(retiredClients);
+    }
+
+    private static List<SqlSugarScope> GetRetiredClients(SqlSugarClientFactory factory)
+    {
+        var field = typeof(SqlSugarClientFactory).GetField("_retiredClients", BindingFlags.Instance | BindingFlags.NonPublic);
+        return Assert.IsType<List<SqlSugarScope>>(field?.GetValue(factory));
     }
 }

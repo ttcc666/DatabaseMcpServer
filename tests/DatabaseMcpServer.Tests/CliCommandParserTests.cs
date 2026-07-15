@@ -252,6 +252,18 @@ public class CliCommandParserTests
         Assert.Equal(JsonValueKind.Array, ((JsonElement)batchArguments[0]).ValueKind);
         Assert.Null(batchArguments[1]);
 
+        var batchQueryTool = GetTool("batch_sql_query");
+        var batchQueryArguments = CliRunner.BindArguments(
+            batchQueryTool,
+            new Dictionary<string, string?>
+            {
+                ["queries"] = "[\"SELECT 1\",\"SELECT 2\"]"
+            });
+
+        Assert.IsType<JsonElement>(batchQueryArguments[0]);
+        Assert.Equal(JsonValueKind.Array, ((JsonElement)batchQueryArguments[0]).ValueKind);
+        Assert.False(batchQueryTool.RequiresConfirmation);
+
         var sqlQueryTool = GetTool("sql_query");
         var sqlQueryArguments = CliRunner.BindArguments(
             sqlQueryTool,

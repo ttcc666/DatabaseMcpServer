@@ -9,22 +9,22 @@ namespace DatabaseMcpServer.Interfaces;
 public interface IDatabaseConfigService
 {
     /// <summary>
-    /// 创建数据库客户端实例（使用当前活动连接）
-    /// 使用 SqlSugarScope 实现连接池复用，提高性能和线程安全性
+    /// 获取数据库客户端实例（使用当前活动连接）。
+    /// 返回由 SqlSugarScope 连接池复用的共享实例，调用方不应释放该实例。
     /// </summary>
     /// <returns>配置好的 ISqlSugarClient 实例</returns>
     ISqlSugarClient CreateClient();
 
     /// <summary>
-    /// 创建指定数据库的客户端实例
-    /// 使用 SqlSugarScope 实现连接池复用，提高性能和线程安全性
+    /// 获取指定数据库的客户端实例。
+    /// 返回由 SqlSugarScope 连接池复用的共享实例，调用方不应释放该实例。
     /// </summary>
     /// <param name="databaseName">数据库连接名称</param>
     /// <returns>配置好的 ISqlSugarClient 实例</returns>
     ISqlSugarClient CreateClient(string databaseName);
 
     /// <summary>
-    /// 异步创建数据库客户端实例（使用当前活动连接）
+    /// 异步获取数据库客户端实例（使用当前活动连接）。
     /// </summary>
     /// <returns>配置好的 ISqlSugarClient 实例</returns>
     Task<ISqlSugarClient> CreateClientAsync();

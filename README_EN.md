@@ -15,7 +15,7 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
 - ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
-- 💾 **Complete Functionality** - 50+ MCP tools (about 58 currently), covering queries, operations, schema management, health checks, etc.
+- 💾 **Complete Functionality** - 50+ MCP tools (about 55 currently), covering queries, operations, schema management, health checks, etc.
 - 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
 - 📦 **.NET Global Tool** - Simple installation, one-click deployment
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
@@ -408,7 +408,9 @@ For more connection strings and optimization configurations, please refer to the
 
 ---
 
-## 📋 Complete Feature List (about 58 tools)
+## 📋 Complete Feature List (about 55 tools)
+
+See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples, and `--yes` requirements.
 
 ### 🔌 1. Connection and Configuration Management
 
@@ -460,6 +462,7 @@ For more connection strings and optimization configurations, please refer to the
 
 - **get_data_set_all** - Get multiple result sets, supports executing multiple queries at once
 - **sql_query_with_in_parameter** - Handle IN parameter queries, supports array parameters
+- **batch_sql_query** - Sequentially execute 1-5 read-only SQL queries and return success or error per query
 
 **Scalar Value Queries:**
 
@@ -767,7 +770,7 @@ CLI highlights:
        [Description("Your tool description")]
        public string YourMethod([Description("Parameter description")] string parameter)
        {
-           using var db = _databaseConfig.CreateClient();
+           var db = _databaseConfig.CreateClient();
            // Implement your functionality
            return _databaseHelper.SerializeResult(new { success = true, data = "result" });
        }
@@ -784,9 +787,7 @@ CLI highlights:
        .WithTools<ConnectionTools>()
        .WithTools<SchemaTools>()
        .WithTools<QueryTools>()
-       .WithTools<CommandTools>()
-       .WithTools<ExcelExportTools>()
-       .WithTools<DocumentationTools>();
+       .WithTools<CommandTools>();
    ```
 
 ### Project Architecture

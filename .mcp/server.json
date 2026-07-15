@@ -218,7 +218,7 @@
     },
     {
       "name": "add_table_remark",
-      "description": "Attach a description to tableName so documentation tools can surface the table’s purpose."
+      "description": "Attach a description to tableName so schema consumers can surface the table’s purpose."
     },
     {
       "name": "is_any_table_remark",
@@ -283,6 +283,10 @@
     {
       "name": "sql_query_with_in_parameter",
       "description": "Bind a JSON array to an IN parameter (inParameterName) plus optional otherParameters to safely execute IN-clause queries and return the rows."
+    },
+    {
+      "name": "batch_sql_query",
+      "description": "Execute 1-5 independent read-only SQL queries sequentially over one connection and return success, rowCount, data, or error per query."
     },
     {
       "name": "execute_command",

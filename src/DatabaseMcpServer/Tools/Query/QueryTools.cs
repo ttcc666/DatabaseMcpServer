@@ -17,6 +17,8 @@ namespace DatabaseMcpServer.Tools.Query;
 [McpServerToolType]
 internal class QueryTools : McpToolBase
 {
+    private const int MaxBatchQueryCount = 5;
+
     public QueryTools(
         IDatabaseConfigService databaseConfig,
         IDatabaseHelperService databaseHelper,
@@ -173,6 +175,86 @@ internal class QueryTools : McpToolBase
                 data = result
             };
         });
+    }
+
+    [McpServerTool]
+    [Description("Execute 1-5 independent read-only SQL queries sequentially over one connection and return success, rowCount, data, or error per query.")]
+    public string BatchSqlQuery(
+        [Description("Read-only SQL queries as a JSON string array (maximum: 5)")] JsonElement queries)
+    {
+        return WithClient(db =>
+        {
+            var queryList = ParseBatchQueries(queries);
+            var results = new List<object>(queryList.Length);
+            var successfulQueries = 0;
+
+            using (db.Ado.OpenAlways())
+            {
+                for (var i = 0; i < queryList.Length; i++)
+                {
+                    try
+                    {
+                        var sql = queryList[i];
+                        EnsureSafeSql(sql);
+                        var rows = db.Ado.SqlQuery<dynamic>(sql);
+                        results.Add(new { success = true, queryIndex = i, rowCount = rows.Count, data = rows });
+                        successfulQueries++;
+                    }
+                    catch (Exception ex)
+                    {
+                        results.Add(new { success = false, queryIndex = i, error = ex.Message });
+                    }
+                }
+            }
+
+            return new
+            {
+                success = true,
+                totalQueries = queryList.Length,
+                successfulQueries,
+                failedQueries = queryList.Length - successfulQueries,
+                results
+            };
+        });
+    }
+
+    private static string[] ParseBatchQueries(JsonElement queries)
+    {
+        if (queries.ValueKind != JsonValueKind.Array)
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "queries 必须是 JSON 字符串数组");
+        }
+
+        var queryList = queries
+            .EnumerateArray()
+            .Select(item =>
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                {
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "queries 数组中的每一项必须是字符串 SQL");
+                }
+
+                var sql = item.GetString();
+                if (string.IsNullOrWhiteSpace(sql))
+                {
+                    throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "queries 数组中包含空 SQL");
+                }
+
+                return sql;
+            })
+            .ToArray();
+
+        if (queryList.Length == 0)
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "queries 数组不能为空");
+        }
+
+        if (queryList.Length > MaxBatchQueryCount)
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, $"一次最多允许执行 {MaxBatchQueryCount} 条查询");
+        }
+
+        return queryList;
     }
 
     private void EnsureSafeSql(string sql, bool allowMultipleStatements = false)

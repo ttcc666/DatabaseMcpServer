@@ -59,7 +59,7 @@ The tool catalog in `cli.md` shows vanilla examples; these are the sharp edges.
 --sql 'select * from users where status=''active'''
 --parameters '{"age":18,"city":"北京"}'
 --in-values '[1,2,3]'
---queries-json '{"users":"select * from users","roles":"select * from roles"}'
+--queries '["select count(*) from users","select count(*) from roles"]'
 --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]'
 ```
 
@@ -78,14 +78,39 @@ Why: single quotes disable PowerShell variable expansion, so `$` and backtick in
 ### 3. `execute_command_with_go` needs embedded newlines and `GO` in one argument
 
 ```powershell
+$sql = @'
+UPDATE users SET status='active' WHERE id=1
+GO
+UPDATE users SET status='inactive' WHERE id=2
+'@
+
 DatabaseMcpServer tool execute_command_with_go `
-  --sql "UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2" `
-  --yes --config 'D:\config\databases.json'
+  --sql $sql `
+  --yes `
+  --config 'D:\config\databases.json'
 ```
 
-Double quotes here because we want `` `n `` to become a newline; inside SQL, ordinary single quotes are fine.
+Use a here-string so the CLI receives one argv item containing real newlines and standalone `GO` lines.
 
-### 4. Scripted automation — skip the shell entirely
+### 4. Batch query vs batch command
+
+```powershell
+# Read-only, 1-5 queries, no --yes
+DatabaseMcpServer tool batch_sql_query `
+  --queries '["select count(*) from users","select count(*) from roles"]' `
+  --config 'D:\config\databases.json'
+
+# Writes, per-command parameters, requires --yes
+DatabaseMcpServer tool batch_execute_commands `
+  --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' `
+  --parameters-array '[{"status":"active","id":1},{"id":1}]' `
+  --yes `
+  --config 'D:\config\databases.json'
+```
+
+Both tools continue after an item-level failure and return per-item status in `results[]`. `batch_execute_commands` is not transactional, so successful earlier writes remain committed.
+
+### 5. Scripted automation — skip the shell entirely
 
 ```csharp
 var psi = new ProcessStartInfo("DatabaseMcpServer") {
@@ -106,7 +131,7 @@ psi.ArgumentList.Add("--yes");
 
 When the user asks to "test all CLI commands" or run a smoke test across many tools:
 
-1. Confirm the installed version with `dotnet tool list --global` (the CLI binary itself has no `--version` flag — it returns exit `2` on that argument); run `dotnet tool update --global DatabaseMcpServer` if it's stale.
+1. Identify whether the run targets the installed global tool or current source. Confirm the installed version with `dotnet tool list --global` (the CLI binary itself has no `--version` flag — it returns exit `2` on that argument); run `dotnet tool update --global DatabaseMcpServer` if it's stale.
 2. Generate a temporary config in `%TEMP%` with a throwaway database connection — never aim the smoke test at a business database.
 3. Create isolated temporary objects with prefix `cli_<yyyyMMdd_HHmmss>_<shortid>`.
 4. Run read-only tools first (`validate_configuration`, `test_connection`, `list_databases`, `get_table_info_list`). Any failure here means the rest won't tell you anything useful.

@@ -198,7 +198,7 @@ WHERE s.name = @SchemaName AND t.name = @TableName AND c.name = @ColumnName";
     }
 
     [McpServerTool]
-    [Description("Attach a description to tableName so documentation tools can surface the table’s purpose.")]
+    [Description("Attach a description to tableName so schema consumers can surface the table’s purpose.")]
     public string AddTableRemark(
         [Description("Table name")] string tableName,
         [Description("Table description")] string description)

@@ -68,7 +68,7 @@ internal abstract class McpToolBase
     {
         return Execute(() =>
         {
-            using var db = DatabaseConfig.CreateClient();
+            var db = DatabaseConfig.CreateClient();
             return action(db);
         });
     }
@@ -77,7 +77,7 @@ internal abstract class McpToolBase
     {
         return Execute(() =>
         {
-            using var db = DatabaseConfig.CreateClient(databaseName);
+            var db = DatabaseConfig.CreateClient(databaseName);
             return action(db);
         });
     }
@@ -86,7 +86,7 @@ internal abstract class McpToolBase
     {
         return ExecuteAsync(async () =>
         {
-            using var db = DatabaseConfig.CreateClient();
+            var db = DatabaseConfig.CreateClient();
             return await action(db);
         });
     }

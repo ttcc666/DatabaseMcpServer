@@ -8,7 +8,7 @@
       "expected_output": "Uses `dotnet tool list --global` (or an equivalent that actually works). Notices `DatabaseMcpServer --version` exits 2 (unknown command) and does NOT mislead the user. Must report an actual version number.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Reports an actual version number matching the installed tool (2.5.0)"},
+        {"id": "a1", "text": "Reports the actual version number shown by the installed global-tool manifest instead of assuming a hard-coded version"},
         {"id": "a2", "text": "Uses or recommends `dotnet tool list --global` (the working approach) rather than leaving the user with a broken method"},
         {"id": "a3", "text": "Either avoids `DatabaseMcpServer --version` or flags that it fails with exit code 2 (unknown command). Does NOT claim it returns the version."},
         {"id": "a4", "text": "Does not modify the user's real ~/.database-mcp/ configuration or cli-state"}
@@ -111,6 +111,61 @@
         {"id": "a5", "text": "Captured command, exit code, stdout, stderr for every step"},
         {"id": "a6", "text": "Cleaned up temp table, temp config file, and temp sqlite file — and reported cleanup status explicitly"},
         {"id": "a7", "text": "Final report is structured and reproducible (reader could re-run the sequence)"}
+      ]
+    },
+    {
+      "id": 9,
+      "name": "batch-query-limit-and-cli-quoting",
+      "prompt": "CLI 下我想一次执行 6 条只读查询。请给我 batch_sql_query 的 PowerShell 命令，要不要 --yes？如果其中一条失败应该怎么看结果？",
+      "expected_output": "Explains the 1-5 limit, splits or reduces the batch, uses --queries with one single-quoted JSON array, does not add --yes, and tells the user to inspect every results[] item.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "States that batch_sql_query accepts at most 5 read-only SQL strings per invocation"},
+        {"id": "a2", "text": "Uses `--queries` with one JSON string array wrapped in PowerShell single quotes"},
+        {"id": "a3", "text": "Does not require or recommend `--yes` for batch_sql_query"},
+        {"id": "a4", "text": "Suggests splitting six queries into multiple invocations or otherwise staying within the five-item limit"},
+        {"id": "a5", "text": "Explains that top-level success does not guarantee every item succeeded and instructs checking each results[] entry"}
+      ]
+    },
+    {
+      "id": 10,
+      "name": "batch-command-is-not-transactional",
+      "prompt": "Can I use batch_execute_commands for three updates and rely on automatic rollback if the third update fails? Show the CLI shape with per-command parameters.",
+      "expected_output": "Says no: batch_execute_commands is sequential and non-transactional, earlier writes may persist, --yes is required, and parametersArray aligns by command index.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Explicitly states that batch_execute_commands is not transactional and does not guarantee rollback"},
+        {"id": "a2", "text": "Warns that earlier successful writes can remain committed after a later failure"},
+        {"id": "a3", "text": "Requires `--yes` because this is a write-class tool"},
+        {"id": "a4", "text": "Shows `--commands` and `--parameters-array` as single-quoted JSON arrays"},
+        {"id": "a5", "text": "Instructs the caller to inspect per-command results rather than only top-level success"}
+      ]
+    },
+    {
+      "id": 11,
+      "name": "source-vs-global-tool-mismatch",
+      "prompt": "仓库源码里已经有 batch_sql_query，`dotnet run ... -- tool help batch_sql_query` 也能看到，但直接运行 `DatabaseMcpServer tool help batch_sql_query` 却说 unknown tool。是不是注册坏了？",
+      "expected_output": "Identifies a source-vs-installed-global mismatch, checks the global tool manifest, reports both executables, and recommends updating/installing a newly versioned package rather than changing source registration blindly.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Recognizes that dotnet run and DatabaseMcpServer may execute different builds"},
+        {"id": "a2", "text": "Uses `dotnet tool list --global` to inspect the installed global version"},
+        {"id": "a3", "text": "Does not conclude that source tool registration is broken when source help already works"},
+        {"id": "a4", "text": "Recommends updating or installing a newly versioned local package before retesting the global command"},
+        {"id": "a5", "text": "Clearly labels evidence as coming from source or global tool"}
+      ]
+    },
+    {
+      "id": 12,
+      "name": "removed-export-tool",
+      "prompt": "`DatabaseMcpServer tool export_query_to_excel` now says unknown tool. Give me the current CLI answer; don't assume an old catalog.",
+      "expected_output": "Confirms exact catalog/version first, does not invent the removed export tool, and suggests sql_query plus an external export workflow if export is still needed.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Uses tool list/help and version evidence instead of assuming export_query_to_excel still exists"},
+        {"id": "a2", "text": "Does not claim that export_query_to_excel is part of the current 55-tool source catalog"},
+        {"id": "a3", "text": "Offers a current read-only query path and labels any file export as an external workflow"},
+        {"id": "a4", "text": "Checks for source-vs-global version mismatch before making a final catalog claim"}
       ]
     }
   ]

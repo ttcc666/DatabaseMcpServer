@@ -50,7 +50,7 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
 
 `DatabaseMcpServer -web` 会在本机启动一个仅监听 `localhost / 127.0.0.1` 的配置管理站点，默认自动打开浏览器。
 
-- 默认配置解析顺序与 CLI tool 模式一致：
+- 默认配置解析顺序与 CLI `tool` 模式一致：
   - `--config`
   - `./databases.json`
   - `./local-databases.json`
@@ -61,8 +61,9 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
   - `databases.json` 中的默认连接
   - `%USERPROFILE%/.database-mcp/cli-state.json` 中按 config 路径隔离的“当前连接”
 - 常用参数：
-  - `--port <number>`：手工指定本地端口
+  - `--port <number>`：手工指定本地端口；必须在 `0-65535` 之间
   - `--no-browser`：只启动服务，不自动打开浏览器
+- 对外网暴露不是这个模式的目标；如果用户想“让别人从另一台机器打开这个页面”，应明确说明当前实现是 localhost-only。
 
 ---
 
@@ -79,7 +80,7 @@ dotnet tool install --global DatabaseMcpServer
 dotnet tool list --global | Select-String databasemcpserver
 ```
 
-> 查安装版本请用 `dotnet tool list --global`。CLI 本身不识别 `--version`——传给它会得到退出码 `2` 和 `未知命令: '--version'`。.NET 工具清单是权威来源。
+**注意**：查安装版本用 `dotnet tool list --global`，不要用 `DatabaseMcpServer --version`——CLI 本身并不识别 `--version` 这个参数，会以退出码 `2` 返回 `未知命令: '--version'`。.NET 工具清单才是权威来源。
 
 升级到最新版：
 
@@ -180,20 +181,7 @@ DatabaseMcpServer tool create_index --table-name 'users' --index-name 'IX_users_
 
 完整的高风险命令清单见 [§7](#7-高风险命令与---yes)。
 
-### 2.8 导出与文档化
-
-```powershell
-DatabaseMcpServer tool export_query_to_excel `
-  --sql 'select * from users' `
-  --file-path 'D:\exports\users.xlsx'
-
-DatabaseMcpServer tool generate_database_documentation `
-  --format 'markdown' `
-  --return-mode 'path' `
-  --file-path 'D:\exports\db-doc.md'
-```
-
-### 2.9 多环境与团队协作
+### 2.8 多环境与团队协作
 
 如果项目里需要一份 repo 内的连接清单，把现有用户级配置导出成项目本地文件：
 
@@ -208,7 +196,7 @@ $env:DB_CONFIG_PATH = 'D:\config\team-databases.json'
 DatabaseMcpServer tool test_connection
 ```
 
-### 2.10 排错速查
+### 2.9 排错速查
 
 | 退出码 | 含义 | 第一动作 |
 | --- | --- | --- |
@@ -430,11 +418,24 @@ DatabaseMcpServer tool sql_query_with_in_parameter `
   --config 'D:\config\databases.json'
 ```
 
-### 6.4 批量命令示例
+### 6.4 批量只读查询示例
+
+`batch_sql_query` 一次接受 1-5 条 SQL，不需要 `--yes`，并逐条返回结果或错误：
+
+```powershell
+DatabaseMcpServer tool batch_sql_query `
+  --queries '["select count(*) from users","select count(*) from roles"]' `
+  --config 'D:\config\databases.json'
+```
+
+### 6.5 批量写命令示例
+
+`batch_execute_commands` 不是事务；单条失败不会回滚之前成功的命令。调用方必须检查每个 `results[]`：
 
 ```powershell
 DatabaseMcpServer tool batch_execute_commands `
-  --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' `
+  --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' `
+  --parameters-array '[{"status":"active","id":1},{"id":1}]' `
   --yes `
   --config 'D:\config\databases.json'
 ```
@@ -479,6 +480,8 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 ---
 
 ## 8. 命令清单
+
+每个 tool 的 MCP/CLI 参数、返回行为、风险等级和调用示例见 [TOOLS.md](../TOOLS.md)。本节保留按 CLI 工作流组织的速查表。
 
 ## 8.1 连接与配置
 
@@ -529,13 +532,14 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `get_data_set_all` | 多结果集查询 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles' --config 'D:\config\databases.json'` |
 | `get_scalar` | 查询标量值 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'` |
 | `sql_query_with_in_parameter` | 带 IN 参数查询 | `DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]' --config 'D:\config\databases.json'` |
+| `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果 | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --config 'D:\config\databases.json'` |
 
 ## 8.5 数据写入
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
 | `execute_command` | 执行 DML | `DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --yes --config 'D:\config\databases.json'` |
-| `batch_execute_commands` | 批量执行 DML | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --yes --config 'D:\config\databases.json'` |
+| `batch_execute_commands` | 非事务批量执行 DML，逐条返回结果 | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --yes --config 'D:\config\databases.json'` |
 | `call_stored_procedure` | 调用存储过程 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '{"year":2025,"month":11}' --yes --config 'D:\config\databases.json'` |
 | `call_stored_procedure_with_output` | 调用带输出参数的存储过程 | `DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes --config 'D:\config\databases.json'` |
 | `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | `DatabaseMcpServer tool execute_command_with_go --sql \"UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2\" --yes --config 'D:\config\databases.json'` |
@@ -563,22 +567,6 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `drop_view` | 删除视图 | `DatabaseMcpServer tool drop_view --view-name 'v_active_users' --yes --config 'D:\config\databases.json'` |
 | `drop_func` | 删除函数 | `DatabaseMcpServer tool drop_func --function-name 'fn_calc_score' --yes --config 'D:\config\databases.json'` |
 | `drop_proc` | 删除存储过程 | `DatabaseMcpServer tool drop_proc --procedure-name 'sp_cleanup_logs' --yes --config 'D:\config\databases.json'` |
-
-## 8.7 导出
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `export_query_to_excel` | 查询结果导出为 Excel | `DatabaseMcpServer tool export_query_to_excel --sql 'select * from users' --file-path 'D:\exports\users.xlsx' --return-format 'path' --config 'D:\config\databases.json'` |
-| `export_table_to_excel` | 整表导出为 Excel | `DatabaseMcpServer tool export_table_to_excel --table-name 'users' --file-path 'D:\exports\users.xlsx' --return-format 'path' --config 'D:\config\databases.json'` |
-| `export_multiple_queries_to_excel` | 多查询导出为多工作表 Excel | `DatabaseMcpServer tool export_multiple_queries_to_excel --queries-json '{"users":"select * from users","roles":"select * from roles"}' --file-path 'D:\exports\multi.xlsx' --return-format 'path' --config 'D:\config\databases.json'` |
-
-## 8.8 文档生成
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `generate_database_documentation` | 生成数据库文档 | `DatabaseMcpServer tool generate_database_documentation --format 'markdown' --return-mode 'path' --file-path 'D:\exports\db-doc.md' --config 'D:\config\databases.json'` |
-
----
 
 ## 9. 推荐调用顺序
 
