@@ -22,7 +22,7 @@
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
 		<PackageId>DatabaseMcpServer</PackageId>
 		<!-- 记得发布新包时改版本号 -->
-		<PackageVersion>2.5.0</PackageVersion>
+		<PackageVersion>3.0.0</PackageVersion>
 		<PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
 		<Description>一个功能强大的数据库操作 MCP 服务器，聚焦 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB、SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA、达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）。</Description>
 		<RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>

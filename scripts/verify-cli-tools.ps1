@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$dataRoot = $null
 
 Push-Location (Split-Path -Parent $PSScriptRoot)
 
@@ -48,7 +49,8 @@ try {
         param(
             [string]$ConfigPath,
             [string[]]$ToolArgs,
-            [hashtable]$Environment = @{}
+            [hashtable]$Environment = @{},
+            [int]$TimeoutSeconds = 60
         )
 
         $allArgs = @('tool') + $ToolArgs
@@ -71,9 +73,28 @@ try {
         }
 
         $process = [System.Diagnostics.Process]::Start($startInfo)
-        $stdout = $process.StandardOutput.ReadToEnd()
-        $stderr = $process.StandardError.ReadToEnd()
-        $process.WaitForExit()
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            try {
+                $process.Kill($true)
+                $process.WaitForExit()
+            }
+            catch {
+            }
+
+            $timedOutStdout = $stdoutTask.GetAwaiter().GetResult().Trim()
+            $timedOutStderr = $stderrTask.GetAwaiter().GetResult().Trim()
+            throw ('CLI command timed out after {0}s: {1}. stderr: {2}; stdout: {3}' -f
+                $TimeoutSeconds,
+                ($allArgs -join ' '),
+                $timedOutStderr,
+                $timedOutStdout)
+        }
+
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
 
         $jsonSuccess = $null
         $parsedJson = $null
@@ -110,6 +131,48 @@ try {
 
         if ($Invocation.JsonSuccess -eq $false) {
             throw "{0} returned success=false. stdout: {1}" -f $Context, $Invocation.Stdout
+        }
+    }
+
+    function Assert-BatchSqlQueryResult {
+        param([pscustomobject]$Invocation)
+
+        Assert-InvocationSucceeded -Invocation $Invocation -Context 'batch_sql_query'
+        $results = @($Invocation.ParsedJson.results)
+
+        if ($Invocation.ParsedJson.totalQueries -ne 2 -or
+            $Invocation.ParsedJson.successfulQueries -ne 2 -or
+            $Invocation.ParsedJson.failedQueries -ne 0 -or
+            $results.Count -ne 2 -or
+            @($results | Where-Object success -ne $true).Count -ne 0) {
+            throw "batch_sql_query did not return two successful per-query results. stdout: $($Invocation.Stdout)"
+        }
+    }
+
+    function Assert-BatchCommandPartialSuccess {
+        param(
+            [pscustomobject]$Invocation,
+            [pscustomobject]$Environment
+        )
+
+        Assert-InvocationSucceeded -Invocation $Invocation -Context 'batch_execute_commands'
+        $results = @($Invocation.ParsedJson.results)
+
+        if ($Invocation.ParsedJson.totalCommands -ne 3 -or
+            $results.Count -ne 3 -or
+            $results[0].success -ne $true -or
+            $results[1].success -ne $false -or
+            $results[2].success -ne $true) {
+            throw "batch_execute_commands did not preserve per-command partial-success semantics. stdout: $($Invocation.Stdout)"
+        }
+
+        $persisted = Invoke-DatabaseTool `
+            -ConfigPath $Environment.ConfigPath `
+            -ToolArgs @('get_scalar', '--sql', "select cast(age as text) || ':' || (select status from users where id = 2) from users where id = 1")
+        Assert-InvocationSucceeded -Invocation $persisted -Context 'batch_execute_commands persistence check'
+
+        if ([string]$persisted.ParsedJson.value -ne '29:active') {
+            throw "batch_execute_commands unexpectedly rolled back successful commands. stdout: $($persisted.Stdout)"
         }
     }
 
@@ -347,22 +410,58 @@ INSERT INTO index_target (index_col, value_col) VALUES
         @{ Tool = 'get_data_set_all'; Args = @('--sql', 'select * from "users"; select * from "orders"') },
         @{ Tool = 'get_scalar'; Args = @('--sql', 'select count(*) from "users"') },
         @{ Tool = 'sql_query_with_in_parameter'; Args = @('--sql', 'select * from "users" where "id" in (@ids)', '--in-parameter-name', 'ids', '--in-values', '[1,2]') },
+        @{ Tool = 'batch_sql_query'; Args = @('--queries', '["select count(*) from users","select count(*) from orders"]'); Assert = { param($invocation, $environment) Assert-BatchSqlQueryResult -Invocation $invocation } },
         @{ Tool = 'execute_command'; Args = @('--sql', 'insert into "users" ("name","email","age","status") values (''cli-user'',''cli@example.com'',28,''active'')', '--yes') },
         @{ Tool = 'call_stored_procedure'; Args = @('--procedure-name', 'sp_demo', '--yes') },
         @{ Tool = 'call_stored_procedure_with_output'; Args = @('--procedure-name', 'sp_demo', '--output-parameters', '["out_value"]', '--yes') },
         @{ Tool = 'execute_command_with_go'; Args = @('--sql', "UPDATE ""users"" SET ""age"" = 31 WHERE ""id"" = 1`nGO", '--yes') },
-        @{ Tool = 'batch_execute_commands'; Args = @('--commands', '["update \"users\" set \"age\" = 29 where \"id\" = 1","update \"users\" set \"status\" = \"active\" where \"id\" = 2"]', '--yes') },
-        @{ Tool = 'export_query_to_excel'; ArgsFactory = { param($env) @('--sql', 'select * from "users"', '--file-path', (New-PathArg -EnvironmentDirectory $env.Directory -LeafName 'query.xlsx'), '--return-format', 'path') } },
-        @{ Tool = 'export_table_to_excel'; ArgsFactory = { param($env) @('--table-name', 'users', '--file-path', (New-PathArg -EnvironmentDirectory $env.Directory -LeafName 'table.xlsx'), '--return-format', 'path') } },
-        @{ Tool = 'export_multiple_queries_to_excel'; ArgsFactory = { param($env) @('--queries-json', '{"users":"select * from \"users\"","orders":"select * from \"orders\""}', '--file-path', (New-PathArg -EnvironmentDirectory $env.Directory -LeafName 'multi.xlsx'), '--return-format', 'path') } },
-        @{ Tool = 'generate_database_documentation'; ArgsFactory = { param($env) @('--format', 'markdown', '--return-mode', 'path', '--file-path', (New-PathArg -EnvironmentDirectory $env.Directory -LeafName 'database-doc.md')) } }
+        @{ Tool = 'batch_execute_commands'; Args = @('--commands', '["update users set age = 29 where id = 1","update missing_table set value_text = ''failed''","update users set status = ''active'' where id = 2"]', '--yes'); Assert = { param($invocation, $environment) Assert-BatchCommandPartialSuccess -Invocation $invocation -Environment $environment } }
     )
 
+    $expectedToolCount = 55
+    $catalogInvocation = Invoke-DatabaseTool -ConfigPath $null -ToolArgs @('list')
+    if ($catalogInvocation.ExitCode -ne 0) {
+        throw "tool list failed with exit code $($catalogInvocation.ExitCode). stderr: $($catalogInvocation.Stderr)"
+    }
+
+    $catalogNames = @(
+        $catalogInvocation.Stderr -split "`r?`n" |
+            ForEach-Object {
+                if ($_ -match '^\s{2}([a-z0-9_]+) - ') {
+                    $matches[1]
+                }
+            }
+    )
+    $caseNames = @($cases | ForEach-Object Tool)
+    $missingToolCases = @($catalogNames | Where-Object { $_ -notin $caseNames })
+    $unknownToolCases = @($caseNames | Where-Object { $_ -notin $catalogNames })
+    $duplicateToolCases = @($caseNames | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+
+    if ($catalogNames.Count -ne $expectedToolCount -or
+        $caseNames.Count -ne $expectedToolCount -or
+        $missingToolCases.Count -ne 0 -or
+        $unknownToolCases.Count -ne 0 -or
+        $duplicateToolCases.Count -ne 0) {
+        throw ('CLI catalog coverage mismatch. catalog={0}, cases={1}, missing={2}, unknown={3}, duplicate={4}' -f
+            $catalogNames.Count,
+            $caseNames.Count,
+            ($missingToolCases -join ','),
+            ($unknownToolCases -join ','),
+            ($duplicateToolCases -join ','))
+    }
+
+    $caseIndex = 0
     $results = foreach ($case in $cases) {
+        $caseIndex++
         $name = $case.Tool
+        Write-Host ('[{0}/{1}] {2}' -f $caseIndex, $caseNames.Count, $name)
         $environment = New-TestEnvironment -Name $name
         $caseArgs = if ($case.ContainsKey('ArgsFactory')) { & $case.ArgsFactory $environment } else { $case.Args }
         $invocation = Invoke-DatabaseTool -ConfigPath $environment.ConfigPath -ToolArgs (@($name) + $caseArgs)
+
+        if ($case.ContainsKey('Assert')) {
+            & $case.Assert $invocation $environment
+        }
 
         [pscustomobject]@{
             Tool = $name
@@ -381,6 +480,8 @@ INSERT INTO index_target (index_col, value_col) VALUES
         Framework = $Framework
         Configuration = $Configuration
         Executable = $exePath
+        CatalogToolCount = $catalogNames.Count
+        CoveredToolCount = $caseNames.Count
         TotalTools = $results.Count
         ExitCodeZero = @($results | Where-Object ExitCode -eq 0).Count
         ExitCodeNonZero = @($results | Where-Object ExitCode -ne 0).Count
@@ -396,6 +497,8 @@ INSERT INTO index_target (index_col, value_col) VALUES
     [void]$markdown.AppendLine('# CLI Tool Verification Summary')
     [void]$markdown.AppendLine()
     [void]$markdown.AppendLine(('* GeneratedAt: {0}' -f $summary.GeneratedAt))
+    [void]$markdown.AppendLine(('* CatalogToolCount: {0}' -f $summary.CatalogToolCount))
+    [void]$markdown.AppendLine(('* CoveredToolCount: {0}' -f $summary.CoveredToolCount))
     [void]$markdown.AppendLine(('* TotalTools: {0}' -f $summary.TotalTools))
     [void]$markdown.AppendLine(('* ExitCodeZero: {0}' -f $summary.ExitCodeZero))
     [void]$markdown.AppendLine(('* ExitCodeNonZero: {0}' -f $summary.ExitCodeNonZero))
@@ -414,5 +517,23 @@ INSERT INTO index_target (index_col, value_col) VALUES
     Write-Host ($summary | ConvertTo-Json -Depth 4)
 }
 finally {
+    if ($dataRoot -and (Test-Path -LiteralPath $dataRoot)) {
+        try {
+            [Microsoft.Data.Sqlite.SqliteConnection]::ClearAllPools()
+        }
+        catch {
+        }
+
+        $resolvedTempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+        $resolvedDataRoot = [System.IO.Path]::GetFullPath($dataRoot)
+
+        if ($resolvedDataRoot.StartsWith($resolvedTempRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Item -LiteralPath $resolvedDataRoot -Recurse -Force
+        }
+        else {
+            Write-Warning ('Refusing to remove CLI verification data outside the temp directory: {0}' -f $resolvedDataRoot)
+        }
+    }
+
     Pop-Location
 }

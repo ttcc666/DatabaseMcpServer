@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-2.5.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -245,7 +245,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@2.5.0 --yes
+dnx DatabaseMcpServer@3.0.0 --yes
 ```
 
 **MCP 配置**：
@@ -254,7 +254,7 @@ dnx DatabaseMcpServer@2.5.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@2.5.0", "--yes"],
+      "args": ["DatabaseMcpServer@3.0.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -763,6 +763,12 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 
 ## 🆕 版本发布
 
+- **3.0.0**
+  - **Breaking**：移除 Excel 导出和数据库文档生成 tools，同时移除 `ClosedXML` 依赖
+  - 新增 `batch_sql_query`，支持一次顺序执行 1-5 条只读查询并逐项返回结果
+  - 明确 `batch_execute_commands` 为非事务批处理，单项失败不会回滚此前成功的命令
+  - 统一源码/测试目录到 `src/` 与 `tests/`，修复 pooled `SqlSugarScope` 生命周期，并同步更新 CLI 文档与 skill
+
 - **2.5.0**
   - 新增 `-web` 本地配置管理页，支持浏览器内维护 `databases.json` 与 `cli-state.json`
   - 前端重构为 `Vue 3 + shadcn-vue` 风格工作台，并补齐连接表格、编辑抽屉、诊断与导入导出交互
@@ -897,7 +903,8 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目已发布 2.5.0 正式版本
+- 本项目已发布 3.0.0 正式版本
+- 3.0.0 移除了 Excel 导出与数据库文档生成 tools，升级前请检查现有调用
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
 - 定期备份重要数据
