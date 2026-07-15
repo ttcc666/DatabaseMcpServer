@@ -240,6 +240,20 @@ public class CliCommandParserTests
         Assert.Equal("name", createIndexArguments[2]);
         Assert.Equal(true, createIndexArguments[3]);
 
+        var createTableTool = GetTool("create_table");
+        Assert.True(createTableTool.RequiresConfirmation);
+        var createTableArguments = CliRunner.BindArguments(
+            createTableTool,
+            new Dictionary<string, string?>
+            {
+                ["table-name"] = "users",
+                ["columns-info"] = "[]",
+                ["is-create-primary-key"] = "false"
+            });
+
+        Assert.Equal("users", createTableArguments[0]);
+        Assert.Equal("[]", createTableArguments[1]);
+        Assert.Equal(false, createTableArguments[2]);
         var batchTool = GetTool("batch_execute_commands");
         var batchArguments = CliRunner.BindArguments(
             batchTool,

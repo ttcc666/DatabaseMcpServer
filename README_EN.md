@@ -480,6 +480,7 @@ See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples,
 
 **Table Operations:**
 
+- **create_table** - Create table from a column-definition JSON array
 - **drop_table** - Drop table
 - **truncate_table** - Truncate table
 - **backup_table** - Backup table
@@ -635,7 +636,7 @@ System automatically detects and blocks the following dangerous operations:
 - `ALTER TABLE` - Modify table structure
 - `DELETE` / `UPDATE` without WHERE condition
 
-To execute these operations, please use dedicated schema operation tools (such as `drop_table`, `truncate_table`, etc.), which will clearly prompt risks.
+To execute these operations, please use dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which will clearly prompt risks.
 
 ### SQL Injection Protection
 

@@ -9,6 +9,7 @@ internal static class CliWriteProtection
         "call_stored_procedure_with_output",
         "execute_command_with_go",
         "batch_execute_commands",
+        "create_table",
         "drop_table",
         "truncate_table",
         "backup_table",

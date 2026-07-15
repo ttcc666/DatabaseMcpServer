@@ -69,6 +69,21 @@ internal class SchemaTools : McpToolBase
         => QueryExists(db => db.DbMaintenance.IsAnyConstraint(constraintName));
 
     [McpServerTool]
+    [Description("Create tableName using columnsInfo JSON array of DbColumnInfo-compatible definitions (DbColumnName, DataType, Length, IsNullable, IsPrimarykey, IsIdentity, etc.).")]
+    public string CreateTable(
+        [Description("Table name")] string tableName,
+        [Description("Columns info JSON array. Example: [{\"DbColumnName\":\"id\",\"DataType\":\"int\",\"IsPrimarykey\":true},{\"DbColumnName\":\"name\",\"DataType\":\"nvarchar\",\"Length\":100}]")] string columnsInfo,
+        [Description("Whether to create primary key constraints for columns marked IsPrimarykey")] bool isCreatePrimaryKey = true)
+    {
+        return WithClient(db =>
+        {
+            SqlSafetyGuard.EnsureSafeTableName(tableName);
+            var columns = SchemaColumnDefinitionParser.ParseMany(columnsInfo);
+            return new { success = db.DbMaintenance.CreateTable(tableName, columns, isCreatePrimaryKey) };
+        });
+    }
+
+    [McpServerTool]
     [Description("Immediately drop the specified tableName, removing both structure and data, and return success to indicate completion.")]
     public string DropTable([Description("Table name")] string tableName)
         => ExecuteOperation(db => db.DbMaintenance.DropTable(tableName));

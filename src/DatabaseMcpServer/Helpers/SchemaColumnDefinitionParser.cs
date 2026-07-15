@@ -14,12 +14,39 @@ internal static class SchemaColumnDefinitionParser
             throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的列信息 JSON");
         }
 
+        return Parse(columnData);
+    }
+
+    public static List<DbColumnInfo> ParseMany(string columnsInfo)
+    {
+        var columnsData = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(columnsInfo);
+        if (columnsData == null || columnsData.Count == 0)
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "columnsInfo 必须是非空列定义 JSON 数组");
+        }
+
+        var columns = columnsData.Select(Parse).ToList();
+        if (columns.Any(column => string.IsNullOrWhiteSpace(column.DbColumnName)))
+        {
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "每个列定义都必须包含 DbColumnName");
+        }
+
+        return columns;
+    }
+
+    private static DbColumnInfo Parse(IReadOnlyDictionary<string, JsonElement> columnData)
+    {
         var dataType = JsonElementValueConverter.GetString(columnData, "DataType") ?? "varchar";
         var column = new DbColumnInfo
         {
             DbColumnName = JsonElementValueConverter.GetString(columnData, "DbColumnName") ?? string.Empty,
             DataType = dataType,
-            IsNullable = JsonElementValueConverter.GetBoolean(columnData, "IsNullable", true)
+            IsNullable = JsonElementValueConverter.GetBoolean(columnData, "IsNullable", true),
+            IsIdentity = JsonElementValueConverter.GetBoolean(columnData, "IsIdentity", false),
+            IsPrimarykey = JsonElementValueConverter.GetBoolean(columnData, "IsPrimarykey", false),
+            ColumnDescription = JsonElementValueConverter.GetString(columnData, "ColumnDescription") ?? string.Empty,
+            DefaultValue = JsonElementValueConverter.GetString(columnData, "DefaultValue") ?? string.Empty,
+            CreateTableFieldSort = JsonElementValueConverter.GetInt32(columnData, "CreateTableFieldSort", 0)
         };
 
         if (RequiresLength(dataType))

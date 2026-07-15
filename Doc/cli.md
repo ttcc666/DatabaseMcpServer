@@ -451,6 +451,7 @@ DatabaseMcpServer tool batch_execute_commands `
 - `call_stored_procedure_with_output`
 - `execute_command_with_go`
 - `batch_execute_commands`
+- `create_table`
 - `drop_table`
 - `truncate_table`
 - `backup_table`
@@ -548,6 +549,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
+| `create_table` | 创建表 | `DatabaseMcpServer tool create_table --table-name 'users' --columns-info '[{"DbColumnName":"id","DataType":"int","IsPrimarykey":true,"IsIdentity":true},{"DbColumnName":"name","DataType":"nvarchar","Length":100}]' --yes --config 'D:\config\databases.json'` |
 | `drop_table` | 删除表 | `DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\config\databases.json'` |
 | `truncate_table` | 清空表 | `DatabaseMcpServer tool truncate_table --table-name 'temp_users' --yes --config 'D:\config\databases.json'` |
 | `backup_table` | 备份表 | `DatabaseMcpServer tool backup_table --old-table-name 'users' --new-table-name 'users_backup' --yes --config 'D:\config\databases.json'` |

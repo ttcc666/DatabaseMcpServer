@@ -580,6 +580,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 ### 🛠️ 六、数据库架构操作（高风险）
 
 **表操作：**
+- **create_table** - 创建表（使用列定义 JSON 数组）
 - **drop_table** - 删除表
 - **truncate_table** - 清空表
 - **backup_table** - 备份表
@@ -713,7 +714,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - `ALTER TABLE` - 修改表结构
 - 无 WHERE 条件的 `DELETE` / `UPDATE`
 
-如需执行这些操作，请使用专门的架构操作工具（如 `drop_table`、`truncate_table` 等），这些工具会明确提示风险。
+如需执行这些操作，请使用专门的架构操作工具（如 `create_table`、`drop_table`、`truncate_table` 等），这些工具会明确提示风险。
 
 ### SQL 注入防护
 所有查询都支持参数化查询，自动防止 SQL 注入：

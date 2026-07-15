@@ -81,12 +81,13 @@ DatabaseMcpServer tool execute_command_with_go --sql $sql --yes --config 'D:\con
 | `get_trigger_names` | `tableName / --table-name` | 返回指定表的触发器名称。 | `DatabaseMcpServer tool get_trigger_names --table-name 'users'` | 否 |
 | `get_table_schema` | `tableName / --table-name` | 汇总返回列、主键、自增列和索引。 | `DatabaseMcpServer tool get_table_schema --table-name 'users'` | 否 |
 
-## Schema 变更（19）
+## Schema 变更（20）
 
 这些工具会修改 schema，CLI 必须追加 `--yes`。建议先用上一节的查询工具确认对象状态，并在非业务对象上验证。
 
 | Tool | 参数（MCP / CLI） | 使用说明 | CLI 示例 | `--yes` |
 | --- | --- | --- | --- | --- |
+| `create_table` | `tableName / --table-name`、`columnsInfo / --columns-info`、`[isCreatePrimaryKey / --is-create-primary-key]` | 根据列定义 JSON 数组创建表；常用字段包括 `DbColumnName`、`DataType`、`Length`、`IsNullable`、`IsPrimarykey`、`IsIdentity`。 | `DatabaseMcpServer tool create_table --table-name 'users' --columns-info '[{"DbColumnName":"id","DataType":"int","IsPrimarykey":true,"IsIdentity":true},{"DbColumnName":"name","DataType":"nvarchar","Length":100}]' --yes` | 是 |
 | `drop_table` | `tableName / --table-name` | 删除表结构和全部数据。 | `DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes` | 是 |
 | `truncate_table` | `tableName / --table-name` | 清空全部数据并保留表结构。 | `DatabaseMcpServer tool truncate_table --table-name 'temp_users' --yes` | 是 |
 | `backup_table` | `oldTableName / --old-table-name`、`newTableName / --new-table-name` | 复制表结构和当前数据。 | `DatabaseMcpServer tool backup_table --old-table-name 'users' --new-table-name 'users_backup' --yes` | 是 |
@@ -121,9 +122,9 @@ DatabaseMcpServer tool execute_command_with_go --sql $sql --yes --config 'D:\con
 - 查询：6
 - 数据写入与存储过程：5
 - Schema 查询与检查：15
-- Schema 变更：19
+- Schema 变更：20
 
-**总计：55**
+**总计：56**
 
 ## 相关文档
 

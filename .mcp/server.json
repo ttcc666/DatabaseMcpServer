@@ -165,6 +165,10 @@
       "description": "Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean."
     },
     {
+      "name": "create_table",
+      "description": "Create tableName using columnsInfo JSON array of DbColumnInfo-compatible definitions (DbColumnName, DataType, Length, IsNullable, IsPrimarykey, IsIdentity, etc.)."
+    },
+    {
       "name": "drop_table",
       "description": "Immediately drop the specified tableName, removing both structure and data, and return success to indicate completion."
     },
