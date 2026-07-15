@@ -81,6 +81,7 @@ internal sealed class CliWebApiService
                     description = db.Description,
                     connectionString = ConnectionStringMasker.Mask(db.ConnectionString),
                     isDefault = db.IsDefault,
+                    allowDangerousOperations = db.AllowDangerousOperations,
                     isCurrent = string.Equals(db.Name, currentDatabase, StringComparison.Ordinal),
                     optimizationSettings = db.OptimizationSettings
                 }).ToArray()
@@ -208,6 +209,7 @@ internal sealed class CliWebApiService
             request.ConnectionString,
             request.Description,
             request.SetDefault,
+            request.AllowDangerousOperations,
             request.PrintOnly);
 
         TryReloadRuntimeConfiguration(payload);
@@ -222,7 +224,8 @@ internal sealed class CliWebApiService
             request.DbType,
             request.ConnectionString,
             request.Description,
-            request.SetDefault);
+            request.SetDefault,
+            request.AllowDangerousOperations);
 
         TryReloadRuntimeConfiguration(payload);
         return payload;
@@ -256,7 +259,9 @@ internal sealed class CliWebApiService
             request.ApplyConnectionString,
             request.ApplyDescription,
             request.ApplyClearDescription,
-            request.ApplySetDefault);
+            request.ApplySetDefault,
+            request.AllowDangerousOperations,
+            request.ApplyAllowDangerousOperations);
 
         TryReloadRuntimeConfiguration(payload);
         return payload;

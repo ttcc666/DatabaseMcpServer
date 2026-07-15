@@ -139,6 +139,12 @@ function updateClearDescription(value: boolean | "indeterminate") {
   }
 }
 
+function updateAllowDangerousOperations(value: boolean | "indeterminate") {
+  if (props.draft) {
+    props.draft.allowDangerousOperations = value === true
+  }
+}
+
 const icon = computed(() => {
   switch (props.draft?.mode) {
     case "edit":
@@ -251,6 +257,17 @@ const icon = computed(() => {
                 <FieldContent>
                   <FieldLabel>保存后设为默认连接</FieldLabel>
                   <FieldDescription>这会修改 <code>databases.json</code> 中唯一的默认项。</FieldDescription>
+                </FieldContent>
+              </Field>
+
+              <Field v-if="draft.mode !== 'clone'" orientation="horizontal">
+                <Checkbox
+                  :checked="draft.allowDangerousOperations"
+                  @update:checked="updateAllowDangerousOperations"
+                />
+                <FieldContent>
+                  <FieldLabel>允许通用命令执行危险操作</FieldLabel>
+                  <FieldDescription>开启后当前连接的 <code>execute_command</code> 等通用命令可执行 DDL/无条件更新；默认关闭。</FieldDescription>
                 </FieldContent>
               </Field>
 

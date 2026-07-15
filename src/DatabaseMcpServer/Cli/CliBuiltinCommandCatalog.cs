@@ -74,25 +74,27 @@ internal static class CliBuiltinCommandCatalog
             ["create"] = new(
                 "config create",
                 "基于内置模板创建一个新的数据库连接。",
-                "DatabaseMcpServer config create --from-preset <type> [--name <name>] [--connection-string <value>] [--description <text>] [--set-default true|false] [--print-only true|false] [--config path]",
+                "DatabaseMcpServer config create --from-preset <type> [--name <name>] [--connection-string <value>] [--description <text>] [--set-default true|false] [--allow-dangerous-operations true|false] [--print-only true|false] [--config path]",
                 [
                     new CliCommandOptionMetadata("from-preset", "内置模板数据库类型，例如 Sqlite / SqlServer。", typeof(string), true),
                     new CliCommandOptionMetadata("name", "新数据库连接名称；默认使用模板示例名称。", typeof(string), false, null),
                     new CliCommandOptionMetadata("connection-string", "覆盖模板中的示例连接字符串。", typeof(string), false, null),
                     new CliCommandOptionMetadata("description", "覆盖模板中的描述。", typeof(string), false, null),
                     new CliCommandOptionMetadata("set-default", "是否将新连接设为默认连接。", typeof(bool), false, false),
+                    new CliCommandOptionMetadata("allow-dangerous-operations", "是否允许通用命令工具执行危险 DDL/无条件更新。", typeof(bool), false, false),
                     new CliCommandOptionMetadata("print-only", "仅输出将创建的连接，不写入配置文件。", typeof(bool), false, false)
                 ]),
             ["add"] = new(
                 "config add",
                 "向配置文件新增一个数据库连接。",
-                "DatabaseMcpServer config add --name <name> --db-type <type> --connection-string <value> [--description <text>] [--set-default true|false] [--config path]",
+                "DatabaseMcpServer config add --name <name> --db-type <type> --connection-string <value> [--description <text>] [--set-default true|false] [--allow-dangerous-operations true|false] [--config path]",
                 [
                     new CliCommandOptionMetadata("name", "数据库连接名称。", typeof(string), true),
                     new CliCommandOptionMetadata("db-type", "数据库类型，例如 MySql / SqlServer / Sqlite。", typeof(string), true),
                     new CliCommandOptionMetadata("connection-string", "数据库连接字符串。", typeof(string), true),
                     new CliCommandOptionMetadata("description", "连接描述。", typeof(string), false, null),
-                    new CliCommandOptionMetadata("set-default", "是否设为默认连接。", typeof(bool), false, false)
+                    new CliCommandOptionMetadata("set-default", "是否设为默认连接。", typeof(bool), false, false),
+                    new CliCommandOptionMetadata("allow-dangerous-operations", "是否允许通用命令工具执行危险 DDL/无条件更新。", typeof(bool), false, false)
                 ]),
             ["rename"] = new(
                 "config rename",
@@ -105,14 +107,15 @@ internal static class CliBuiltinCommandCatalog
             ["update"] = new(
                 "config update",
                 "更新已有数据库连接的部分字段。",
-                "DatabaseMcpServer config update --name <name> [--db-type <type>] [--connection-string <value>] [--description <text>] [--clear-description true|false] [--set-default true|false] [--config path]",
+                "DatabaseMcpServer config update --name <name> [--db-type <type>] [--connection-string <value>] [--description <text>] [--clear-description true|false] [--set-default true|false] [--allow-dangerous-operations true|false] [--config path]",
                 [
                     new CliCommandOptionMetadata("name", "数据库连接名称。", typeof(string), true),
                     new CliCommandOptionMetadata("db-type", "新的数据库类型。", typeof(string), false, null),
                     new CliCommandOptionMetadata("connection-string", "新的连接字符串。", typeof(string), false, null),
                     new CliCommandOptionMetadata("description", "新的连接描述。", typeof(string), false, null),
                     new CliCommandOptionMetadata("clear-description", "显式清空 description。", typeof(bool), false, false),
-                    new CliCommandOptionMetadata("set-default", "是否设为默认连接。", typeof(bool), false, false)
+                    new CliCommandOptionMetadata("set-default", "是否设为默认连接。", typeof(bool), false, false),
+                    new CliCommandOptionMetadata("allow-dangerous-operations", "是否允许通用命令工具执行危险 DDL/无条件更新。", typeof(bool), false, false)
                 ]),
             ["clone"] = new(
                 "config clone",
@@ -198,10 +201,10 @@ internal static class CliBuiltinCommandCatalog
         builder.AppendLine("  DatabaseMcpServer config show --name <name> [--config path]");
         builder.AppendLine("  DatabaseMcpServer config presets");
         builder.AppendLine("  DatabaseMcpServer config preset --db-type <type>");
-        builder.AppendLine("  DatabaseMcpServer config create --from-preset <type> [--name <name>] [--connection-string <value>] [--description <text>] [--set-default true|false] [--print-only true|false] [--config path]");
-        builder.AppendLine("  DatabaseMcpServer config add --name <name> --db-type <type> --connection-string <value> [--description <text>] [--set-default true|false] [--config path]");
+        builder.AppendLine("  DatabaseMcpServer config create --from-preset <type> [--name <name>] [--connection-string <value>] [--description <text>] [--set-default true|false] [--allow-dangerous-operations true|false] [--print-only true|false] [--config path]");
+        builder.AppendLine("  DatabaseMcpServer config add --name <name> --db-type <type> --connection-string <value> [--description <text>] [--set-default true|false] [--allow-dangerous-operations true|false] [--config path]");
         builder.AppendLine("  DatabaseMcpServer config rename --name <name> --new-name <new-name> [--config path]");
-        builder.AppendLine("  DatabaseMcpServer config update --name <name> [--db-type <type>] [--connection-string <value>] [--description <text>] [--clear-description true|false] [--set-default true|false] [--config path]");
+        builder.AppendLine("  DatabaseMcpServer config update --name <name> [--db-type <type>] [--connection-string <value>] [--description <text>] [--clear-description true|false] [--set-default true|false] [--allow-dangerous-operations true|false] [--config path]");
         builder.AppendLine("  DatabaseMcpServer config clone --name <name> --new-name <new-name> [--set-default true|false] [--config path]");
         builder.AppendLine("  DatabaseMcpServer config remove --name <name> [--config path] [--yes]");
         builder.AppendLine("  DatabaseMcpServer config set-default --name <name> [--config path]");

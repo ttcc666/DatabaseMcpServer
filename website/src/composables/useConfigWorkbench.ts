@@ -23,6 +23,7 @@ function createEmptyDraft(): EditorDraft {
     description: "",
     clearDescription: false,
     setDefault: false,
+    allowDangerousOperations: false,
   }
 }
 
@@ -139,6 +140,7 @@ export function useConfigWorkbench() {
           description: database.description ?? null,
           connectionString: database.connectionString,
           isDefault: database.isDefault,
+          allowDangerousOperations: database.allowDangerousOperations,
           optimizationSettings: database.optimizationSettings ?? null,
         }
         return
@@ -204,6 +206,7 @@ export function useConfigWorkbench() {
       description: target.description ?? "",
       clearDescription: false,
       setDefault: target.isDefault,
+      allowDangerousOperations: target.allowDangerousOperations,
     }
     editorOpen.value = true
   }
@@ -226,6 +229,7 @@ export function useConfigWorkbench() {
       description: target.description ?? "",
       clearDescription: false,
       setDefault: false,
+      allowDangerousOperations: target.allowDangerousOperations,
     }
     editorOpen.value = true
   }
@@ -306,6 +310,8 @@ export function useConfigWorkbench() {
           applyDescription: !draft.clearDescription,
           applyClearDescription: draft.clearDescription,
           applySetDefault: true,
+          allowDangerousOperations: draft.allowDangerousOperations,
+          applyAllowDangerousOperations: true,
         })
       }
       else if (draft.mode === "preset") {
@@ -315,6 +321,7 @@ export function useConfigWorkbench() {
           connectionString: draft.connectionString,
           description: draft.description,
           setDefault: draft.setDefault,
+          allowDangerousOperations: draft.allowDangerousOperations,
           printOnly: false,
         })
       }
@@ -325,6 +332,7 @@ export function useConfigWorkbench() {
           connectionString: draft.connectionString,
           description: draft.description,
           setDefault: draft.setDefault,
+          allowDangerousOperations: draft.allowDangerousOperations,
         })
       }
 

@@ -31,6 +31,11 @@ public class DatabaseConnection
     public bool IsDefault { get; set; }
 
     /// <summary>
+    /// 是否允许通用命令工具执行危险操作（如 CREATE/DROP/TRUNCATE/ALTER TABLE）。默认 false。
+    /// </summary>
+    public bool AllowDangerousOperations { get; set; }
+
+    /// <summary>
     /// 数据库优化配置选项
     /// </summary>
     public Dictionary<string, string>? OptimizationSettings { get; set; }

@@ -85,6 +85,7 @@ internal sealed class CliConfigFileService
             dbType = connection.DbType,
             description = connection.Description,
             isDefault = connection.IsDefault,
+            allowDangerousOperations = connection.AllowDangerousOperations,
             optimizationSettings = connection.OptimizationSettings
         };
     }

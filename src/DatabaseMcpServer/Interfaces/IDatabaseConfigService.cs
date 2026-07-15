@@ -48,6 +48,11 @@ public interface IDatabaseConfigService
     DbType GetParsedDbType();
 
     /// <summary>
+    /// 当前活动连接是否允许通用命令工具执行危险操作。
+    /// </summary>
+    bool AllowDangerousOperations();
+
+    /// <summary>
     /// 验证数据库配置是否正确
     /// </summary>
     /// <returns>配置是否有效</returns>

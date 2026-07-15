@@ -61,6 +61,44 @@ public class DatabaseConfigServiceTests
     }
 
     [Fact]
+    public void AllowDangerousOperations_ShouldReadCurrentConnectionOption()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "default",
+                  "connectionString": "Server=localhost;Database=test;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "isDefault": true,
+                  "allowDangerousOperations": true
+                }
+              ]
+            }
+            """);
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+
+            Assert.True(service.AllowDangerousOperations());
+
+            using var document = JsonDocument.Parse(service.GetConfigurationSummary());
+            Assert.True(document.RootElement.GetProperty("allowDangerousOperations").GetBoolean());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
     public void LoadDatabaseConnections_ShouldPreferPersistedCurrentDatabase()
     {
         var configPath = WriteConfigFile("""

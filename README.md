@@ -175,6 +175,7 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
   - `config presets` / `config preset` 用来查看内置连接模板
   - `config create --from-preset` 用来直接基于模板生成连接骨架，也可顺手覆盖连接串/描述
   - `config update --clear-description` 用来显式清空说明
+  - `--allow-dangerous-operations true|false` 可在 `config create/add/update` 中写入危险操作开关（默认 `false`）
   - `config doctor` 用来做诊断，默认会测试各连接连通性，并给出修复建议；`--summary-only` 适合脚本
   - `config export` / `config import` 用来备份和迁移配置文件
 - tool 名称与 MCP 中保持一致，使用 `snake_case`
@@ -334,6 +335,7 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
       "dbType": "MySql",
       "description": "MySQL 主库",
       "isDefault": true,
+      "allowDangerousOperations": false,
       "optimizationSettings": {
         "enableCache": "true",
         "batchSize": "1000"
@@ -439,6 +441,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
       "dbType": "MySql",
       "description": "默认数据库",
       "isDefault": true,
+      "allowDangerousOperations": false,
       "optimizationSettings": {
         "lowercaseTables": "true"
       }
@@ -714,7 +717,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - `ALTER TABLE` - 修改表结构
 - 无 WHERE 条件的 `DELETE` / `UPDATE`
 
-如需执行这些操作，请使用专门的架构操作工具（如 `create_table`、`drop_table`、`truncate_table` 等），这些工具会明确提示风险。
+如需执行这些操作，建议优先使用专门的架构操作工具（如 `create_table`、`drop_table`、`truncate_table` 等），这些工具会明确提示风险。若确需通过 `execute_command`、`execute_command_with_go` 或 `batch_execute_commands` 执行 DDL，可在当前连接配置中显式设置 `"allowDangerousOperations": true`，或使用 `config update --allow-dangerous-operations true` 写入配置；默认值为 `false`。
 
 ### SQL 注入防护
 所有查询都支持参数化查询，自动防止 SQL 注入：

@@ -170,9 +170,9 @@ internal class CommandTools : McpToolBase
                     try
                     {
                         var command = commandList[i];
-                        if (DatabaseHelper.DetectDangerousOperation(command))
+                        if (!DatabaseConfig.AllowDangerousOperations() && DatabaseHelper.DetectDangerousOperation(command))
                         {
-                            results.Add(new { success = false, error = "检测到危险操作", commandIndex = i });
+                            results.Add(new { success = false, error = "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。", commandIndex = i });
                             continue;
                         }
 
@@ -339,9 +339,9 @@ internal class CommandTools : McpToolBase
 
     private void EnsureSafeSql(string sql)
     {
-        if (DatabaseHelper.DetectDangerousOperation(sql))
+        if (!DatabaseConfig.AllowDangerousOperations() && DatabaseHelper.DetectDangerousOperation(sql))
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到危险操作。请使用特定工具进行架构操作。");
+            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。");
         }
     }
 }

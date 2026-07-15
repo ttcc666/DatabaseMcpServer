@@ -140,6 +140,9 @@ const emit = defineEmits<{
                       <CircleDot class="size-3 mr-1" />
                       当前
                     </Badge>
+                    <Badge v-if="database.allowDangerousOperations" variant="destructive">
+                      允许危险操作
+                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell class="max-w-[320px] align-top text-sm text-muted-foreground">

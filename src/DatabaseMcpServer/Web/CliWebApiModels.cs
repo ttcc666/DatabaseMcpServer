@@ -20,6 +20,7 @@ internal sealed record CliWebCreateFromPresetRequest(
     string? ConnectionString,
     string? Description,
     bool SetDefault,
+    bool AllowDangerousOperations,
     bool PrintOnly);
 
 internal sealed record CliWebAddDatabaseRequest(
@@ -27,7 +28,8 @@ internal sealed record CliWebAddDatabaseRequest(
     string DbType,
     string ConnectionString,
     string? Description,
-    bool SetDefault);
+    bool SetDefault,
+    bool AllowDangerousOperations);
 
 internal sealed record CliWebRenameDatabaseRequest(string NewName);
 
@@ -41,7 +43,9 @@ internal sealed record CliWebUpdateDatabaseRequest(
     bool ApplyConnectionString,
     bool ApplyDescription,
     bool ApplyClearDescription,
-    bool ApplySetDefault);
+    bool ApplySetDefault,
+    bool AllowDangerousOperations,
+    bool ApplyAllowDangerousOperations);
 
 internal sealed record CliWebCloneDatabaseRequest(
     string NewName,

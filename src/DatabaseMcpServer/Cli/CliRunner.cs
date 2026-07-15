@@ -137,6 +137,7 @@ internal sealed class CliRunner
                             GetOptionalStringOption(parseResult.OptionValues, "connection-string"),
                             GetOptionalStringOption(parseResult.OptionValues, "description"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "allow-dangerous-operations"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "print-only")),
                         stdout);
 
@@ -148,7 +149,8 @@ internal sealed class CliRunner
                             GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "db-type"),
                             GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "connection-string"),
                             GetOptionalStringOption(parseResult.OptionValues, "description"),
-                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default")),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "allow-dangerous-operations")),
                         stdout);
 
                 case CliCommandKind.ConfigRename:
@@ -173,7 +175,9 @@ internal sealed class CliRunner
                             HasOption(parseResult.OptionValues, "connection-string"),
                             HasOption(parseResult.OptionValues, "description"),
                             HasOption(parseResult.OptionValues, "clear-description"),
-                            HasOption(parseResult.OptionValues, "set-default")),
+                            HasOption(parseResult.OptionValues, "set-default"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "allow-dangerous-operations"),
+                            HasOption(parseResult.OptionValues, "allow-dangerous-operations")),
                         stdout);
 
                 case CliCommandKind.ConfigClone:

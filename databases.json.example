@@ -6,6 +6,7 @@
       "dbType": "MySql",
       "description": "MySQL 主库（utf8mb4 + 连接池 + BulkCopy）",
       "isDefault": true,
+      "allowDangerousOperations": false,
       "optimizationSettings": {
         "enableBulkCopy": "true",
         "maxPoolSize": "100",

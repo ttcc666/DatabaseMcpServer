@@ -33,6 +33,7 @@ DatabaseMcpServer config presets
 DatabaseMcpServer config preset --db-type 'Sqlite'
 DatabaseMcpServer config create --from-preset 'Sqlite' --name 'sqlite-local' --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' --description 'local sqlite' --set-default
 DatabaseMcpServer config add --name 'sqlite-local' --db-type 'Sqlite' --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' --set-default
+DatabaseMcpServer config update --name 'sqlite-local' --allow-dangerous-operations true
 DatabaseMcpServer config rename --name 'sqlite-local' --new-name 'sqlite-dev'
 DatabaseMcpServer config update --name 'sqlite-dev' --description 'dev sqlite'
 DatabaseMcpServer config validate
@@ -117,8 +118,11 @@ DatabaseMcpServer config add `
   --db-type 'MySql' `
   --connection-string 'Server=127.0.0.1;Port=3306;Database=crm;User=root;Password=secret;SslMode=None;' `
   --description '本地 MySQL 开发库' `
-  --set-default
+  --set-default `
+  --allow-dangerous-operations false
 ```
+
+`--allow-dangerous-operations` 控制 `execute_command` 等通用命令是否允许执行 DDL/无 WHERE 更新；默认关闭，建议仅对受控维护连接开启。
 
 或从模板创建（自动套用该 DB 类型的合理默认）：
 
@@ -315,14 +319,18 @@ DatabaseMcpServer config add `
   --db-type 'Sqlite' `
   --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' `
   --description '本地 SQLite 开发库' `
-  --set-default
+  --set-default `
+  --allow-dangerous-operations false
 ```
+
+`--allow-dangerous-operations true|false` 也可用于 `config create` 和 `config update`；开启后当前连接允许通用命令工具执行危险操作。
 
 ### 4.5 重命名 / 更新连接
 
 ```powershell
 DatabaseMcpServer config rename --name 'sqlite-local' --new-name 'sqlite-dev'
 DatabaseMcpServer config update --name 'sqlite-dev' --description '开发环境 SQLite' --set-default
+DatabaseMcpServer config update --name 'sqlite-dev' --allow-dangerous-operations true
 DatabaseMcpServer config update --name 'sqlite-dev' --clear-description
 ```
 

@@ -238,6 +238,7 @@ After `databases.json` changes, call `reload_database_config` to reload the file
       "dbType": "MySql",
       "description": "MySQL Main Database",
       "isDefault": true,
+      "allowDangerousOperations": false,
       "optimizationSettings": {
         "enableCache": "true",
         "batchSize": "1000"
@@ -343,6 +344,7 @@ DatabaseMcpServer 2.0.0 has removed environment variable configuration method an
       "dbType": "MySql",
       "description": "Default database",
       "isDefault": true,
+      "allowDangerousOperations": false,
       "optimizationSettings": {
         "lowercaseTables": "true"
       }
@@ -636,7 +638,7 @@ System automatically detects and blocks the following dangerous operations:
 - `ALTER TABLE` - Modify table structure
 - `DELETE` / `UPDATE` without WHERE condition
 
-To execute these operations, please use dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which will clearly prompt risks.
+To execute these operations, prefer dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which clearly prompt risks. If you must run DDL through `execute_command`, `execute_command_with_go`, or `batch_execute_commands`, explicitly set `"allowDangerousOperations": true` on the current connection, or run `config update --allow-dangerous-operations true`; the default is `false`.
 
 ### SQL Injection Protection
 

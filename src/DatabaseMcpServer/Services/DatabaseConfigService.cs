@@ -272,6 +272,14 @@ internal class DatabaseConfigService : IDatabaseConfigService
         }
     }
 
+    public bool AllowDangerousOperations()
+    {
+        lock (_stateLock)
+        {
+            return GetCurrentConnectionUnsafe().AllowDangerousOperations;
+        }
+    }
+
     public ISqlSugarClient CreateClient()
     {
         lock (_stateLock)
@@ -329,6 +337,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
             databaseType = connection.DbType,
             description = connection.Description,
             connectionString = ConnectionStringMasker.Mask(connection.ConnectionString),
+            allowDangerousOperations = connection.AllowDangerousOperations,
             message = "配置有效"
         });
     }

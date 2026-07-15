@@ -59,6 +59,7 @@ const emit = defineEmits<{
           </div>
           <div class="flex flex-wrap gap-2">
             <Badge v-if="selectedDatabase?.isDefault" variant="outline">默认</Badge>
+            <Badge v-if="selectedDatabase?.allowDangerousOperations" variant="destructive">允许危险操作</Badge>
           </div>
         </div>
 
