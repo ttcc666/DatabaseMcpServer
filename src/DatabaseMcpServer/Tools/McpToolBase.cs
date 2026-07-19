@@ -1,5 +1,6 @@
 using DatabaseMcpServer.Filters;
 using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Models;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
@@ -80,6 +81,11 @@ internal abstract class McpToolBase
             var db = DatabaseConfig.CreateClient(databaseName);
             return action(db);
         });
+    }
+
+    protected string WithClientContext(Func<DatabaseClientContext, object> action)
+    {
+        return Execute(() => action(DatabaseConfig.CreateClientContext()));
     }
 
     protected Task<string> WithClientAsync(Func<ISqlSugarClient, Task<object>> action)

@@ -31,13 +31,13 @@ internal class CommandTools : McpToolBase
         [Description("SQL command to execute")] string sql,
         [Description("Optional JSON parameters")] string? parameters = null)
     {
-        return WithClient(db =>
+        return WithClientContext(context =>
         {
-            EnsureSafeSql(sql);
+            EnsureSafeSql(sql, context.AllowDangerousOperations);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var affectedRows = parsedParams != null
-                ? db.Ado.ExecuteCommand(sql, parsedParams)
-                : db.Ado.ExecuteCommand(sql);
+                ? context.Client.Ado.ExecuteCommand(sql, parsedParams)
+                : context.Client.Ado.ExecuteCommand(sql);
 
             return new { success = true, affectedRows };
         });
@@ -139,10 +139,10 @@ internal class CommandTools : McpToolBase
     public string ExecuteCommandWithGo(
         [Description("SQL script containing GO statements")] string sql)
     {
-        return WithClient(db =>
+        return WithClientContext(context =>
         {
-            EnsureSafeSql(sql);
-            var affectedRows = db.Ado.ExecuteCommandWithGo(sql);
+            EnsureSafeSql(sql, context.AllowDangerousOperations);
+            var affectedRows = context.Client.Ado.ExecuteCommandWithGo(sql);
             return new
             {
                 success = true,
@@ -157,26 +157,26 @@ internal class CommandTools : McpToolBase
         [Description("SQL commands: JSON array, single SQL string, or JSON-stringified array")] JsonElement commands,
         [Description("Optional parameters per command: JSON array/object, or JSON-stringified array/object")] JsonElement? parametersArray = null)
     {
-        return WithClient(db =>
+        return WithClientContext(context =>
         {
             var commandList = ParseCommandList(commands);
             var paramsList = ParseParametersArray(parametersArray);
             var results = new List<object>();
 
-            using (db.Ado.OpenAlways())
+            using (context.Client.Ado.OpenAlways())
             {
                 for (var i = 0; i < commandList.Length; i++)
                 {
                     try
                     {
                         var command = commandList[i];
-                        if (!DatabaseConfig.AllowDangerousOperations() && DatabaseHelper.DetectDangerousOperation(command))
+                        if (!context.AllowDangerousOperations && DatabaseHelper.DetectDangerousOperation(command))
                         {
                             results.Add(new { success = false, error = "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。", commandIndex = i });
                             continue;
                         }
 
-                        var affectedRows = ExecuteSingleCommand(db, command, paramsList, i);
+                        var affectedRows = ExecuteSingleCommand(context.Client, command, paramsList, i);
                         results.Add(new { success = true, affectedRows, commandIndex = i });
                     }
                     catch (Exception ex)
@@ -337,9 +337,9 @@ internal class CommandTools : McpToolBase
         };
     }
 
-    private void EnsureSafeSql(string sql)
+    private void EnsureSafeSql(string sql, bool allowDangerousOperations)
     {
-        if (!DatabaseConfig.AllowDangerousOperations() && DatabaseHelper.DetectDangerousOperation(sql))
+        if (!allowDangerousOperations && DatabaseHelper.DetectDangerousOperation(sql))
         {
             throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。");
         }

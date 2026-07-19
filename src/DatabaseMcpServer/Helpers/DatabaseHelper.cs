@@ -2,6 +2,7 @@ using DatabaseMcpServer.Interfaces;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 using System.Data;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DbType = SqlSugar.DbType;
@@ -21,6 +22,10 @@ internal class DatabaseHelper : IDatabaseHelperService
         @"\bALTER\s+TABLE\b",
         @"\bCREATE\s+TABLE\b"
     ];
+
+    private static readonly Regex GoBatchSeparatorRegex = new(
+        @"(?im)^[\t ]*GO(?:[\t ]+\d+)?[\t ]*(?:\r?\n|$)",
+        RegexOptions.Compiled);
 
     private readonly ILogger<DatabaseHelper> _logger;
     private readonly Regex[] _dangerousSqlPatterns;
@@ -103,6 +108,12 @@ internal class DatabaseHelper : IDatabaseHelperService
             return false;
         }
 
+        if (ContainsUnboundedMutation(sql))
+        {
+            _logger.LogWarning("检测到无 WHERE 的 UPDATE/DELETE: {SqlSample}", TruncateForLog(sql));
+            return true;
+        }
+
         if (IsSqlWhitelisted(sql))
         {
             _logger.LogDebug("SQL 命中白名单，跳过危险检测: {SqlSample}", TruncateForLog(sql));
@@ -119,6 +130,226 @@ internal class DatabaseHelper : IDatabaseHelperService
         }
 
         return false;
+    }
+
+    private static bool ContainsUnboundedMutation(string sql)
+    {
+        var sanitized = GoBatchSeparatorRegex.Replace(
+            StripSqlCommentsAndLiterals(sql),
+            ";");
+
+        foreach (var statement in sanitized.Split(';'))
+        {
+            if (StatementContainsUnboundedMutation(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StatementContainsUnboundedMutation(string statement)
+    {
+        var scopes = new Stack<MutationScope>();
+        scopes.Push(new MutationScope());
+
+        for (var index = 0; index < statement.Length;)
+        {
+            var current = statement[index];
+            if (current == '(')
+            {
+                scopes.Push(new MutationScope());
+                index++;
+                continue;
+            }
+
+            if (current == ')')
+            {
+                if (scopes.Count > 1 && IsUnbounded(scopes.Pop()))
+                {
+                    return true;
+                }
+
+                index++;
+                continue;
+            }
+
+            if (!IsSqlTokenStart(current))
+            {
+                index++;
+                continue;
+            }
+
+            var start = index++;
+            while (index < statement.Length && IsSqlTokenPart(statement[index]))
+            {
+                index++;
+            }
+
+            var token = statement[start..index];
+            var scope = scopes.Peek();
+            scope.FirstToken ??= token;
+
+            if (!scope.MutationFound &&
+                (string.Equals(token, "UPDATE", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(token, "DELETE", StringComparison.OrdinalIgnoreCase)) &&
+                (string.Equals(scope.FirstToken, token, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(scope.FirstToken, "WITH", StringComparison.OrdinalIgnoreCase)))
+            {
+                scope.MutationFound = true;
+            }
+            else if (scope.MutationFound &&
+                     string.Equals(token, "WHERE", StringComparison.OrdinalIgnoreCase))
+            {
+                scope.WhereFound = true;
+            }
+        }
+
+        return scopes.Any(IsUnbounded);
+    }
+
+    private static bool IsUnbounded(MutationScope scope)
+        => scope.MutationFound && !scope.WhereFound;
+
+    private static bool IsSqlTokenStart(char value)
+        => char.IsLetter(value) || value is '_' or '$';
+
+    private static bool IsSqlTokenPart(char value)
+        => char.IsLetterOrDigit(value) || value is '_' or '$';
+
+    private static string StripSqlCommentsAndLiterals(string sql)
+    {
+        var builder = new StringBuilder(sql.Length);
+
+        for (var index = 0; index < sql.Length;)
+        {
+            var current = sql[index];
+
+            if (current == '-' && index + 1 < sql.Length && sql[index + 1] == '-')
+            {
+                index += 2;
+                while (index < sql.Length && sql[index] != '\n')
+                {
+                    index++;
+                }
+
+                if (index < sql.Length)
+                {
+                    builder.Append('\n');
+                    index++;
+                }
+
+                continue;
+            }
+
+            if (current == '/' && index + 1 < sql.Length && sql[index + 1] == '*')
+            {
+                index += 2;
+                while (index + 1 < sql.Length && !(sql[index] == '*' && sql[index + 1] == '/'))
+                {
+                    builder.Append(sql[index] == '\n' ? '\n' : ' ');
+                    index++;
+                }
+
+                index = Math.Min(index + 2, sql.Length);
+                continue;
+            }
+
+            if (current is '\'' or '"' or '`' or '[')
+            {
+                var closing = current == '[' ? ']' : current;
+                builder.Append(' ');
+                index++;
+
+                while (index < sql.Length)
+                {
+                    if (current != '[' &&
+                        sql[index] == '\\' &&
+                        index + 1 < sql.Length)
+                    {
+                        builder.Append("  ");
+                        index += 2;
+                        continue;
+                    }
+
+                    if (sql[index] == closing)
+                    {
+                        if (index + 1 < sql.Length && sql[index + 1] == closing)
+                        {
+                            builder.Append("  ");
+                            index += 2;
+                            continue;
+                        }
+
+                        builder.Append(' ');
+                        index++;
+                        break;
+                    }
+
+                    builder.Append(sql[index] == '\n' ? '\n' : ' ');
+                    index++;
+                }
+
+                continue;
+            }
+
+            if (current == '$' && TryReadDollarQuoteDelimiter(sql, index, out var delimiter))
+            {
+                var closingIndex = sql.IndexOf(delimiter, index + delimiter.Length, StringComparison.Ordinal);
+                var end = closingIndex < 0 ? sql.Length : closingIndex + delimiter.Length;
+                while (index < end)
+                {
+                    builder.Append(sql[index] == '\n' ? '\n' : ' ');
+                    index++;
+                }
+
+                continue;
+            }
+
+            builder.Append(current);
+            index++;
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool TryReadDollarQuoteDelimiter(string sql, int start, out string delimiter)
+    {
+        var end = sql.IndexOf('$', start + 1);
+        if (end < 0)
+        {
+            delimiter = string.Empty;
+            return false;
+        }
+
+        var tag = sql.AsSpan(start + 1, end - start - 1);
+        if (!tag.IsEmpty && !(char.IsLetter(tag[0]) || tag[0] == '_'))
+        {
+            delimiter = string.Empty;
+            return false;
+        }
+
+        for (var index = 1; index < tag.Length; index++)
+        {
+            if (!(char.IsLetterOrDigit(tag[index]) || tag[index] == '_'))
+            {
+                delimiter = string.Empty;
+                return false;
+            }
+        }
+
+        delimiter = sql[start..(end + 1)];
+        return true;
+    }
+
+    private sealed class MutationScope
+    {
+        public string? FirstToken { get; set; }
+
+        public bool MutationFound { get; set; }
+
+        public bool WhereFound { get; set; }
     }
 
     /// <summary>

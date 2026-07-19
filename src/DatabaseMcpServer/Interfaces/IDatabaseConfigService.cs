@@ -24,6 +24,11 @@ public interface IDatabaseConfigService
     ISqlSugarClient CreateClient(string databaseName);
 
     /// <summary>
+    /// 获取当前数据库客户端及其连接级执行策略的原子快照。
+    /// </summary>
+    DatabaseClientContext CreateClientContext();
+
+    /// <summary>
     /// 异步获取数据库客户端实例（使用当前活动连接）。
     /// </summary>
     /// <returns>配置好的 ISqlSugarClient 实例</returns>
@@ -46,11 +51,6 @@ public interface IDatabaseConfigService
     /// </summary>
     /// <returns>SqlSugar DbType 枚举</returns>
     DbType GetParsedDbType();
-
-    /// <summary>
-    /// 当前活动连接是否允许通用命令工具执行危险操作。
-    /// </summary>
-    bool AllowDangerousOperations();
 
     /// <summary>
     /// 验证数据库配置是否正确

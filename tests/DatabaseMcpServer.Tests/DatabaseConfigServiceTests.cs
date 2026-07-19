@@ -61,16 +61,22 @@ public class DatabaseConfigServiceTests
     }
 
     [Fact]
-    public void AllowDangerousOperations_ShouldReadCurrentConnectionOption()
+    public void CreateClientContext_ShouldBindClientAndPolicyToSameConnection()
     {
         var configPath = WriteConfigFile("""
             {
               "databases": [
                 {
-                  "name": "default",
-                  "connectionString": "Server=localhost;Database=test;User Id=sa;Password=secret;",
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
                   "dbType": "SqlServer",
                   "isDefault": true,
+                  "allowDangerousOperations": false
+                },
+                {
+                  "name": "maintenance",
+                  "connectionString": "Server=localhost;Database=maintenance;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
                   "allowDangerousOperations": true
                 }
               ]
@@ -83,9 +89,17 @@ public class DatabaseConfigServiceTests
         try
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
-            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+            using var clientFactory = new ContextTrackingSqlSugarClientFactory();
+            var service = CreateService(clientFactory, stateFilePath);
 
-            Assert.True(service.AllowDangerousOperations());
+            var primaryContext = service.CreateClientContext();
+            Assert.False(primaryContext.AllowDangerousOperations);
+            Assert.Equal("primary", clientFactory.GetConnectionName(primaryContext.Client));
+
+            Assert.True(service.SwitchDatabase("maintenance"));
+            var maintenanceContext = service.CreateClientContext();
+            Assert.True(maintenanceContext.AllowDangerousOperations);
+            Assert.Equal("maintenance", clientFactory.GetConnectionName(maintenanceContext.Client));
 
             using var document = JsonDocument.Parse(service.GetConfigurationSummary());
             Assert.True(document.RootElement.GetProperty("allowDangerousOperations").GetBoolean());
@@ -404,7 +418,7 @@ public class DatabaseConfigServiceTests
         }
     }
 
-    private static DatabaseConfigService CreateService(TrackingSqlSugarClientFactory clientFactory, string? stateFilePath = null)
+    private static DatabaseConfigService CreateService(ISqlSugarClientFactory clientFactory, string? stateFilePath = null)
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
         var serializer = new JsonResultSerializer();
@@ -454,6 +468,39 @@ public class DatabaseConfigServiceTests
         public void ResetClientPool()
         {
             ResetCount++;
+        }
+    }
+
+    private sealed class ContextTrackingSqlSugarClientFactory : ISqlSugarClientFactory, IDisposable
+    {
+        private readonly Dictionary<ISqlSugarClient, string> _connectionNames = [];
+
+        public ISqlSugarClient CreateClient(DatabaseConnection connection)
+        {
+            var client = new SqlSugarClient(new ConnectionConfig
+            {
+                ConnectionString = connection.ConnectionString,
+                DbType = DbType.SqlServer,
+                IsAutoCloseConnection = true
+            });
+
+            _connectionNames.Add(client, connection.Name);
+            return client;
+        }
+
+        public string GetConnectionName(ISqlSugarClient client)
+            => _connectionNames[client];
+
+        public void ResetClientPool()
+        {
+        }
+
+        public void Dispose()
+        {
+            foreach (var client in _connectionNames.Keys.OfType<IDisposable>())
+            {
+                client.Dispose();
+            }
         }
     }
 }

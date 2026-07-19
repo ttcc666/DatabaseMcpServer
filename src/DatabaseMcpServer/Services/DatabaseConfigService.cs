@@ -272,14 +272,6 @@ internal class DatabaseConfigService : IDatabaseConfigService
         }
     }
 
-    public bool AllowDangerousOperations()
-    {
-        lock (_stateLock)
-        {
-            return GetCurrentConnectionUnsafe().AllowDangerousOperations;
-        }
-    }
-
     public ISqlSugarClient CreateClient()
     {
         lock (_stateLock)
@@ -293,6 +285,17 @@ internal class DatabaseConfigService : IDatabaseConfigService
         lock (_stateLock)
         {
             return _clientFactory.CreateClient(GetConnectionUnsafe(databaseName));
+        }
+    }
+
+    public DatabaseClientContext CreateClientContext()
+    {
+        lock (_stateLock)
+        {
+            var connection = GetCurrentConnectionUnsafe();
+            return new DatabaseClientContext(
+                _clientFactory.CreateClient(connection),
+                connection.AllowDangerousOperations);
         }
     }
 

@@ -34,6 +34,35 @@ public class InfrastructureAndSafetyTests
         Assert.Equal(DatabaseErrorCode.DangerousOperation, exception.ErrorCode);
     }
 
+    [Theory]
+    [InlineData("DELETE FROM users")]
+    [InlineData("UPDATE users SET status = 'disabled'")]
+    [InlineData("UPDATE users SET status = (SELECT status FROM defaults WHERE id = 1)")]
+    [InlineData("UPDATE users SET note = 'WHERE id = 1'")]
+    [InlineData("UPDATE users SET note = $$WHERE id = 1$$")]
+    [InlineData("UPDATE users SET note = 'escaped\\' WHERE id = 1'")]
+    [InlineData("UPDATE users SET status = 0 -- WHERE id = 1")]
+    [InlineData("WITH active AS (SELECT id FROM users) UPDATE users SET status = 0")]
+    [InlineData("WITH deleted AS (DELETE FROM users RETURNING id) SELECT * FROM deleted")]
+    [InlineData("UPDATE users SET status = 1 WHERE id = 1\nGO\nDELETE FROM audit_logs")]
+    public void DetectDangerousOperation_ShouldRejectMutationWithoutWhere(string sql)
+    {
+        var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
+
+        Assert.True(helper.DetectDangerousOperation(sql));
+    }
+
+    [Theory]
+    [InlineData("DELETE FROM users WHERE id = 1")]
+    [InlineData("UPDATE users SET status = 'disabled' WHERE id = 1")]
+    [InlineData("WITH active AS (SELECT id FROM users) UPDATE users SET status = 0 WHERE id IN (SELECT id FROM active)")]
+    public void DetectDangerousOperation_ShouldAllowMutationWithWhere(string sql)
+    {
+        var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
+
+        Assert.False(helper.DetectDangerousOperation(sql));
+    }
+
     [Fact]
     public void McpExceptionFilter_ShouldSerializeStructuredErrorPayload()
     {
