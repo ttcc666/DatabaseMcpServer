@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.5.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@3.0.0 --yes
+dnx DatabaseMcpServer@3.5.0 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@3.0.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@3.0.0", "--yes"],
+      "args": ["DatabaseMcpServer@3.5.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -705,6 +705,11 @@ CLI highlights:
 
 ## 🆕 Release Notes
 
+- **3.5.0**
+  - Add the `create_table` tool for creating tables from JSON column definitions
+  - Add per-connection `allowDangerousOperations` configuration, disabled by default
+  - Block `UPDATE` / `DELETE` without `WHERE` and bind each database client to the matching safety-policy snapshot
+
 - **3.0.0**
   - **Breaking:** Remove the Excel export and database documentation tools together with the `ClosedXML` dependency
   - Add `batch_sql_query` for sequential execution of 1-5 read-only queries with per-query results
@@ -849,7 +854,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- This project has released version 3.0.0
+- The current project version is 3.5.0
 - Version 3.0.0 removes the Excel export and database documentation tools; review existing integrations before upgrading
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
