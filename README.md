@@ -900,6 +900,7 @@ Data Access Layer (SqlSugar ORM)
 - [MCP GitHub](https://github.com/modelcontextprotocol)
 - [SqlSugar 文档](https://github.com/DotNetNext/SqlSugar)
 - [VS Code MCP 指南](https://code.visualstudio.com/docs/copilot/chat/mcp-servers)
+- [NuGet Trusted Publishing 使用手册](Doc/trusted-publishing.md)
 
 ## 🤝 贡献
 
