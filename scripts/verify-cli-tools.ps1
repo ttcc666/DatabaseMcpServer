@@ -380,6 +380,7 @@ INSERT INTO index_target (index_col, value_col) VALUES
         @{ Tool = 'is_any_table'; Args = @('--table-name', 'users') },
         @{ Tool = 'is_any_column'; Args = @('--table-name', 'users', '--column-name', 'name') },
         @{ Tool = 'is_any_constraint'; Args = @('--constraint-name', 'uq_constraint_target_name') },
+        @{ Tool = 'create_table'; Args = @('--table-name', 'created_table', '--columns-info', '[{"DbColumnName":"id","DataType":"INTEGER","IsPrimarykey":true,"IsIdentity":true,"IsNullable":false},{"DbColumnName":"name","DataType":"nvarchar","Length":100,"IsNullable":false}]', '--yes'); Assert = { param($invocation, $environment) Assert-InvocationSucceeded -Invocation $invocation -Context 'create_table' } },
         @{ Tool = 'drop_table'; Args = @('--table-name', 'rename_source', '--yes') },
         @{ Tool = 'truncate_table'; Args = @('--table-name', 'truncate_target', '--yes') },
         @{ Tool = 'backup_table'; Args = @('--old-table-name', 'backup_source', '--new-table-name', 'backup_source_copy', '--yes') },
@@ -418,7 +419,7 @@ INSERT INTO index_target (index_col, value_col) VALUES
         @{ Tool = 'batch_execute_commands'; Args = @('--commands', '["update users set age = 29 where id = 1","update missing_table set value_text = ''failed''","update users set status = ''active'' where id = 2"]', '--yes'); Assert = { param($invocation, $environment) Assert-BatchCommandPartialSuccess -Invocation $invocation -Environment $environment } }
     )
 
-    $expectedToolCount = 55
+    $expectedToolCount = 56
     $catalogInvocation = Invoke-DatabaseTool -ConfigPath $null -ToolArgs @('list')
     if ($catalogInvocation.ExitCode -ne 0) {
         throw "tool list failed with exit code $($catalogInvocation.ExitCode). stderr: $($catalogInvocation.Stderr)"

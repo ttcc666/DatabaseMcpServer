@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.5.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.5.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -246,7 +246,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@3.5.0 --yes
+dnx DatabaseMcpServer@3.5.5 --yes
 ```
 
 **MCP 配置**：
@@ -255,7 +255,7 @@ dnx DatabaseMcpServer@3.5.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@3.5.0", "--yes"],
+      "args": ["DatabaseMcpServer@3.5.5", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -767,6 +767,11 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 
 ## 🆕 版本发布
 
+- **3.5.5**
+  - 修复 Oracle 连接检测执行 `SELECT 1` 时误报 `ORA-00923` 的问题
+  - MCP 连接测试、健康检查、重试检测和 CLI doctor 统一使用方言无关连接探针
+  - 补全 `create_table` 的 CLI 发布验证，覆盖全部 56 个 tools
+
 - **3.5.0**
   - 新增 `create_table` 工具，支持通过列定义 JSON 创建数据表
   - 新增连接级 `allowDangerousOperations` 配置，默认关闭危险 SQL
@@ -912,7 +917,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目当前版本为 3.5.0
+- 本项目当前版本为 3.5.5
 - 3.0.0 移除了 Excel 导出与数据库文档生成 tools，升级前请检查现有调用
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试

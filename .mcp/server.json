@@ -58,7 +58,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "3.5.0",
+      "version": "3.5.5",
       "environmentVariables": [
         {
           "name": "DB_CONFIG_PATH",
@@ -313,5 +313,5 @@
       "description": "Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command."
     }
   ],
-  "version": "3.5.0"
+  "version": "3.5.5"
 }
