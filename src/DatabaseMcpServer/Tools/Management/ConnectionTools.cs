@@ -24,20 +24,16 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool]
-    [Description("Run SELECT 1 on the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy.")]
+    [Description("Validate the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy.")]
     public string TestConnection()
     {
         Logger.LogInformation("开始测试数据库连接");
 
         return WithClient(db =>
         {
-            var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
-            if (!isConnected)
-            {
-                throw new DatabaseMcpException(DatabaseErrorCode.ConnectionFailed, "数据库连接测试失败");
-            }
+            db.Ado.CheckConnection();
 
-            Logger.LogInformation("数据库连接测试完成，结果: {IsConnected}", isConnected);
+            Logger.LogInformation("数据库连接测试完成");
 
             return new
             {
@@ -51,18 +47,14 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool]
-    [Description("Create a connection using databaseName, run SELECT 1, and return success, connected, and databaseName to prove that specific entry is healthy.")]
+    [Description("Create and validate a connection using databaseName, then return success, connected, and databaseName to prove that specific entry is healthy.")]
     public string TestConnectionByName([Description("Database connection name")] string databaseName)
     {
         Logger.LogInformation("开始测试指定数据库连接: {Name}", databaseName);
 
         return WithNamedClient(databaseName, db =>
         {
-            var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
-            if (!isConnected)
-            {
-                throw new DatabaseMcpException(DatabaseErrorCode.ConnectionFailed, $"数据库 '{databaseName}' 连接测试失败");
-            }
+            db.Ado.CheckConnection();
 
             Logger.LogInformation("数据库 '{Name}' 连接测试完成", databaseName);
 
@@ -201,13 +193,13 @@ internal class ConnectionTools : McpToolBase
                 try
                 {
                     var db = DatabaseConfig.CreateClient(connection.Name);
-                    var result = db.Ado.GetDataTable("SELECT 1");
+                    db.Ado.CheckConnection();
 
                     healthResults.Add(new HealthCheckResult
                     {
                         Name = connection.Name,
                         DbType = connection.DbType,
-                        IsHealthy = result.Rows.Count > 0,
+                        IsHealthy = true,
                         ResponseTimeMs = stopwatch.ElapsedMilliseconds,
                         ErrorMessage = string.Empty,
                         CheckedAt = checkedAt
@@ -275,20 +267,18 @@ internal class ConnectionTools : McpToolBase
                     Logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
 
                     var db = DatabaseConfig.CreateClient();
-                    var isConnected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
-                    if (isConnected)
+                    db.Ado.CheckConnection();
+
+                    Logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
+                    return new
                     {
-                        Logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
-                        return new
-                        {
-                            success = true,
-                            message = "连接成功",
-                            connected = true,
-                            attempts,
-                            currentDatabase = DatabaseConfig.GetCurrentDatabaseName(),
-                            databaseType = DatabaseConfig.GetDatabaseType()
-                        };
-                    }
+                        success = true,
+                        message = "连接成功",
+                        connected = true,
+                        attempts,
+                        currentDatabase = DatabaseConfig.GetCurrentDatabaseName(),
+                        databaseType = DatabaseConfig.GetDatabaseType()
+                    };
                 }
                 catch (Exception ex)
                 {

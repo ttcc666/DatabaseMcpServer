@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DatabaseMcpServer.Extensions;
+using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Tools.Management;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,10 +25,16 @@ public class PooledClientLifecycleTests
             builder.Services.AddDatabaseMcpToolServices();
 
             using var host = builder.Build();
+            var databaseConfig = host.Services.GetRequiredService<IDatabaseConfigService>();
+            var client = databaseConfig.CreateClient();
+            var executedSql = new List<string>();
+            client.Aop.OnLogExecuting = (sql, _) => executedSql.Add(sql);
+
             var tool = host.Services.GetRequiredService<ConnectionTools>();
 
             AssertSuccess(tool.TestConnection());
             AssertSuccess(tool.TestConnection());
+            Assert.Empty(executedSql);
         }
         finally
         {
