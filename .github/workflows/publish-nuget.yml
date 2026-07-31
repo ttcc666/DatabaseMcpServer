@@ -1,0 +1,160 @@
+name: Publish NuGet
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to publish, for example 3.5.6
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build, test, and publish
+    if: github.event_name == 'release' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: release
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Validate release tag and package version
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          if ($tag -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+              throw "Tag '$tag' is not a supported NuGet package version."
+          }
+
+          $tagCommitOutput = & git rev-parse --verify "refs/tags/$tag^{commit}"
+          if ($LASTEXITCODE -ne 0) {
+              throw "Tag '$tag' does not exist."
+          }
+
+          $tagCommit = ($tagCommitOutput | Select-Object -Last 1).Trim()
+          $headCommit = (& git rev-parse 'HEAD').Trim()
+          if ($tagCommit -ne $headCommit) {
+              throw "Checked-out commit '$headCommit' does not match tag '$tag' at '$tagCommit'."
+          }
+
+          $defaultBranch = '${{ github.event.repository.default_branch }}'
+          & git fetch 'origin' $defaultBranch '--no-tags'
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not fetch the default branch '$defaultBranch'."
+          }
+
+          & git merge-base --is-ancestor 'HEAD' "origin/$defaultBranch"
+          if ($LASTEXITCODE -ne 0) {
+              throw "Tag '$tag' is not contained in the default branch '$defaultBranch'."
+          }
+
+          $projectVersionOutput = & dotnet msbuild `
+              'src/DatabaseMcpServer/DatabaseMcpServer.csproj' `
+              '-nologo' `
+              '-getProperty:PackageVersion'
+
+          if ($LASTEXITCODE -ne 0) {
+              throw 'Could not read PackageVersion from the project.'
+          }
+
+          $projectVersion = (
+              $projectVersionOutput |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Last 1
+          ).Trim()
+
+          if ($projectVersion -ne $tag) {
+              throw "PackageVersion '$projectVersion' does not match release tag '$tag'."
+          }
+
+      - name: Build and test
+        shell: pwsh
+        run: ./scripts/verify.ps1
+
+      - name: Pack NuGet package
+        shell: pwsh
+        run: |
+          dotnet pack `
+              'src/DatabaseMcpServer/DatabaseMcpServer.csproj' `
+              '--configuration' 'Release' `
+              '--no-restore' `
+              '--output' 'artifacts/release'
+
+      - name: Locate NuGet package
+        id: package
+        shell: pwsh
+        run: |
+          $package = Join-Path `
+              $PWD `
+              "artifacts/release/DatabaseMcpServer.$env:RELEASE_TAG.nupkg"
+
+          if (-not (Test-Path -LiteralPath $package)) {
+              throw "NuGet package was not created at '$package'."
+          }
+
+          $package = (Resolve-Path -LiteralPath $package).Path
+          $sha256 = (Get-FileHash -LiteralPath $package -Algorithm 'SHA256').Hash
+
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "path=$package"
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha256=$sha256"
+          Write-Host "Package SHA256: $sha256"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DatabaseMcpServer-${{ env.RELEASE_TAG }}
+          path: ${{ steps.package.outputs.path }}
+          if-no-files-found: error
+
+      - name: Log in to NuGet.org with OIDC
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push package to NuGet.org
+        shell: pwsh
+        env:
+          PACKAGE_PATH: ${{ steps.package.outputs.path }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "$env:PACKAGE_PATH" `
+              '--api-key' "$env:NUGET_API_KEY" `
+              '--source' 'https://api.nuget.org/v3/index.json' `
+              '--skip-duplicate'
