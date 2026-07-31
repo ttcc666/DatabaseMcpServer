@@ -90,7 +90,7 @@
   "tools": [
     {
       "name": "test_connection",
-      "description": "Run SELECT 1 on the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy."
+      "description": "Validate the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy."
     },
     {
       "name": "test_connection_by_name",

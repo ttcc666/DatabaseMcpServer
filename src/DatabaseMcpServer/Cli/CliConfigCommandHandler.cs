@@ -631,12 +631,12 @@ internal sealed class CliConfigCommandHandler
                     try
                     {
                         var db = databaseConfig.CreateClient(connection.Name);
-                        var connected = db.Ado.GetDataTable("SELECT 1").Rows.Count > 0;
+                        db.Ado.CheckConnection();
                         connectionResults.Add(new DoctorConnectionResult(
                             connection.Name,
                             connection.DbType,
-                            connected,
-                            connected ? "连接成功" : "连接失败"));
+                            true,
+                            "连接成功"));
                     }
                     catch (Exception ex)
                     {

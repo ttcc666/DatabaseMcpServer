@@ -15,7 +15,7 @@
 
 | Tool | 参数（MCP / CLI） | 使用说明 | CLI 示例 | `--yes` |
 | --- | --- | --- | --- | --- |
-| `test_connection` | 无 | 在当前连接执行 `SELECT 1`，返回连接状态、当前连接名和数据库类型。 | `DatabaseMcpServer tool test_connection` | 否 |
+| `test_connection` | 无 | 验证当前连接且不执行方言相关测试 SQL，返回连接状态、当前连接名和数据库类型。 | `DatabaseMcpServer tool test_connection` | 否 |
 | `test_connection_by_name` | `databaseName / --database-name` | 测试指定配置项，不切换当前连接。 | `DatabaseMcpServer tool test_connection_by_name --database-name 'reporting'` | 否 |
 | `get_database_config` | 无 | 返回当前配置摘要和掩码后的连接字符串。 | `DatabaseMcpServer tool get_database_config` | 否 |
 | `validate_configuration` | 无 | 验证配置是否能生成可用连接。 | `DatabaseMcpServer tool validate_configuration` | 否 |
