@@ -61,6 +61,15 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
 - 页面同时管理两套状态：
   - `databases.json` 中的默认连接
   - `%USERPROFILE%/.database-mcp/cli-state.json` 中按 config 路径隔离的“当前连接”
+- “连接管理”工作区支持按名称/类型/说明搜索，按数据库类型或默认/当前/危险/健康状态筛选，并按名称、类型、状态或健康延迟排序。
+- “全部健康检查”会显式检查当前配置中的所有连接并显示汇总、逐项延迟和错误；页面加载时不会自动访问数据库。
+- 新增/编辑连接可使用后端类型目录生成的连接字符串向导，也可切换到原始模式。编辑时默认保持现有连接字符串，页面和 API 都不会返回未脱敏的已保存值。
+- 右上角可选择亮色、暗色或跟随系统主题，选择只保存在浏览器本地。
+- “Tool Playground”调用的是当前进程内与 CLI `tool` 模式相同的已注册 Tool catalog，不是任意远程 MCP 客户端：
+  - 参数和结果仅保存在当前页面内存中，不写入 `localStorage` 或配置文件；
+  - 受保护 Tool 必须输入完整 Tool 名称，服务端仍以 `CliWriteProtection` 再次校验；
+  - Tool 请求仅接受本地同源 JSON 请求，并限制为 1 MiB；
+  - 关闭“等待响应”只停止浏览器等待，不代表同步数据库操作已经取消。
 - 常用参数：
   - `--port <number>`：手工指定本地端口；必须在 `0-65535` 之间
   - `--no-browser`：只启动服务，不自动打开浏览器

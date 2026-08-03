@@ -1,37 +1,15 @@
 <script setup lang="ts">
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import ConnectionStringWizard from "@/components/connection-editor/ConnectionStringWizard.vue"
 import type { DatabaseDetail, EditorDraft } from "@/types"
-import { computed, ref, watch } from "vue"
+import { computed, ref, useTemplateRef, watch } from "vue"
 import { CopyPlus, Database, PencilLine, Shapes } from "lucide-vue-next"
 
 const props = defineProps<{
@@ -45,263 +23,163 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void
   (event: "apply-preset", dbType: string): void
-  (event: "submit"): void
+  (event: "submit", draft: EditorDraft): void
 }>()
 
+const localDraft = ref<EditorDraft | null>(null)
 const attemptedSubmit = ref(false)
+const wizard = useTemplateRef<{ validate: () => boolean }>("wizard")
 
-const title = computed(() => {
-  switch (props.draft?.mode) {
-    case "edit":
-      return "编辑数据库连接"
-    case "preset":
-      return "基于模板创建"
-    case "clone":
-      return "克隆数据库连接"
-    default:
-      return "新增数据库连接"
-  }
+watch(() => props.draft, draft => {
+  if (props.open && draft) localDraft.value = cloneDraft(draft)
+}, { immediate: true })
+
+watch(() => props.open, open => {
+  attemptedSubmit.value = false
+  if (open && props.draft) localDraft.value = cloneDraft(props.draft)
+  if (!open) localDraft.value = null
 })
 
-const description = computed(() => {
-  switch (props.draft?.mode) {
-    case "edit":
-      return "保留原连接的基础上修改字段，空的连接字符串会视为保持不变。"
-    case "preset":
-      return "先选模板，再覆盖名称、连接串和描述。"
-    case "clone":
-      return "复制当前选中连接，仅需要填写新名称。"
-    default:
-      return "手工录入连接参数并写入配置文件。"
-  }
-})
-
-const nameErrors = computed(() => {
-  if (!attemptedSubmit.value || props.draft?.name.trim()) {
-    return []
-  }
-  return ["连接名称不能为空。"]
-})
-
-const dbTypeErrors = computed(() => {
-  if (!props.draft || props.draft.mode === "clone") {
-    return []
-  }
-  if (!attemptedSubmit.value || props.draft.dbType.trim()) {
-    return []
-  }
-  return ["数据库类型不能为空。"]
-})
-
+const title = computed(() => ({ edit: "编辑数据库连接", preset: "基于模板创建", clone: "克隆数据库连接", create: "新增数据库连接" })[localDraft.value?.mode ?? "create"])
+const description = computed(() => ({
+  edit: "默认保留现有连接串；需要替换时可选择向导或原始模式。",
+  preset: "选择模板后，通过结构化字段生成连接字符串。",
+  clone: "复制当前选中连接，仅需要填写新名称。",
+  create: "录入连接参数并写入配置文件。",
+})[localDraft.value?.mode ?? "create"])
+const nameErrors = computed(() => attemptedSubmit.value && !localDraft.value?.name.trim() ? ["连接名称不能为空。"] : [])
+const dbTypeErrors = computed(() => attemptedSubmit.value && localDraft.value?.mode !== "clone" && !localDraft.value?.dbType.trim() ? ["数据库类型不能为空。"] : [])
 const connectionErrors = computed(() => {
-  if (!props.draft || props.draft.mode === "edit" || props.draft.mode === "clone") {
-    return []
-  }
-  if (!attemptedSubmit.value || props.draft.connectionString.trim()) {
-    return []
-  }
-  return ["连接字符串不能为空。"]
+  const draft = localDraft.value
+  if (!attemptedSubmit.value || !draft || draft.mode === "clone" || draft.connectionMode === "unchanged") return []
+  if (draft.connectionMode === "raw" && !draft.connectionString.trim()) return ["请输入完整连接字符串。"]
+  return []
 })
-
-watch(() => props.open, (value) => {
-  if (value) {
-    attemptedSubmit.value = false
-  }
-})
+const icon = computed(() => ({ edit: PencilLine, clone: CopyPlus, preset: Shapes, create: Database })[localDraft.value?.mode ?? "create"])
 
 function requestSubmit() {
   attemptedSubmit.value = true
-  if (nameErrors.value.length || dbTypeErrors.value.length || connectionErrors.value.length) {
-    return
+  const draft = localDraft.value
+  if (!draft || nameErrors.value.length || dbTypeErrors.value.length || connectionErrors.value.length) return
+  if (draft.mode !== "clone" && draft.connectionMode !== "unchanged") {
+    if (!draft.dbType.trim()) return
+    if (draft.connectionMode === "wizard" && !wizard.value?.validate()) return
   }
-  emit("submit")
+  emit("submit", cloneDraft(draft))
 }
 
-function handlePresetChange(value: string) {
+function handlePresetModelValue(value: unknown) {
+  if (typeof value !== "string" || !localDraft.value) return
+  localDraft.value.presetDbType = value
+  localDraft.value.dbType = value
   emit("apply-preset", value)
 }
 
-function handlePresetModelValue(value: string | number | Record<string, any> | bigint | null | undefined) {
-  if (typeof value === "string") {
-    handlePresetChange(value)
-  }
+function updateCheckbox(key: "setDefault" | "clearDescription" | "allowDangerousOperations", value: boolean | "indeterminate") {
+  if (localDraft.value) localDraft.value[key] = value === true
 }
 
-function updateSetDefault(value: boolean | "indeterminate") {
-  if (props.draft) {
-    props.draft.setDefault = value === true
-  }
+function cloneDraft(draft: EditorDraft): EditorDraft {
+  return { ...draft, connectionFields: { ...draft.connectionFields } }
 }
-
-function updateClearDescription(value: boolean | "indeterminate") {
-  if (props.draft) {
-    props.draft.clearDescription = value === true
-  }
-}
-
-function updateAllowDangerousOperations(value: boolean | "indeterminate") {
-  if (props.draft) {
-    props.draft.allowDangerousOperations = value === true
-  }
-}
-
-const icon = computed(() => {
-  switch (props.draft?.mode) {
-    case "edit":
-      return PencilLine
-    case "clone":
-      return CopyPlus
-    case "preset":
-      return Shapes
-    default:
-      return Database
-  }
-})
 </script>
 
 <template>
   <Sheet :open="open" @update:open="emit('update:open', $event)">
-    <SheetContent side="right" class="w-full gap-6 sm:max-w-2xl">
-      <SheetHeader class="border-b border-border/60 pb-4">
-        <div class="flex items-center gap-3">
-          <div class="rounded-2xl bg-primary/10 p-3 text-primary">
-            <component :is="icon" class="size-5" />
-          </div>
-          <div>
-            <SheetTitle class="text-left text-xl">{{ title }}</SheetTitle>
-            <SheetDescription class="text-left">{{ description }}</SheetDescription>
+    <SheetContent side="right" class="flex h-full w-full max-w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <SheetHeader class="shrink-0 border-b border-border/60 px-5 py-4 pr-14 sm:px-6 sm:py-5">
+        <div class="flex min-w-0 items-start gap-3">
+          <div class="rounded-md bg-primary/10 p-3 text-primary"><component :is="icon" class="size-5" /></div>
+          <div class="min-w-0 flex-1">
+            <SheetTitle class="text-left text-lg sm:text-xl">{{ title }}</SheetTitle>
+            <SheetDescription class="text-left text-pretty">{{ description }}</SheetDescription>
           </div>
         </div>
       </SheetHeader>
 
-      <div v-if="draft" class="flex-1 overflow-auto pr-1">
-        <FieldGroup>
-          <FieldSet class="rounded-2xl border border-border/70 bg-muted/30 p-4">
+      <div v-if="localDraft" class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-5 sm:px-6">
+        <FieldGroup class="min-w-0 gap-5">
+          <FieldSet class="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
             <FieldTitle>基础信息</FieldTitle>
-            <FieldDescription>连接名称永远必填；克隆模式只会生成新条目，不直接改源连接。</FieldDescription>
-
-            <FieldGroup class="mt-4">
-              <Field :data-invalid="nameErrors.length > 0 || undefined">
+            <FieldGroup class="mt-4 min-w-0 gap-4">
+              <Field class="min-w-0" :data-invalid="nameErrors.length > 0 || undefined">
                 <FieldLabel>连接名称</FieldLabel>
-                <Input v-model="draft.name" placeholder="例如 mysql-dev" :aria-invalid="nameErrors.length > 0" />
+                <Input v-model="localDraft.name" class="max-w-full" placeholder="例如 mysql-dev" :aria-invalid="nameErrors.length > 0" />
                 <FieldError :errors="nameErrors" />
               </Field>
-
-              <Field v-if="draft.mode === 'preset'">
+              <Field v-if="localDraft.mode === 'preset'" class="min-w-0">
                 <FieldLabel>模板类型</FieldLabel>
-                <Select :model-value="draft.presetDbType ?? draft.dbType" @update:model-value="handlePresetModelValue">
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择模板" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem v-for="dbType in dbTypeOptions" :key="dbType" :value="dbType">
-                        {{ dbType }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
+                <Select :model-value="localDraft.presetDbType ?? localDraft.dbType" @update:model-value="handlePresetModelValue">
+                  <SelectTrigger class="w-full max-w-full"><SelectValue placeholder="选择模板" /></SelectTrigger>
+                  <SelectContent><SelectGroup><SelectItem v-for="dbType in dbTypeOptions" :key="dbType" :value="dbType">{{ dbType }}</SelectItem></SelectGroup></SelectContent>
                 </Select>
               </Field>
-
-              <Field v-if="draft.mode !== 'clone'" :data-invalid="dbTypeErrors.length > 0 || undefined">
+              <Field v-if="localDraft.mode !== 'clone'" class="min-w-0" :data-invalid="dbTypeErrors.length > 0 || undefined">
                 <FieldLabel>数据库类型</FieldLabel>
-                <Select v-model="draft.dbType">
-                  <SelectTrigger :aria-invalid="dbTypeErrors.length > 0">
-                    <SelectValue placeholder="选择数据库类型" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem v-for="dbType in dbTypeOptions" :key="dbType" :value="dbType">
-                        {{ dbType }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
+                <Select v-model="localDraft.dbType">
+                  <SelectTrigger class="w-full max-w-full" :aria-invalid="dbTypeErrors.length > 0"><SelectValue placeholder="选择数据库类型" /></SelectTrigger>
+                  <SelectContent><SelectGroup><SelectItem v-for="dbType in dbTypeOptions" :key="dbType" :value="dbType">{{ dbType }}</SelectItem></SelectGroup></SelectContent>
                 </Select>
                 <FieldError :errors="dbTypeErrors" />
               </Field>
             </FieldGroup>
           </FieldSet>
 
-          <FieldSet v-if="draft.mode !== 'clone'" class="rounded-2xl border border-border/70 bg-muted/30 p-4">
+          <FieldSet v-if="localDraft.mode !== 'clone'" class="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
             <FieldTitle>连接参数</FieldTitle>
-            <FieldDescription>编辑模式下留空连接字符串表示保持原值；页面里只展示脱敏后的旧值提示。</FieldDescription>
-
-            <FieldGroup class="mt-4">
-              <Field :data-invalid="connectionErrors.length > 0 || undefined">
-                <FieldLabel>连接字符串</FieldLabel>
-                <Textarea
-                  v-model="draft.connectionString"
-                  :placeholder="draft.maskedConnectionHint ?? 'Server=...;Database=...;'"
-                  class="min-h-32 font-mono text-sm"
-                  :aria-invalid="connectionErrors.length > 0"
-                />
-                <FieldError :errors="connectionErrors" />
-              </Field>
-
-              <Field>
-                <FieldLabel>描述</FieldLabel>
-                <Textarea v-model="draft.description" placeholder="本地开发库 / staging / analytics ..." class="min-h-24" />
-              </Field>
-            </FieldGroup>
+            <FieldDescription>向导字段由后端数据库类型目录生成，敏感默认值不会下发。</FieldDescription>
+            <div class="mt-4 min-w-0">
+              <Alert v-if="!localDraft.dbType.trim()" class="mb-4">
+                <Database class="size-4" />
+                <AlertTitle>先选择数据库类型</AlertTitle>
+                <AlertDescription>选择类型后会加载对应的连接字符串向导；也可以随时切换到原始模式手写连接串。</AlertDescription>
+              </Alert>
+              <ConnectionStringWizard
+                v-else
+                ref="wizard"
+                v-model:mode="localDraft.connectionMode"
+                v-model:raw="localDraft.connectionString"
+                v-model:fields="localDraft.connectionFields"
+                :db-type="localDraft.dbType"
+                :allow-unchanged="localDraft.mode === 'edit'"
+                :masked-hint="localDraft.maskedConnectionHint"
+              />
+              <FieldError class="mt-2" :errors="connectionErrors" />
+            </div>
+            <Field class="mt-5 min-w-0">
+              <FieldLabel>描述</FieldLabel>
+              <Textarea v-model="localDraft.description" placeholder="本地开发库 / staging / analytics ..." class="min-h-24 max-w-full" />
+            </Field>
           </FieldSet>
 
-          <FieldSet class="rounded-2xl border border-border/70 bg-muted/30 p-4">
+          <FieldSet class="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
             <FieldTitle>附加行为</FieldTitle>
-            <FieldDescription>默认连接会写回配置文件；当前连接切换请在主表格中执行。</FieldDescription>
-            <FieldGroup class="mt-4">
-              <Field orientation="horizontal">
-                <Checkbox
-                  :checked="draft.setDefault"
-                  @update:checked="updateSetDefault"
-                />
-                <FieldContent>
-                  <FieldLabel>保存后设为默认连接</FieldLabel>
-                  <FieldDescription>这会修改 <code>databases.json</code> 中唯一的默认项。</FieldDescription>
-                </FieldContent>
+            <FieldGroup class="mt-4 min-w-0 gap-4">
+              <Field orientation="horizontal" class="min-w-0 items-start">
+                <Checkbox :checked="localDraft.setDefault" @update:checked="updateCheckbox('setDefault', $event)" />
+                <FieldContent class="min-w-0"><FieldLabel>保存后设为默认连接</FieldLabel><FieldDescription>修改配置文件中的唯一默认项。</FieldDescription></FieldContent>
               </Field>
-
-              <Field v-if="draft.mode !== 'clone'" orientation="horizontal">
-                <Checkbox
-                  :checked="draft.allowDangerousOperations"
-                  @update:checked="updateAllowDangerousOperations"
-                />
-                <FieldContent>
-                  <FieldLabel>允许通用命令执行危险操作</FieldLabel>
-                  <FieldDescription>开启后当前连接的 <code>execute_command</code> 等通用命令可执行 DDL/无条件更新；默认关闭。</FieldDescription>
-                </FieldContent>
+              <Field v-if="localDraft.mode !== 'clone'" orientation="horizontal" class="min-w-0 items-start">
+                <Checkbox :checked="localDraft.allowDangerousOperations" @update:checked="updateCheckbox('allowDangerousOperations', $event)" />
+                <FieldContent class="min-w-0"><FieldLabel>允许通用命令执行危险操作</FieldLabel><FieldDescription>默认关闭；MCP Tool 仍需服务端确认策略。</FieldDescription></FieldContent>
               </Field>
-
-              <Field v-if="draft.mode === 'edit'" orientation="horizontal">
-                <Checkbox
-                  :checked="draft.clearDescription"
-                  @update:checked="updateClearDescription"
-                />
-                <FieldContent>
-                  <FieldLabel>提交时清空描述</FieldLabel>
-                  <FieldDescription>用于把现有描述置空；和文本描述同时使用时，以清空为准。</FieldDescription>
-                </FieldContent>
+              <Field v-if="localDraft.mode === 'edit'" orientation="horizontal" class="min-w-0 items-start">
+                <Checkbox :checked="localDraft.clearDescription" @update:checked="updateCheckbox('clearDescription', $event)" />
+                <FieldContent class="min-w-0"><FieldLabel>提交时清空描述</FieldLabel><FieldDescription>与描述文本同时存在时，以清空为准。</FieldDescription></FieldContent>
               </Field>
             </FieldGroup>
           </FieldSet>
 
-          <Alert v-if="draft.mode === 'clone' && selectedDatabase">
-            <Database class="size-4" />
-            <AlertTitle>克隆源</AlertTitle>
-            <AlertDescription class="space-y-1">
-              <p>{{ selectedDatabase.name }} · {{ selectedDatabase.dbType }}</p>
-              <p class="text-muted-foreground">{{ selectedDatabase.description || "暂无说明" }}</p>
-            </AlertDescription>
+          <Alert v-if="localDraft.mode === 'clone' && selectedDatabase" class="min-w-0 overflow-hidden">
+            <Database class="size-4" /><AlertTitle>克隆源</AlertTitle>
+            <AlertDescription class="break-words">{{ selectedDatabase.name }} · {{ selectedDatabase.dbType }}</AlertDescription>
           </Alert>
         </FieldGroup>
       </div>
 
-      <SheetFooter class="border-t border-border/60 pt-4">
-        <Button variant="outline" @click="emit('update:open', false)">
-          取消
-        </Button>
-        <Button :disabled="busyAction !== null" @click="requestSubmit">
-          {{ draft?.mode === "clone" ? "执行克隆" : "保存变更" }}
-        </Button>
+      <SheetFooter class="shrink-0 border-t border-border/60 bg-card px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <Button variant="outline" @click="emit('update:open', false)">取消</Button>
+        <Button :disabled="busyAction !== null" @click="requestSubmit">{{ localDraft?.mode === "clone" ? "执行克隆" : "保存变更" }}</Button>
       </SheetFooter>
     </SheetContent>
   </Sheet>

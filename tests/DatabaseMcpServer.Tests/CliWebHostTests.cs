@@ -62,6 +62,75 @@ public class CliWebHostTests
             Assert.True(testResponse.GetProperty("success").GetBoolean());
             Assert.True(testResponse.GetProperty("connected").GetBoolean());
 
+            var profile = await client.GetFromJsonAsync<JsonElement>("/api/connection-string-profiles/Sqlite");
+            Assert.True(profile.GetProperty("success").GetBoolean());
+            Assert.True(profile.GetProperty("profile").GetProperty("supportsWizard").GetBoolean());
+
+            var health = await PostJsonAsync(client, "/api/databases/health-check", new { });
+            Assert.True(health.GetProperty("success").GetBoolean());
+            Assert.Equal(1, health.GetProperty("totalConnections").GetInt32());
+            Assert.True(health.GetProperty("results")[0].GetProperty("isHealthy").GetBoolean());
+
+            var tools = await client.GetFromJsonAsync<JsonElement>("/api/tools");
+            Assert.True(tools.GetProperty("success").GetBoolean());
+            var listDatabases = Assert.Single(
+                tools.GetProperty("tools").EnumerateArray(),
+                tool => tool.GetProperty("name").GetString() == "list_databases");
+            Assert.False(listDatabases.TryGetProperty("toolType", out _));
+            Assert.False(listDatabases.TryGetProperty("method", out _));
+
+            var safeInvocation = await PostToolJsonAsync(client, "/api/tools/list_databases/invoke", new
+            {
+                arguments = new { },
+                confirmation = (string?)null
+            });
+            Assert.Equal(HttpStatusCode.OK, safeInvocation.StatusCode);
+            Assert.True(safeInvocation.Payload.GetProperty("success").GetBoolean());
+            Assert.True(safeInvocation.Payload.GetProperty("toolSuccess").GetBoolean());
+
+            var unknownArgument = await PostToolJsonAsync(client, "/api/tools/list_databases/invoke", new
+            {
+                arguments = new Dictionary<string, object> { ["unexpected"] = true }
+            });
+            Assert.Equal(HttpStatusCode.BadRequest, unknownArgument.StatusCode);
+
+            var unconfirmed = await PostToolJsonAsync(client, "/api/tools/drop_table/invoke", new
+            {
+                arguments = new Dictionary<string, object> { ["table-name"] = "web_tool_temp" }
+            });
+            Assert.Equal(HttpStatusCode.BadRequest, unconfirmed.StatusCode);
+            Assert.Contains("完整名称", unconfirmed.Payload.GetProperty("message").GetString(), StringComparison.Ordinal);
+
+            var temporaryTableName = $"web_tool_{Guid.NewGuid():N}";
+            var createInvocation = await PostToolJsonAsync(client, "/api/tools/create_table/invoke", new
+            {
+                arguments = new Dictionary<string, object>
+                {
+                    ["table-name"] = temporaryTableName,
+                    ["columns-info"] = "[{\"DbColumnName\":\"id\",\"DataType\":\"integer\",\"IsPrimarykey\":true}]"
+                },
+                confirmation = "create_table"
+            });
+            Assert.Equal(HttpStatusCode.OK, createInvocation.StatusCode);
+            Assert.True(createInvocation.Payload.GetProperty("toolSuccess").GetBoolean());
+
+            var dropInvocation = await PostToolJsonAsync(client, "/api/tools/drop_table/invoke", new
+            {
+                arguments = new Dictionary<string, object> { ["table-name"] = temporaryTableName },
+                confirmation = "drop_table"
+            });
+            Assert.Equal(HttpStatusCode.OK, dropInvocation.StatusCode);
+            Assert.True(dropInvocation.Payload.GetProperty("toolSuccess").GetBoolean());
+
+            var missingMarker = await PostToolJsonAsync(client, "/api/tools/list_databases/invoke", new { arguments = new { } }, includeMarker: false);
+            Assert.Equal(HttpStatusCode.Forbidden, missingMarker.StatusCode);
+
+            var crossOrigin = await PostToolJsonAsync(client, "/api/tools/list_databases/invoke", new { arguments = new { } }, origin: "http://example.test");
+            Assert.Equal(HttpStatusCode.Forbidden, crossOrigin.StatusCode);
+
+            var sameOrigin = await PostToolJsonAsync(client, "/api/tools/list_databases/invoke", new { arguments = new { } }, origin: handle.BaseAddress.GetLeftPart(UriPartial.Authority));
+            Assert.Equal(HttpStatusCode.OK, sameOrigin.StatusCode);
+
             var switchResponse = await PostJsonAsync(client, "/api/current-database/switch", new
             {
                 databaseName = "sqlite-local"
@@ -87,6 +156,31 @@ public class CliWebHostTests
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return document.RootElement.Clone();
+    }
+
+    private static async Task<(HttpStatusCode StatusCode, JsonElement Payload)> PostToolJsonAsync(
+        HttpClient client,
+        string url,
+        object payload,
+        bool includeMarker = true,
+        string? origin = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        if (includeMarker)
+        {
+            request.Headers.Add("X-DatabaseMcp-Web", "1");
+        }
+        if (origin != null)
+        {
+            request.Headers.TryAddWithoutValidation("Origin", origin);
+        }
+
+        using var response = await client.SendAsync(request);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return (response.StatusCode, document.RootElement.Clone());
     }
 
     private static void DeleteFileIfExists(string path)

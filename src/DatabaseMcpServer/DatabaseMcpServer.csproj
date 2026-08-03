@@ -56,9 +56,6 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<EmbeddedResource Include="$(RepositoryRoot)\website\dist\**\*">
-			<Link>website\dist\%(RecursiveDir)%(Filename)%(Extension)</Link>
-		</EmbeddedResource>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -80,6 +77,18 @@
 	        Outputs="$(RepositoryRoot)\website\dist\index.html"
 	        Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(RepositoryRoot)\website\package.json')">
 		<Exec Command="npm run build" WorkingDirectory="$(RepositoryRoot)\website" />
+	</Target>
+
+	<Target Name="CollectWebsiteAssets"
+	        BeforeTargets="_CalculateEmbeddedFilesManifestInputs;AssignTargetPaths"
+	        DependsOnTargets="BuildWebsiteAssets"
+	        Condition="Exists('$(RepositoryRoot)\website\dist\index.html')">
+		<ItemGroup>
+			<_WebsiteAsset Include="$(RepositoryRoot)\website\dist\**\*" />
+			<EmbeddedResource Include="@(_WebsiteAsset)">
+				<Link>website\dist\%(_WebsiteAsset.RecursiveDir)%(_WebsiteAsset.Filename)%(_WebsiteAsset.Extension)</Link>
+			</EmbeddedResource>
+		</ItemGroup>
 	</Target>
 
 </Project>

@@ -3,12 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DatabaseMcpServer Web Config</title>
-    <script type="module" crossorigin src="/assets/index-DvJz_ZYj.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Be0MWmSb.css">
+    <link rel="icon" href="data:," />
+    <title>DatabaseMcpServer 本地运维控制台</title>
+    <script>
+      (() => {
+        try {
+          const mode = localStorage.getItem("dbmcp-color-mode") || "auto"
+          const dark = mode === "dark" || mode === "auto" && matchMedia("(prefers-color-scheme: dark)").matches
+          document.documentElement.classList.toggle("dark", dark)
+          document.documentElement.classList.toggle("light", !dark)
+        }
+        catch {}
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-tFc9bx9Y.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CfSzvpSx.css">
   </head>
   <body>
     <div id="app"></div>
-
   </body>
 </html>

@@ -73,6 +73,7 @@ export interface NoticeState {
 }
 
 export type EditorMode = 'create' | 'preset' | 'edit' | 'clone'
+export type WorkspaceMode = 'connections' | 'playground'
 
 export interface EditorDraft {
   mode: EditorMode
@@ -81,7 +82,9 @@ export interface EditorDraft {
   maskedConnectionHint?: string | null
   name: string
   dbType: string
+  connectionMode: 'unchanged' | 'wizard' | 'raw'
   connectionString: string
+  connectionFields: Record<string, string>
   description: string
   clearDescription: boolean
   setDefault: boolean

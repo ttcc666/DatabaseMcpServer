@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef } from "vue"
 import { toast } from "vue-sonner"
+import { deleteJson, fetchJson, postJson, putJson } from "@/api/http"
 import type {
   ApiResponse,
   ConfigContext,
@@ -19,28 +20,14 @@ function createEmptyDraft(): EditorDraft {
     maskedConnectionHint: null,
     name: "",
     dbType: "",
+    connectionMode: "wizard",
     connectionString: "",
+    connectionFields: {},
     description: "",
     clearDescription: false,
     setDefault: false,
     allowDangerousOperations: false,
   }
-}
-
-async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-
-  return await response.json() as T
 }
 
 export function useConfigWorkbench() {
@@ -202,7 +189,9 @@ export function useConfigWorkbench() {
       maskedConnectionHint: target.connectionString,
       name: target.name,
       dbType: target.dbType,
+      connectionMode: "unchanged",
       connectionString: "",
+      connectionFields: {},
       description: target.description ?? "",
       clearDescription: false,
       setDefault: target.isDefault,
@@ -225,7 +214,9 @@ export function useConfigWorkbench() {
       maskedConnectionHint: target.connectionString,
       name: `${target.name}-copy`,
       dbType: target.dbType,
+      connectionMode: "unchanged",
       connectionString: "",
+      connectionFields: {},
       description: target.description ?? "",
       clearDescription: false,
       setDefault: false,
@@ -261,7 +252,9 @@ export function useConfigWorkbench() {
         presetDbType: response.preset.dbType,
         dbType: response.preset.dbType,
         name: response.preset.exampleName,
+        connectionMode: "wizard",
         connectionString: response.preset.exampleConnectionString,
+        connectionFields: {},
         description: response.preset.description,
         clearDescription: false,
       }
@@ -274,13 +267,16 @@ export function useConfigWorkbench() {
     }
   }
 
-  async function submitEditor() {
-    if (!editorDraft.value) {
+  async function submitEditor(submittedDraft?: EditorDraft) {
+    if (!submittedDraft && !editorDraft.value) {
       return
     }
 
-    const draft = editorDraft.value
+    const draft = submittedDraft ?? editorDraft.value!
+    editorDraft.value = draft
     busyAction.value = `save:${draft.mode}`
+
+    const connectionPayload = buildConnectionPayload(draft)
 
     try {
       if (draft.mode === "clone") {
@@ -301,12 +297,12 @@ export function useConfigWorkbench() {
 
         await putJson<ApiResponse>(`/api/databases/${encodeURIComponent(targetName)}`, {
           dbType: draft.dbType,
-          connectionString: draft.connectionString,
+          ...connectionPayload,
           description: draft.description,
           clearDescription: draft.clearDescription,
           setDefault: draft.setDefault,
           applyDbType: true,
-          applyConnectionString: draft.connectionString.trim().length > 0,
+          applyConnectionString: draft.connectionMode !== "unchanged",
           applyDescription: !draft.clearDescription,
           applyClearDescription: draft.clearDescription,
           applySetDefault: true,
@@ -318,7 +314,7 @@ export function useConfigWorkbench() {
         await postJson<ApiResponse>("/api/databases/from-preset", {
           dbType: draft.presetDbType ?? draft.dbType,
           name: draft.name,
-          connectionString: draft.connectionString,
+          ...connectionPayload,
           description: draft.description,
           setDefault: draft.setDefault,
           allowDangerousOperations: draft.allowDangerousOperations,
@@ -329,7 +325,7 @@ export function useConfigWorkbench() {
         await postJson<ApiResponse>("/api/databases", {
           name: draft.name,
           dbType: draft.dbType,
-          connectionString: draft.connectionString,
+          ...connectionPayload,
           description: draft.description,
           setDefault: draft.setDefault,
           allowDangerousOperations: draft.allowDangerousOperations,
@@ -504,6 +500,12 @@ export function useConfigWorkbench() {
 
   function requestImport(file: File | null) {
     if (!file) {
+      toast.error("未选择文件。")
+      return
+    }
+
+    if (!file.name.toLowerCase().endsWith(".json") && file.type !== "application/json") {
+      toast.error("请选择 JSON 配置文件。")
       return
     }
 
@@ -512,45 +514,67 @@ export function useConfigWorkbench() {
   }
 
   async function confirmImport() {
-    if (!pendingImportFile.value) {
+    // Capture the file first. AlertDialogAction closes the dialog immediately and
+    // that can fire cancelImport(); without a local capture the import would no-op.
+    const file = pendingImportFile.value
+    if (!file) {
+      toast.error("请先选择要导入的 JSON 文件。")
       return
     }
 
     busyAction.value = "import"
+    importOpen.value = false
     try {
       const formData = new FormData()
-      formData.append("file", pendingImportFile.value)
+      formData.append("file", file)
       formData.append("force", "true")
 
       const response = await fetch("/api/config/import", {
         method: "POST",
         body: formData,
+        headers: {
+          "X-DatabaseMcp-Web": "1",
+        },
       })
 
+      let payload: ApiResponse | null = null
+      try {
+        payload = await response.json() as ApiResponse
+      }
+      catch {
+        payload = null
+      }
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+        throw new Error(payload?.message ?? `导入失败（HTTP ${response.status}）。`)
       }
 
-      const payload = await response.json() as ApiResponse
-      if (!payload.success) {
-        throw new Error(payload.message ?? "导入失败。")
+      if (!payload?.success) {
+        throw new Error(payload?.message ?? "导入失败。")
       }
 
+      await loadContextAndPresets()
       await loadDashboard(false)
-      importOpen.value = false
-      pendingImportFile.value = null
-      lastMessage.value = "配置导入成功。"
-      toast.success("配置导入成功")
+      lastMessage.value = payload.message ?? `已导入配置文件：${file.name}`
+      toast.success(payload.message ?? "配置导入成功")
     }
     catch (error) {
       notifyError("导入失败", error)
     }
     finally {
+      pendingImportFile.value = null
       busyAction.value = null
     }
   }
 
   function cancelImport() {
+    // Do not clear the selected file while an import is in flight; dialog close
+    // from AlertDialogAction would otherwise cancel the pending operation.
+    if (busyAction.value === "import") {
+      importOpen.value = false
+      return
+    }
+
     importOpen.value = false
     pendingImportFile.value = null
   }
@@ -558,7 +582,9 @@ export function useConfigWorkbench() {
   function notifyError(prefix: string, error: unknown) {
     const message = `${prefix}: ${formatError(error)}`
     lastMessage.value = message
-    toast.error(message)
+    toast.error(message, {
+      duration: 6000,
+    })
   }
 
   return {
@@ -607,35 +633,24 @@ export function useConfigWorkbench() {
   }
 }
 
-async function postJson<T>(url: string, payload: unknown): Promise<T> {
-  const response = await fetchJson<T>(url, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  })
-  throwIfFailure(response as ApiResponse)
-  return response
-}
+export function buildConnectionPayload(draft: EditorDraft) {
+  if (draft.connectionMode === "wizard") {
+    return {
+      connectionString: null,
+      connectionFields: draft.connectionFields,
+    }
+  }
 
-async function putJson<T>(url: string, payload: unknown): Promise<T> {
-  const response = await fetchJson<T>(url, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  })
-  throwIfFailure(response as ApiResponse)
-  return response
-}
+  if (draft.connectionMode === "raw") {
+    return {
+      connectionString: draft.connectionString,
+      connectionFields: null,
+    }
+  }
 
-async function deleteJson<T>(url: string): Promise<T> {
-  const response = await fetchJson<T>(url, {
-    method: "DELETE",
-  })
-  throwIfFailure(response as ApiResponse)
-  return response
-}
-
-function throwIfFailure(response: ApiResponse) {
-  if (!response.success) {
-    throw new Error(response.message ?? "请求失败。")
+  return {
+    connectionString: null,
+    connectionFields: null,
   }
 }
 

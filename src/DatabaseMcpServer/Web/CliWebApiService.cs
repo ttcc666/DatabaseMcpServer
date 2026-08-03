@@ -14,6 +14,7 @@ internal sealed class CliWebApiService
     private readonly CliConfigFileService _configFileService;
     private readonly CliConfigCommandHandler _configCommandHandler;
     private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
+    private readonly CliConnectionStringBuilder _connectionStringBuilder;
     private readonly IServiceProvider _serviceProvider;
 
     public CliWebApiService(
@@ -21,12 +22,14 @@ internal sealed class CliWebApiService
         CliConfigFileService configFileService,
         CliConfigCommandHandler configCommandHandler,
         ICurrentDatabaseStateStore currentDatabaseStateStore,
+        CliConnectionStringBuilder connectionStringBuilder,
         IServiceProvider serviceProvider)
     {
         _context = context;
         _configFileService = configFileService;
         _configCommandHandler = configCommandHandler;
         _currentDatabaseStateStore = currentDatabaseStateStore;
+        _connectionStringBuilder = connectionStringBuilder;
         _serviceProvider = serviceProvider;
     }
 
@@ -193,6 +196,15 @@ internal sealed class CliWebApiService
         };
     }
 
+    public object GetConnectionStringProfile(string dbType)
+    {
+        return new
+        {
+            success = true,
+            profile = CliConnectionStringProfileCatalog.Get(dbType)
+        };
+    }
+
     public string Initialize(bool force)
     {
         var payload = _configCommandHandler.Initialize(_context.ConfigPath, force);
@@ -202,11 +214,21 @@ internal sealed class CliWebApiService
 
     public string CreateFromPreset(CliWebCreateFromPresetRequest request)
     {
+        string? connectionString;
+        try
+        {
+            connectionString = ResolveConnectionString(request.DbType, request.ConnectionString, request.ConnectionFields);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Failure(ex.Message);
+        }
+
         var payload = _configCommandHandler.CreateFromPreset(
             _context.ConfigPath,
             request.DbType,
             request.Name,
-            request.ConnectionString,
+            connectionString,
             request.Description,
             request.SetDefault,
             request.AllowDangerousOperations,
@@ -218,11 +240,25 @@ internal sealed class CliWebApiService
 
     public string AddDatabase(CliWebAddDatabaseRequest request)
     {
+        string? connectionString;
+        try
+        {
+            connectionString = ResolveConnectionString(request.DbType, request.ConnectionString, request.ConnectionFields);
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return Failure("连接字符串不能为空。");
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Failure(ex.Message);
+        }
+
         var payload = _configCommandHandler.Add(
             _context.ConfigPath,
             request.Name,
             request.DbType,
-            request.ConnectionString,
+            connectionString,
             request.Description,
             request.SetDefault,
             request.AllowDangerousOperations);
@@ -247,16 +283,27 @@ internal sealed class CliWebApiService
 
     public string UpdateDatabase(string name, CliWebUpdateDatabaseRequest request)
     {
+        string? connectionString;
+        try
+        {
+            var dbType = request.DbType ?? ResolveDatabaseType(name);
+            connectionString = ResolveConnectionString(dbType, request.ConnectionString, request.ConnectionFields);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Failure(ex.Message);
+        }
+
         var payload = _configCommandHandler.Update(
             _context.ConfigPath,
             name,
             request.DbType,
-            request.ConnectionString,
+            connectionString,
             request.Description,
             request.ClearDescription,
             request.SetDefault,
             request.ApplyDbType,
-            request.ApplyConnectionString,
+            request.ApplyConnectionString || request.ConnectionFields != null,
             request.ApplyDescription,
             request.ApplyClearDescription,
             request.ApplySetDefault,
@@ -303,6 +350,18 @@ internal sealed class CliWebApiService
                 currentDatabase = (string?)null,
                 message = ex.Message
             });
+        }
+    }
+
+    public string HealthCheck()
+    {
+        try
+        {
+            return _serviceProvider.GetRequiredService<ConnectionTools>().HealthCheck();
+        }
+        catch (Exception ex)
+        {
+            return Failure(ex.Message);
         }
     }
 
@@ -380,6 +439,36 @@ internal sealed class CliWebApiService
         return currentDefaultDatabase ?? config.Databases.FirstOrDefault()?.Name;
     }
 
+    private string ResolveDatabaseType(string name)
+    {
+        if (!_context.ConfigExists)
+        {
+            throw new InvalidOperationException("配置文件不存在，请先初始化。");
+        }
+
+        var config = _configFileService.Load(_context.ConfigPath);
+        var database = config.Databases.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.Ordinal));
+        return database?.DbType ?? throw new InvalidOperationException($"数据库连接 '{name}' 不存在。");
+    }
+
+    private string? ResolveConnectionString(
+        string dbType,
+        string? connectionString,
+        IReadOnlyDictionary<string, string?>? connectionFields)
+    {
+        if (connectionFields == null)
+        {
+            return connectionString;
+        }
+
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("原始连接字符串和向导字段不能同时提交。");
+        }
+
+        return _connectionStringBuilder.Build(dbType, connectionFields);
+    }
+
     private void TryReloadRuntimeConfiguration(string payload)
     {
         if (!IsSuccess(payload))
@@ -410,5 +499,14 @@ internal sealed class CliWebApiService
         {
             return false;
         }
+    }
+
+    private static string Failure(string message)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            success = false,
+            message
+        });
     }
 }

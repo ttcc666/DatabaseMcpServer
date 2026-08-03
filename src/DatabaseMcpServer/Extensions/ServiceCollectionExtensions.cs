@@ -5,6 +5,8 @@ using DatabaseMcpServer.Strategies.DBSetting;
 using DatabaseMcpServer.Tools.Command;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Tools.Query;
+using DatabaseMcpServer.Cli;
+using DatabaseMcpServer.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.Server;
@@ -33,6 +35,10 @@ internal static class ServiceCollectionExtensions
 
     public static IServiceCollection AddDatabaseMcpToolServices(this IServiceCollection services)
     {
+        services.TryAddSingleton<CliToolCatalog>();
+        services.TryAddSingleton<CliConnectionStringBuilder>();
+        services.TryAddSingleton<CliWebToolService>();
+
         foreach (var toolType in DatabaseMcpToolCatalog.ToolTypes)
         {
             services.TryAddTransient(toolType);

@@ -18,6 +18,7 @@ internal sealed record CliWebCreateFromPresetRequest(
     string DbType,
     string? Name,
     string? ConnectionString,
+    IReadOnlyDictionary<string, string?>? ConnectionFields,
     string? Description,
     bool SetDefault,
     bool AllowDangerousOperations,
@@ -26,7 +27,8 @@ internal sealed record CliWebCreateFromPresetRequest(
 internal sealed record CliWebAddDatabaseRequest(
     string Name,
     string DbType,
-    string ConnectionString,
+    string? ConnectionString,
+    IReadOnlyDictionary<string, string?>? ConnectionFields,
     string? Description,
     bool SetDefault,
     bool AllowDangerousOperations);
@@ -36,6 +38,7 @@ internal sealed record CliWebRenameDatabaseRequest(string NewName);
 internal sealed record CliWebUpdateDatabaseRequest(
     string? DbType,
     string? ConnectionString,
+    IReadOnlyDictionary<string, string?>? ConnectionFields,
     string? Description,
     bool ClearDescription,
     bool SetDefault,
@@ -58,3 +61,7 @@ internal sealed record CliWebDoctorRequest(
     bool TestConnections,
     bool FixSuggestions,
     bool SummaryOnly);
+
+internal sealed record CliWebToolInvocationRequest(
+    IReadOnlyDictionary<string, System.Text.Json.JsonElement>? Arguments,
+    string? Confirmation);

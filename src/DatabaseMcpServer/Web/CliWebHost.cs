@@ -136,7 +136,9 @@ internal sealed class CliWebHost : ICliWebHost
         app.MapGet("/api/dashboard", (CliWebApiService service) => Results.Json(service.GetDashboard()));
         app.MapGet("/api/presets", (CliWebApiService service) => Results.Json(service.GetPresets()));
         app.MapGet("/api/presets/{dbType}", (CliWebApiService service, string dbType) => Results.Json(service.GetPreset(dbType)));
+        app.MapGet("/api/connection-string-profiles/{dbType}", (CliWebApiService service, string dbType) => Results.Json(service.GetConnectionStringProfile(dbType)));
         app.MapGet("/api/databases/{name}", (CliWebApiService service, string name) => Results.Json(service.GetDatabase(name)));
+        app.MapGet("/api/tools", (CliWebToolService service) => Results.Json(service.GetTools()));
 
         app.MapPost("/api/config/init", (CliWebApiService service, CliWebInitializeRequest request) =>
             JsonPayload(service.Initialize(request.Force)));
@@ -183,8 +185,40 @@ internal sealed class CliWebHost : ICliWebHost
             JsonPayload(service.SetDefaultDatabase(name)));
         app.MapPost("/api/databases/{name}/test", async (CliWebApiService service, string name) =>
             JsonPayload(await service.TestConnectionAsync(name)));
+        app.MapPost("/api/databases/health-check", (CliWebApiService service) =>
+            JsonPayload(service.HealthCheck()));
         app.MapPost("/api/current-database/switch", (CliWebApiService service, CliWebSwitchCurrentDatabaseRequest request) =>
             JsonPayload(service.SwitchCurrentDatabase(request.DatabaseName)));
+        app.MapPost("/api/tools/{toolName}/invoke", async (HttpRequest request, CliWebToolService service, string toolName, CancellationToken cancellationToken) =>
+        {
+            var requestError = ValidateToolInvocationRequest(request);
+            if (requestError != null)
+            {
+                return requestError;
+            }
+
+            try
+            {
+                var payload = await ReadToolInvocationRequestAsync(request, cancellationToken);
+                return Results.Json(await service.InvokeAsync(toolName, payload, cancellationToken));
+            }
+            catch (ToolRequestBodyTooLargeException ex)
+            {
+                return Results.Json(new { success = false, message = ex.Message }, statusCode: StatusCodes.Status413PayloadTooLarge);
+            }
+            catch (JsonException ex)
+            {
+                return Results.Json(new { success = false, message = $"Tool 请求 JSON 无效: {ex.Message}" }, statusCode: StatusCodes.Status400BadRequest);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.Json(new { success = false, message = ex.Message }, statusCode: StatusCodes.Status404NotFound);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Json(new { success = false, message = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
+            }
+        });
 
         app.UseDefaultFiles(new DefaultFilesOptions
         {
@@ -225,6 +259,76 @@ internal sealed class CliWebHost : ICliWebHost
     private static IResult JsonPayload(string payload)
     {
         return Results.Content(payload, "application/json; charset=utf-8");
+    }
+
+    private static IResult? ValidateToolInvocationRequest(HttpRequest request)
+    {
+        if (request.ContentLength is > 1024 * 1024)
+        {
+            return Results.Json(new { success = false, message = "Tool 请求体不能超过 1 MiB。" }, statusCode: StatusCodes.Status413PayloadTooLarge);
+        }
+
+        if (!request.HasJsonContentType())
+        {
+            return Results.Json(new { success = false, message = "Tool 请求必须使用 application/json。" }, statusCode: StatusCodes.Status415UnsupportedMediaType);
+        }
+
+        if (!request.Headers.TryGetValue("X-DatabaseMcp-Web", out var marker) || marker != "1")
+        {
+            return Results.Json(new { success = false, message = "缺少本地 Web 请求标记。" }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        if (request.Headers.TryGetValue("Origin", out var originValues) && originValues.Count > 0)
+        {
+            if (originValues.Count != 1 || !Uri.TryCreate(originValues[0], UriKind.Absolute, out var origin))
+            {
+                return Results.Json(new { success = false, message = "Tool 请求 Origin 无效。" }, statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            var requestPort = request.Host.Port ?? (request.IsHttps ? 443 : 80);
+            var originPort = origin.IsDefaultPort
+                ? string.Equals(origin.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ? 443 : 80
+                : origin.Port;
+            var isSameHost = string.Equals(origin.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase) &&
+                             string.Equals(origin.Host, request.Host.Host, StringComparison.OrdinalIgnoreCase) &&
+                             originPort == requestPort;
+            if (!isSameHost)
+            {
+                return Results.Json(new { success = false, message = "拒绝跨来源 Tool 请求。" }, statusCode: StatusCodes.Status403Forbidden);
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<CliWebToolInvocationRequest> ReadToolInvocationRequestAsync(
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        const int maximumBodySize = 1024 * 1024;
+        await using var body = new MemoryStream();
+        var buffer = new byte[64 * 1024];
+
+        while (true)
+        {
+            var bytesRead = await request.Body.ReadAsync(buffer, cancellationToken);
+            if (bytesRead == 0)
+            {
+                break;
+            }
+
+            if (body.Length + bytesRead > maximumBodySize)
+            {
+                throw new ToolRequestBodyTooLargeException("Tool 请求体不能超过 1 MiB。");
+            }
+
+            await body.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+        }
+
+        var payload = JsonSerializer.Deserialize<CliWebToolInvocationRequest>(
+            body.GetBuffer().AsSpan(0, checked((int)body.Length)),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        return payload ?? throw new JsonException("请求体不能为空。");
     }
 
     private static Uri ResolveBaseAddress(WebApplication app)
@@ -282,5 +386,7 @@ internal sealed class CliWebHost : ICliWebHost
             }
         }
     }
+
+    private sealed class ToolRequestBodyTooLargeException(string message) : Exception(message);
 
 }

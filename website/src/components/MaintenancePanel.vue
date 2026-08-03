@@ -37,20 +37,20 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <Card class="border-border bg-card shadow-sm">
-    <CardHeader class="space-y-3">
+  <Card class="h-full min-h-0 min-w-0 border-border bg-card shadow-sm">
+    <CardHeader class="shrink-0 space-y-3">
       <div class="flex items-center gap-2">
         <HeartPulse class="size-4" />
         <CardTitle class="text-lg">维护与诊断</CardTitle>
       </div>
       <CardDescription>把校验、doctor、导入导出和当前选中连接详情集中到一块。</CardDescription>
     </CardHeader>
-    <CardContent class="space-y-5">
-      <div class="rounded-md border border-border bg-muted/20 p-4">
+    <CardContent class="flex min-h-0 flex-1 flex-col gap-5">
+      <div class="shrink-0 rounded-md border border-border bg-muted/20 p-4">
         <div class="flex items-start justify-between gap-4">
-          <div>
+          <div class="min-w-0">
             <p class="text-sm font-medium">当前选中连接</p>
-            <p class="mt-2 text-lg font-semibold">
+            <p class="mt-2 truncate text-lg font-semibold">
               {{ selectedDatabase?.name ?? "未选中" }}
             </p>
             <p class="mt-1 text-sm text-muted-foreground">
@@ -73,7 +73,7 @@ const emit = defineEmits<{
         </div>
       </div>
 
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid shrink-0 gap-3 sm:grid-cols-2">
         <Button variant="outline" class="justify-start" :disabled="busyAction !== null" @click="emit('validate')">
           <HeartPulse class="size-4" />
           校验配置
@@ -92,20 +92,20 @@ const emit = defineEmits<{
         </Button>
       </div>
 
-      <Tabs default-value="diagnostics" class="gap-4">
-        <TabsList class="grid w-full grid-cols-3">
+      <Tabs default-value="diagnostics" class="flex min-h-0 flex-1 flex-col gap-4">
+        <TabsList class="grid w-full shrink-0 grid-cols-3">
           <TabsTrigger value="diagnostics">诊断输出</TabsTrigger>
           <TabsTrigger value="semantics">语义说明</TabsTrigger>
           <TabsTrigger value="target">目标文件</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="diagnostics">
-          <ScrollArea class="h-[18rem] rounded-md border border-border bg-zinc-950 text-zinc-100">
+        <TabsContent value="diagnostics" class="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden">
+          <ScrollArea class="h-full min-h-[14rem] rounded-md border border-border bg-zinc-950 text-zinc-100">
             <pre class="p-4 text-xs leading-6 whitespace-pre-wrap">{{ diagnostics || "这里会显示 validate / doctor / test 的 JSON 输出。" }}</pre>
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="semantics">
+        <TabsContent value="semantics" class="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden">
           <Alert>
             <ArrowRightLeft class="size-4" />
             <AlertTitle>默认连接 vs 当前连接</AlertTitle>
@@ -116,8 +116,8 @@ const emit = defineEmits<{
           </Alert>
         </TabsContent>
 
-        <TabsContent value="target">
-          <div class="rounded-md border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+        <TabsContent value="target" class="mt-0 min-h-0 flex-1 data-[state=inactive]:hidden">
+          <div class="h-full rounded-md border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
             <p class="font-medium text-foreground">配置路径</p>
             <code class="mt-3 block break-all">{{ context?.configPath ?? "未解析" }}</code>
             <p class="mt-4 font-medium text-foreground">当前来源</p>

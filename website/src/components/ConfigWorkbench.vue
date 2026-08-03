@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Toaster } from "@/components/ui/sonner"
-import { onMounted, useTemplateRef } from "vue"
+import { Button } from "@/components/ui/button"
+import { computed, onMounted, useTemplateRef, watch } from "vue"
 import ConfigHero from "./ConfigHero.vue"
 import ConnectionTableCard from "./ConnectionTableCard.vue"
 import EditorSheet from "./EditorSheet.vue"
 import MaintenancePanel from "./MaintenancePanel.vue"
 import { useConfigWorkbench } from "@/composables/useConfigWorkbench"
+import { useConnectionHealth } from "@/composables/useConnectionHealth"
 
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput")
 const workbench = useConfigWorkbench()
+const connectionHealth = useConnectionHealth()
 const {
   context,
   dashboard,
@@ -22,10 +24,15 @@ const {
   deleteTarget,
   deleteOpen,
   importOpen,
+  pendingImportFile,
   dbTypeOptions,
   selectedName,
   isBootstrapping,
 } = workbench
+
+const databaseNames = computed(() => dashboard.value?.databases.map(item => item.name) ?? [])
+
+watch(databaseNames, names => connectionHealth.prune(names))
 
 onMounted(() => {
   void workbench.bootstrap()
@@ -40,24 +47,39 @@ function onImportFileChange(event: Event) {
   workbench.requestImport(target.files?.[0] ?? null)
   target.value = ""
 }
+
+function onImportOpenChange(open: boolean) {
+  // Only treat external closes (Esc / overlay) as cancel. Confirm uses Button, not
+  // AlertDialogAction, so it no longer races cancelImport() by auto-closing first.
+  if (!open) workbench.cancelImport()
+}
 </script>
 
 <template>
-  <div class="relative min-h-screen bg-muted/20">
-    <div class="mx-auto flex min-h-screen w-full max-w-[1480px] flex-col gap-6 px-4 py-6 sm:px-6 xl:px-8">
-      <ConfigHero
-        :context="context"
-        :dashboard="dashboard"
-        :is-bootstrapping="isBootstrapping"
-        :busy-action="busyAction"
-        :last-message="lastMessage"
-        @refresh="workbench.refresh"
-        @initialize="workbench.initializeConfig"
-      />
-
-      <section class="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
-        <ConnectionTableCard
+  <div class="flex flex-col gap-6">
+      <!--
+        True 2x2 grid: shared column tracks + stretched row heights so all four
+        panel edges line up (left/right/top/bottom of each cell).
+        [配置台]      [目标路径]
+        [连接工作区]  [维护与诊断]
+      -->
+      <section class="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)] xl:grid-rows-[auto_minmax(34rem,auto)]">
+        <ConfigHero
+          :context="context"
           :dashboard="dashboard"
+          :is-bootstrapping="isBootstrapping"
+          :busy-action="busyAction"
+          :last-message="lastMessage"
+          @refresh="workbench.refresh"
+          @initialize="workbench.initializeConfig"
+        />
+
+        <ConnectionTableCard
+          class="min-h-0 min-w-0 xl:row-start-2"
+          :dashboard="dashboard"
+          :health-response="connectionHealth.response.value"
+          :health-results="connectionHealth.resultMap.value"
+          :is-checking-health="connectionHealth.isChecking.value"
           :busy-action="busyAction"
           :selected-name="selectedName"
           :is-bootstrapping="isBootstrapping"
@@ -70,9 +92,11 @@ function onImportFileChange(event: Event) {
           @set-default="workbench.setDefault"
           @switch-current="workbench.switchCurrent"
           @test="workbench.testSelected"
+          @health-check="connectionHealth.checkAll"
         />
 
         <MaintenancePanel
+          class="min-h-0 min-w-0 xl:row-start-2"
           :context="context"
           :dashboard="dashboard"
           :selected-database="selectedDatabase"
@@ -113,20 +137,25 @@ function onImportFileChange(event: Event) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog :open="importOpen" @update:open="value => !value && workbench.cancelImport()">
+      <AlertDialog :open="importOpen" @update:open="onImportOpenChange">
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>覆盖导入配置？</AlertDialogTitle>
-            <AlertDialogDescription>
-              导入会用选中的 JSON 文件覆盖当前目标配置文件：
-              <code>{{ context?.configPath }}</code>
+            <AlertDialogDescription class="space-y-2">
+              <p>导入会用选中的 JSON 文件覆盖当前目标配置文件：</p>
+              <code class="block break-all rounded-md bg-muted px-2 py-1.5 text-xs">{{ context?.configPath }}</code>
+              <p v-if="pendingImportFile" class="text-foreground">
+                待导入文件：<span class="font-medium">{{ pendingImportFile.name }}</span>
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel @click="workbench.cancelImport">取消</AlertDialogCancel>
-            <AlertDialogAction @click="workbench.confirmImport">
-              继续导入
-            </AlertDialogAction>
+            <Button variant="outline" :disabled="busyAction === 'import'" @click="workbench.cancelImport">
+              取消
+            </Button>
+            <Button :disabled="busyAction === 'import' || !pendingImportFile" @click="workbench.confirmImport">
+              {{ busyAction === 'import' ? '导入中…' : '继续导入' }}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -138,8 +167,5 @@ function onImportFileChange(event: Event) {
         class="hidden"
         @change="onImportFileChange"
       >
-    </div>
-
-    <Toaster rich-colors position="top-right" />
   </div>
 </template>
