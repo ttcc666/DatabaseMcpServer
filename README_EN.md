@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.5.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -146,7 +146,7 @@ dotnet tool install --global DatabaseMcpServer
 **Installation**:
 
 ```bash
-dnx DatabaseMcpServer@3.5.5 --yes
+dnx DatabaseMcpServer@3.6.0 --yes
 ```
 
 **MCP Configuration**:
@@ -156,7 +156,7 @@ dnx DatabaseMcpServer@3.5.5 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@3.5.5", "--yes"],
+      "args": ["DatabaseMcpServer@3.6.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -705,6 +705,11 @@ CLI highlights:
 
 ## 🆕 Release Notes
 
+- **3.6.0**
+  - Add Chinese/English switching, localized UI copy, and persisted locale preferences to the local Web console
+  - Use an app-owned scroll container and disable overlay body scroll locking to prevent layout jitter when sheets and menus open
+  - Add locale initialization and connection health tests, and refresh the embedded production assets
+
 - **3.5.5**
   - Fix Oracle connection checks incorrectly reporting `ORA-00923` when executing `SELECT 1`
   - Use the dialect-independent connection probe for MCP connection tests, health checks, retry checks, and CLI doctor
@@ -859,7 +864,7 @@ This project is licensed under MIT License - see [LICENSE](LICENSE) file for det
 
 ## ⚠️ Disclaimer
 
-- The current project version is 3.5.5
+- The current project version is 3.6.0
 - Version 3.0.0 removes the Excel export and database documentation tools; review existing integrations before upgrading
 - Version 2.0.0 contains breaking changes, please refer to the migration guide
 - Please test thoroughly before using in production environment
