@@ -85,8 +85,12 @@
 	        Condition="Exists('$(RepositoryRoot)\website\dist\index.html')">
 		<ItemGroup>
 			<_WebsiteAsset Include="$(RepositoryRoot)\website\dist\**\*" />
+			<!--
+			  Logical names become DatabaseMcpServer.website.dist.* resources.
+			  CliWebHost serves them with EmbeddedFileProvider, which is separator-agnostic.
+			-->
 			<EmbeddedResource Include="@(_WebsiteAsset)">
-				<Link>website\dist\%(_WebsiteAsset.RecursiveDir)%(_WebsiteAsset.Filename)%(_WebsiteAsset.Extension)</Link>
+				<Link>website/dist/%(RecursiveDir)%(Filename)%(Extension)</Link>
 			</EmbeddedResource>
 		</ItemGroup>
 	</Target>

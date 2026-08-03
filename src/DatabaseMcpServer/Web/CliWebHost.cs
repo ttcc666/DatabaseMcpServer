@@ -130,7 +130,12 @@ internal sealed class CliWebHost : ICliWebHost
 
     private static void ConfigureApplication(WebApplication app)
     {
-        var fileProvider = new ManifestEmbeddedFileProvider(Assembly.GetExecutingAssembly(), "website/dist");
+        // Prefer resource-name based lookup over ManifestEmbeddedFileProvider.
+        // The embedded-files manifest splits TargetPath with the build OS separator, so a
+        // hierarchical "website/dist" scope is not reliable across Windows and Linux CI.
+        var fileProvider = new EmbeddedFileProvider(
+            Assembly.GetExecutingAssembly(),
+            "DatabaseMcpServer.website.dist");
 
         app.MapGet("/api/context", (CliWebApiService service) => Results.Json(service.GetContext()));
         app.MapGet("/api/dashboard", (CliWebApiService service) => Results.Json(service.GetDashboard()));

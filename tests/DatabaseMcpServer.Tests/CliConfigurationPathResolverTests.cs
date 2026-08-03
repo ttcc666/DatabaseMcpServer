@@ -116,10 +116,11 @@ public class CliConfigurationPathResolverTests
     [Fact]
     public void ResolveWritablePath_ShouldReturnExplicitPath_WhenProvided()
     {
-        var path = CliConfigurationPathResolver.ResolveWritablePath(".\\temp\\databases.json", "C:\\Users\\Tester");
+        var relativePath = Path.Combine("temp", "databases.json");
+        var path = CliConfigurationPathResolver.ResolveWritablePath(relativePath, Path.Combine("Users", "Tester"));
 
         Assert.True(path.Success);
-        Assert.EndsWith(Path.Combine("temp", "databases.json"), path.Path, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(relativePath, path.Path, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("--config", path.Source);
     }
 

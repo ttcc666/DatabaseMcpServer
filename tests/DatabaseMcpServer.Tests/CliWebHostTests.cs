@@ -35,7 +35,12 @@ public class CliWebHostTests
             Assert.False(context.GetProperty("configExists").GetBoolean());
 
             var rootResponse = await client.GetStringAsync("/");
-            Assert.Contains("DatabaseMcpServer Web Config", rootResponse, StringComparison.Ordinal);
+            Assert.Contains("DatabaseMcpServer", rootResponse, StringComparison.Ordinal);
+            Assert.True(
+                rootResponse.Contains("Local Ops Console", StringComparison.Ordinal)
+                || rootResponse.Contains("本地运维控制台", StringComparison.Ordinal)
+                || rootResponse.Contains("Web Config", StringComparison.Ordinal),
+                "Root HTML should identify the local web console.");
 
             var initResponse = await PostJsonAsync(client, "/api/config/init", new { force = false });
             Assert.True(initResponse.GetProperty("success").GetBoolean());
