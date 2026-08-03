@@ -15,10 +15,13 @@ defineOptions({
   inheritAttrs: false,
 })
 
+// bodyLock defaults to false: Select overlays should not hide the page scrollbar
+// (that padding-right compensation shifts sticky header / full-width layout).
 const props = withDefaults(
   defineProps<SelectContentProps & { class?: HTMLAttributes["class"] }>(),
   {
     position: "popper",
+    bodyLock: false,
   },
 )
 const emits = defineEmits<SelectContentEmits>()

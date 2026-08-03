@@ -8,6 +8,7 @@ import { useConnectionTable } from "@/composables/useConnectionTable"
 import type { DashboardResponse } from "@/types"
 import type { ConnectionHealthResponse, ConnectionHealthResult } from "@/types/connections"
 import { computed } from "vue"
+import { useI18n } from "vue-i18n"
 import { Database, FilePlus2, Rows3 } from "lucide-vue-next"
 
 const props = defineProps<{
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   (event: "select" | "edit" | "clone" | "delete" | "set-default" | "switch-current" | "test", name: string): void
 }>()
 
+const { t } = useI18n()
 const connections = computed(() => props.dashboard?.databases ?? [])
 const healthResults = computed(() => props.healthResults)
 const table = useConnectionTable(connections, healthResults)
@@ -34,12 +36,12 @@ const table = useConnectionTable(connections, healthResults)
   <Card class="h-full min-h-0 min-w-0 overflow-hidden border-border bg-card shadow-sm">
     <CardHeader class="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-1.5">
-        <CardTitle class="flex items-center gap-2 text-lg"><Database class="size-4" />连接工作区</CardTitle>
-        <CardDescription>搜索、筛选和检查所有已配置连接。</CardDescription>
+        <CardTitle class="flex items-center gap-2 text-lg"><Database class="size-4" />{{ t("connectionTable.title") }}</CardTitle>
+        <CardDescription>{{ t("connectionTable.description") }}</CardDescription>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button variant="outline" :disabled="busyAction !== null" @click="emit('create')"><Rows3 class="size-4" />手工新增</Button>
-        <Button :disabled="busyAction !== null" @click="emit('preset')"><FilePlus2 class="size-4" />从模板创建</Button>
+        <Button variant="outline" :disabled="busyAction !== null" @click="emit('create')"><Rows3 class="size-4" />{{ t("connectionTable.manualCreate") }}</Button>
+        <Button :disabled="busyAction !== null" @click="emit('preset')"><FilePlus2 class="size-4" />{{ t("connectionTable.createFromTemplate") }}</Button>
       </div>
     </CardHeader>
 

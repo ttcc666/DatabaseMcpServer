@@ -2,6 +2,7 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { computed, onMounted, useTemplateRef, watch } from "vue"
+import { useI18n } from "vue-i18n"
 import ConfigHero from "./ConfigHero.vue"
 import ConnectionTableCard from "./ConnectionTableCard.vue"
 import EditorSheet from "./EditorSheet.vue"
@@ -12,6 +13,7 @@ import { useConnectionHealth } from "@/composables/useConnectionHealth"
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput")
 const workbench = useConfigWorkbench()
 const connectionHealth = useConnectionHealth()
+const { t } = useI18n()
 const {
   context,
   dashboard,
@@ -123,15 +125,15 @@ function onImportOpenChange(open: boolean) {
       <AlertDialog :open="deleteOpen" @update:open="value => !value && workbench.cancelDelete()">
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除数据库连接？</AlertDialogTitle>
+            <AlertDialogTitle>{{ t("dialogs.deleteTitle") }}</AlertDialogTitle>
             <AlertDialogDescription>
-              这会从配置文件里移除 <code>{{ deleteTarget }}</code>。如果它同时是默认/当前连接，后续解析会回退到其他项。
+              {{ t("dialogs.deleteDescription", { name: deleteTarget }) }}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel @click="workbench.cancelDelete">取消</AlertDialogCancel>
+            <AlertDialogCancel @click="workbench.cancelDelete">{{ t("common.cancel") }}</AlertDialogCancel>
             <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="workbench.confirmDelete">
-              确认删除
+              {{ t("common.confirmDelete") }}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -140,21 +142,21 @@ function onImportOpenChange(open: boolean) {
       <AlertDialog :open="importOpen" @update:open="onImportOpenChange">
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>覆盖导入配置？</AlertDialogTitle>
+            <AlertDialogTitle>{{ t("dialogs.importTitle") }}</AlertDialogTitle>
             <AlertDialogDescription class="space-y-2">
-              <p>导入会用选中的 JSON 文件覆盖当前目标配置文件：</p>
+              <p>{{ t("dialogs.importDescription") }}</p>
               <code class="block break-all rounded-md bg-muted px-2 py-1.5 text-xs">{{ context?.configPath }}</code>
               <p v-if="pendingImportFile" class="text-foreground">
-                待导入文件：<span class="font-medium">{{ pendingImportFile.name }}</span>
+                {{ t("dialogs.pendingImportFile") }}<span class="font-medium">{{ pendingImportFile.name }}</span>
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <Button variant="outline" :disabled="busyAction === 'import'" @click="workbench.cancelImport">
-              取消
+              {{ t("common.cancel") }}
             </Button>
             <Button :disabled="busyAction === 'import' || !pendingImportFile" @click="workbench.confirmImport">
-              {{ busyAction === 'import' ? '导入中…' : '继续导入' }}
+              {{ busyAction === 'import' ? t("dialogs.importing") : t("dialogs.continueImport") }}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

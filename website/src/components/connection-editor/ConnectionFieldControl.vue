@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ConnectionStringFieldDefinition } from "@/types/connections"
 import { ref } from "vue"
+import { useI18n } from "vue-i18n"
 import { Eye, EyeOff } from "lucide-vue-next"
 
 defineProps<{
@@ -14,6 +15,7 @@ defineProps<{
 
 const value = defineModel<string>({ required: true })
 const showPassword = ref(false)
+const { t } = useI18n()
 
 function updateBoolean(next: boolean) {
   value.value = next ? "true" : "false"
@@ -31,7 +33,7 @@ function updateBoolean(next: boolean) {
       v-model="value"
       :type="field.inputType === 'password' && !showPassword ? 'password' : field.inputType === 'number' ? 'number' : 'text'"
       :inputmode="field.inputType === 'number' ? 'numeric' : undefined"
-      :placeholder="field.required ? '必填' : '可选'"
+      :placeholder="field.required ? t('common.required') : t('common.optional')"
       :aria-invalid="invalid || undefined"
       :class="field.inputType === 'password' ? 'pr-10' : ''"
     />
@@ -42,14 +44,14 @@ function updateBoolean(next: boolean) {
           variant="ghost"
           size="icon"
           class="absolute right-0 top-0"
-          :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+          :aria-label="showPassword ? t('wizard.hidePassword') : t('wizard.showPassword')"
           @click="showPassword = !showPassword"
         >
           <EyeOff v-if="showPassword" class="size-4" />
           <Eye v-else class="size-4" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{{ showPassword ? "隐藏密码" : "显示密码" }}</TooltipContent>
+      <TooltipContent>{{ showPassword ? t("wizard.hidePassword") : t("wizard.showPassword") }}</TooltipContent>
     </Tooltip>
   </div>
 </template>

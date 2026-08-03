@@ -1,9 +1,11 @@
 import { computed, readonly, shallowRef } from "vue"
+import { useI18n } from "vue-i18n"
 import { toast } from "vue-sonner"
 import { postJson } from "@/api/http"
 import type { ConnectionHealthResponse } from "@/types/connections"
 
 export function useConnectionHealth() {
+  const { t } = useI18n()
   const response = shallowRef<ConnectionHealthResponse | null>(null)
   const isChecking = shallowRef(false)
 
@@ -21,14 +23,14 @@ export function useConnectionHealth() {
       const payload = await postJson<ConnectionHealthResponse>("/api/databases/health-check", {})
       response.value = payload
       if (payload.overallHealth) {
-        toast.success(`全部 ${payload.totalConnections} 个连接均正常`)
+        toast.success(t("healthCheck.allHealthy", { count: payload.totalConnections }))
       }
       else {
-        toast.error(`${payload.unhealthyConnections} 个连接检查失败`)
+        toast.error(t("healthCheck.someUnhealthy", { count: payload.unhealthyConnections }))
       }
     }
     catch (error) {
-      toast.error(`健康检查失败: ${formatError(error)}`)
+      toast.error(t("healthCheck.failed", { error: formatError(error) }))
     }
     finally {
       isChecking.value = false

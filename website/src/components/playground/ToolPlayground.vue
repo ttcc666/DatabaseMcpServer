@@ -6,10 +6,12 @@ import DangerousToolDialog from "./DangerousToolDialog.vue"
 import { useToolPlayground } from "@/composables/useToolPlayground"
 import type { ToolArgumentValue } from "@/types/tools"
 import { onMounted } from "vue"
+import { useI18n } from "vue-i18n"
 import { toast } from "vue-sonner"
 import { PlugZap } from "lucide-vue-next"
 
 const playground = useToolPlayground()
+const { t } = useI18n()
 
 onMounted(() => void playground.loadTools())
 
@@ -24,7 +26,7 @@ function closeConfirmation(open: boolean) {
 async function copyResult() {
   if (!playground.formattedResult.value) return
   await navigator.clipboard.writeText(playground.formattedResult.value)
-  toast.success("结果已复制")
+  toast.success(t("playground.resultCopied"))
 }
 </script>
 
@@ -36,8 +38,8 @@ async function copyResult() {
           <PlugZap class="size-4" />
         </div>
         <div>
-          <h1 class="text-lg font-semibold sm:text-xl">MCP Tool Playground</h1>
-          <p class="mt-1 text-sm text-muted-foreground">调用当前进程已注册的 Tool；参数与结果仅保存在当前页面内存中。</p>
+          <h1 class="text-lg font-semibold sm:text-xl">{{ t("playground.title") }}</h1>
+          <p class="mt-1 text-sm text-muted-foreground">{{ t("playground.description") }}</p>
         </div>
       </div>
     </header>
@@ -64,7 +66,7 @@ async function copyResult() {
             @abort="playground.abort"
           />
           <div v-else class="flex min-h-[20rem] items-center justify-center rounded-lg border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
-            {{ playground.isLoadingCatalog.value ? "正在加载 Tool 目录..." : playground.requestError.value || "请选择一个 Tool。" }}
+            {{ playground.isLoadingCatalog.value ? t("playground.loadingCatalog") : playground.requestError.value || t("playground.selectTool") }}
           </div>
         </div>
         <ToolResultPanel

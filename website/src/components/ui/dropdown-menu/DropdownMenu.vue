@@ -2,7 +2,10 @@
 import type { DropdownMenuRootEmits, DropdownMenuRootProps } from "reka-ui"
 import { DropdownMenuRoot, useForwardPropsEmits } from "reka-ui"
 
-const props = defineProps<DropdownMenuRootProps>()
+// Default non-modal so opening menus does not lock body scroll and shift the layout.
+const props = withDefaults(defineProps<DropdownMenuRootProps>(), {
+  modal: false,
+})
 const emits = defineEmits<DropdownMenuRootEmits>()
 
 const forwarded = useForwardPropsEmits(props, emits)

@@ -1,4 +1,5 @@
 import { computed, ref, shallowRef } from "vue"
+import { useI18n } from "vue-i18n"
 import { toast } from "vue-sonner"
 import { deleteJson, fetchJson, postJson, putJson } from "@/api/http"
 import type {
@@ -31,6 +32,7 @@ function createEmptyDraft(): EditorDraft {
 }
 
 export function useConfigWorkbench() {
+  const { t } = useI18n()
   const context = shallowRef<ConfigContext | null>(null)
   const dashboard = shallowRef<DashboardResponse | null>(null)
   const presets = shallowRef<PresetListResponse["presets"]>([])
@@ -94,7 +96,7 @@ export function useConfigWorkbench() {
       await loadDashboard(false)
     }
     catch (error) {
-      notifyError("初始化失败", error)
+      notifyError(t("workbench.bootstrapFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -106,11 +108,11 @@ export function useConfigWorkbench() {
     try {
       await loadContextAndPresets()
       await loadDashboard()
-      lastMessage.value = "已刷新配置状态。"
-      toast.success("配置状态已刷新")
+      lastMessage.value = t("workbench.refreshedMessage")
+      toast.success(t("workbench.refreshedToast"))
     }
     catch (error) {
-      notifyError("刷新失败", error)
+      notifyError(t("workbench.refreshFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -135,14 +137,14 @@ export function useConfigWorkbench() {
 
       const response = await fetchJson<DatabaseDetailResponse>(`/api/databases/${encodeURIComponent(name)}`)
       if (!response.success || !response.database) {
-        throw new Error(response.message ?? "无法读取数据库详情。")
+        throw new Error(response.message ?? t("workbench.cannotReadDetail"))
       }
 
       selectedDatabase.value = response.database
     }
     catch (error) {
       selectedDatabase.value = null
-      notifyError("读取数据库详情失败", error)
+      notifyError(t("workbench.loadDetailFailed"), error)
     }
   }
 
@@ -178,7 +180,7 @@ export function useConfigWorkbench() {
   async function startEdit(name?: string) {
     const target = await ensureSelectedDatabase(name)
     if (!target) {
-      toast.error("请先选中一个数据库连接。")
+      toast.error(t("workbench.selectFirst"))
       return
     }
 
@@ -203,7 +205,7 @@ export function useConfigWorkbench() {
   async function startClone(name?: string) {
     const target = await ensureSelectedDatabase(name)
     if (!target) {
-      toast.error("请先选中一个数据库连接。")
+      toast.error(t("workbench.selectFirst"))
       return
     }
 
@@ -243,7 +245,7 @@ export function useConfigWorkbench() {
     try {
       const response = await fetchJson<PresetDetailResponse>(`/api/presets/${encodeURIComponent(dbType)}`)
       if (!response.success || !response.preset) {
-        throw new Error(response.message ?? "未找到模板。")
+        throw new Error(response.message ?? t("workbench.presetNotFound"))
       }
 
       editorDraft.value = {
@@ -260,7 +262,7 @@ export function useConfigWorkbench() {
       }
     }
     catch (error) {
-      notifyError("读取模板失败", error)
+      notifyError(t("workbench.loadPresetFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -332,14 +334,14 @@ export function useConfigWorkbench() {
         })
       }
 
-      lastMessage.value = "配置已保存。"
-      toast.success("配置已保存")
+      lastMessage.value = t("workbench.savedMessage")
+      toast.success(t("workbench.savedToast"))
       diagnostics.value = null
       resetEditor()
       await loadDashboard(false)
     }
     catch (error) {
-      notifyError("保存失败", error)
+      notifyError(t("workbench.saveFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -351,11 +353,11 @@ export function useConfigWorkbench() {
     try {
       await postJson<ApiResponse>("/api/config/init", { force })
       await refresh()
-      lastMessage.value = force ? "已覆盖并重新初始化配置文件。" : "已初始化配置文件。"
-      toast.success(force ? "配置文件已重置" : "配置文件已初始化")
+      lastMessage.value = force ? t("workbench.initForcedMessage") : t("workbench.initMessage")
+      toast.success(force ? t("workbench.initForcedToast") : t("workbench.initToast"))
     }
     catch (error) {
-      notifyError("初始化失败", error)
+      notifyError(t("workbench.initFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -375,8 +377,8 @@ export function useConfigWorkbench() {
     busyAction.value = "remove"
     try {
       await deleteJson<ApiResponse>(`/api/databases/${encodeURIComponent(deleteTarget.value)}`)
-      lastMessage.value = `已删除 '${deleteTarget.value}'。`
-      toast.success(`已删除 ${deleteTarget.value}`)
+      lastMessage.value = t("workbench.deletedMessage", { name: deleteTarget.value })
+      toast.success(t("workbench.deletedToast", { name: deleteTarget.value }))
       diagnostics.value = null
       selectedDatabase.value = null
       deleteOpen.value = false
@@ -384,7 +386,7 @@ export function useConfigWorkbench() {
       await loadDashboard(false)
     }
     catch (error) {
-      notifyError("删除失败", error)
+      notifyError(t("workbench.deleteFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -400,12 +402,12 @@ export function useConfigWorkbench() {
     busyAction.value = `default:${name}`
     try {
       await postJson<ApiResponse>(`/api/databases/${encodeURIComponent(name)}/set-default`, {})
-      lastMessage.value = `默认连接已切换为 '${name}'。`
-      toast.success(`默认连接已切换为 ${name}`)
+      lastMessage.value = t("workbench.defaultSwitchedMessage", { name })
+      toast.success(t("workbench.defaultSwitchedToast", { name }))
       await loadDashboard()
     }
     catch (error) {
-      notifyError("设置默认连接失败", error)
+      notifyError(t("workbench.setDefaultFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -416,12 +418,12 @@ export function useConfigWorkbench() {
     busyAction.value = `current:${name}`
     try {
       await postJson<ApiResponse>("/api/current-database/switch", { databaseName: name })
-      lastMessage.value = `当前连接已切换为 '${name}'。`
-      toast.success(`当前连接已切换为 ${name}`)
+      lastMessage.value = t("workbench.currentSwitchedMessage", { name })
+      toast.success(t("workbench.currentSwitchedToast", { name }))
       await loadDashboard()
     }
     catch (error) {
-      notifyError("切换当前连接失败", error)
+      notifyError(t("workbench.switchCurrentFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -436,11 +438,11 @@ export function useConfigWorkbench() {
         body: JSON.stringify({}),
       })
       diagnostics.value = JSON.stringify(response, null, 2)
-      lastMessage.value = response.message ?? `连接 '${name}' 测试完成。`
-      response.success ? toast.success(`连接 ${name} 测试完成`) : toast.error(response.message ?? "连接测试失败")
+      lastMessage.value = response.message ?? t("workbench.testCompletedMessage", { name })
+      response.success ? toast.success(t("workbench.testCompletedToast", { name })) : toast.error(response.message ?? t("workbench.testFailedToast"))
     }
     catch (error) {
-      notifyError("连接测试失败", error)
+      notifyError(t("workbench.testFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -455,11 +457,11 @@ export function useConfigWorkbench() {
         body: JSON.stringify({}),
       })
       diagnostics.value = JSON.stringify(response, null, 2)
-      lastMessage.value = response.message ?? "校验已完成。"
-      response.success ? toast.success("配置校验通过") : toast.error(response.message ?? "配置校验失败")
+      lastMessage.value = response.message ?? t("workbench.validateCompleted")
+      response.success ? toast.success(t("workbench.validatePassed")) : toast.error(response.message ?? t("workbench.validateFailedToast"))
     }
     catch (error) {
-      notifyError("校验失败", error)
+      notifyError(t("workbench.validateFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -479,11 +481,11 @@ export function useConfigWorkbench() {
         }),
       })
       diagnostics.value = JSON.stringify(response, null, 2)
-      lastMessage.value = response.message ?? "诊断已完成。"
-      response.success ? toast.success("诊断已完成") : toast.error(response.message ?? "诊断失败")
+      lastMessage.value = response.message ?? t("workbench.doctorCompleted")
+      response.success ? toast.success(t("workbench.doctorCompletedToast")) : toast.error(response.message ?? t("workbench.doctorFailedToast"))
     }
     catch (error) {
-      notifyError("诊断失败", error)
+      notifyError(t("workbench.doctorFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -493,19 +495,19 @@ export function useConfigWorkbench() {
   function exportConfig() {
     busyAction.value = "export"
     window.location.href = "/api/config/export"
-    lastMessage.value = "浏览器开始下载当前配置文件。"
-    toast.success("开始导出配置文件")
+    lastMessage.value = t("workbench.exportStarted")
+    toast.success(t("workbench.exportToast"))
     busyAction.value = null
   }
 
   function requestImport(file: File | null) {
     if (!file) {
-      toast.error("未选择文件。")
+      toast.error(t("workbench.noFileSelected"))
       return
     }
 
     if (!file.name.toLowerCase().endsWith(".json") && file.type !== "application/json") {
-      toast.error("请选择 JSON 配置文件。")
+      toast.error(t("workbench.selectJsonFile"))
       return
     }
 
@@ -518,7 +520,7 @@ export function useConfigWorkbench() {
     // that can fire cancelImport(); without a local capture the import would no-op.
     const file = pendingImportFile.value
     if (!file) {
-      toast.error("请先选择要导入的 JSON 文件。")
+      toast.error(t("workbench.selectImportFile"))
       return
     }
 
@@ -546,20 +548,20 @@ export function useConfigWorkbench() {
       }
 
       if (!response.ok) {
-        throw new Error(payload?.message ?? `导入失败（HTTP ${response.status}）。`)
+        throw new Error(payload?.message ?? t("workbench.importFailedHttp", { status: response.status }))
       }
 
       if (!payload?.success) {
-        throw new Error(payload?.message ?? "导入失败。")
+        throw new Error(payload?.message ?? t("workbench.importFailed"))
       }
 
       await loadContextAndPresets()
       await loadDashboard(false)
-      lastMessage.value = payload.message ?? `已导入配置文件：${file.name}`
-      toast.success(payload.message ?? "配置导入成功")
+      lastMessage.value = payload.message ?? t("workbench.importedMessage", { name: file.name })
+      toast.success(payload.message ?? t("workbench.importSuccess"))
     }
     catch (error) {
-      notifyError("导入失败", error)
+      notifyError(t("workbench.importError"), error)
     }
     finally {
       pendingImportFile.value = null

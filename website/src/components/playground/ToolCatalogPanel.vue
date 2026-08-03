@@ -5,6 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { ToolCategory, ToolMetadata } from "@/types/tools"
+import { computed } from "vue"
+import { useI18n } from "vue-i18n"
 import { Search, ShieldAlert, Wrench } from "lucide-vue-next"
 
 defineProps<{
@@ -17,15 +19,16 @@ const query = defineModel<string>("query", { required: true })
 const category = defineModel<ToolCategory>("category", { required: true })
 const risk = defineModel<"all" | "safe" | "protected">("risk", { required: true })
 const emit = defineEmits<{ (event: "select", name: string): void }>()
+const { t } = useI18n()
 
-const categoryLabels: Record<ToolCategory, string> = {
-  all: "全部分类",
-  connection: "连接",
-  schema: "Schema",
-  query: "查询",
-  command: "命令",
-  other: "其他",
-}
+const categoryLabels = computed<Record<ToolCategory, string>>(() => ({
+  all: t("playground.categoryAll"),
+  connection: t("playground.categoryConnection"),
+  schema: t("playground.categorySchema"),
+  query: t("playground.categoryQuery"),
+  command: t("playground.categoryCommand"),
+  other: t("playground.categoryOther"),
+}))
 
 function updateCategory(value: unknown) {
   if (typeof value === "string") category.value = value as ToolCategory
@@ -41,19 +44,23 @@ function updateRisk(value: unknown) {
     <div class="space-y-3 border-b border-border p-4">
       <div class="relative">
         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="query" class="pl-9" placeholder="搜索 Tool" aria-label="搜索 MCP Tool" />
+        <Input v-model="query" class="pl-9" :placeholder="t('playground.searchPlaceholder')" :aria-label="t('playground.searchAria')" />
       </div>
       <div class="grid grid-cols-2 gap-2">
         <Select :model-value="category" @update:model-value="updateCategory">
-          <SelectTrigger aria-label="Tool 分类"><SelectValue /></SelectTrigger>
+          <SelectTrigger :aria-label="t('playground.categoryAria')"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem v-for="(label, value) in categoryLabels" :key="value" :value="value">{{ label }}</SelectItem></SelectContent>
         </Select>
         <Select :model-value="risk" @update:model-value="updateRisk">
-          <SelectTrigger aria-label="Tool 风险"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">全部风险</SelectItem><SelectItem value="safe">普通</SelectItem><SelectItem value="protected">需确认</SelectItem></SelectContent>
+          <SelectTrigger :aria-label="t('playground.riskAria')"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{{ t("playground.riskAll") }}</SelectItem>
+            <SelectItem value="safe">{{ t("playground.riskSafe") }}</SelectItem>
+            <SelectItem value="protected">{{ t("playground.riskProtected") }}</SelectItem>
+          </SelectContent>
         </Select>
       </div>
-      <p class="text-xs text-muted-foreground">{{ tools.length }} 个匹配工具</p>
+      <p class="text-xs text-muted-foreground">{{ t("playground.matchCount", { count: tools.length }) }}</p>
     </div>
 
     <ScrollArea class="h-[24rem] lg:h-[30rem]">
@@ -79,7 +86,7 @@ function updateRisk(value: unknown) {
             <p class="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{{ tool.description }}</p>
             <Badge variant="outline" class="mt-2 text-[10px]">{{ categoryLabels[tool.category] }}</Badge>
           </button>
-          <p v-if="tools.length === 0" key="empty" class="px-3 py-12 text-center text-sm text-muted-foreground">没有匹配的 Tool。</p>
+          <p v-if="tools.length === 0" key="empty" class="px-3 py-12 text-center text-sm text-muted-foreground">{{ t("playground.noMatch") }}</p>
         </TransitionGroup>
       </div>
     </ScrollArea>

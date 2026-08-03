@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { mount, type VueWrapper } from "@vue/test-utils"
+import { defineComponent, h } from "vue"
 import { postJson } from "@/api/http"
 import { useConnectionHealth } from "@/composables/useConnectionHealth"
 import type { ConnectionHealthResponse } from "@/types/connections"
@@ -19,10 +21,14 @@ const response: ConnectionHealthResponse = {
 }
 
 describe("useConnectionHealth", () => {
-  beforeEach(() => vi.mocked(postJson).mockResolvedValue(response))
+  let wrapper: VueWrapper
+
+  beforeEach(() => {
+    vi.mocked(postJson).mockResolvedValue(response)
+  })
 
   it("normalizes health by exact connection name and removes stale entries", async () => {
-    const health = useConnectionHealth()
+    const health = createHealth()
     await health.checkAll()
 
     expect(health.resultMap.value.get("beta")?.isHealthy).toBe(false)
@@ -30,5 +36,17 @@ describe("useConnectionHealth", () => {
     expect(health.response.value?.totalConnections).toBe(1)
     expect(health.response.value?.overallHealth).toBe(true)
     expect(health.resultMap.value.has("beta")).toBe(false)
+    wrapper.unmount()
   })
+
+  function createHealth() {
+    let health!: ReturnType<typeof useConnectionHealth>
+    wrapper = mount(defineComponent({
+      setup() {
+        health = useConnectionHealth()
+        return () => h("div")
+      },
+    }))
+    return health
+  }
 })

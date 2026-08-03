@@ -1,4 +1,5 @@
 import { computed, onUnmounted, reactive, readonly, shallowRef } from "vue"
+import { useI18n } from "vue-i18n"
 import { fetchJson, postJson } from "@/api/http"
 import type {
   ToolArgumentValue,
@@ -9,6 +10,7 @@ import type {
 } from "@/types/tools"
 
 export function useToolPlayground() {
+  const { t } = useI18n()
   const tools = shallowRef<ToolMetadata[]>([])
   const selectedName = shallowRef<string | null>(null)
   const query = shallowRef("")
@@ -118,7 +120,7 @@ export function useToolPlayground() {
     }
     catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
-        requestError.value = "已停止等待响应；后端操作可能仍在执行。"
+        requestError.value = t("playground.aborted")
       }
       else {
         requestError.value = formatError(error)
@@ -140,7 +142,7 @@ export function useToolPlayground() {
     for (const parameter of tool.parameters) {
       const value = argumentsState[parameter.optionName]
       if (parameter.required && (value === undefined || typeof value === "string" && !value.trim())) {
-        errors[parameter.optionName] = "此参数必填。"
+        errors[parameter.optionName] = t("playground.paramRequired")
         continue
       }
 
@@ -149,7 +151,7 @@ export function useToolPlayground() {
           JSON.parse(value)
         }
         catch {
-          errors[parameter.optionName] = "请输入有效 JSON。"
+          errors[parameter.optionName] = t("playground.invalidJson")
         }
       }
     }

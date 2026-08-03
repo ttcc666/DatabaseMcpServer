@@ -8,6 +8,7 @@ import ConnectionFieldControl from "./ConnectionFieldControl.vue"
 import { useConnectionStringWizard } from "@/composables/useConnectionStringWizard"
 import type { ConnectionEditorMode, ConnectionStringFieldDefinition } from "@/types/connections"
 import { computed, ref, watch } from "vue"
+import { useI18n } from "vue-i18n"
 import { Braces, ChevronDown, ChevronUp, Info, SlidersHorizontal } from "lucide-vue-next"
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const props = defineProps<{
 const mode = defineModel<ConnectionEditorMode>("mode", { required: true })
 const raw = defineModel<string>("raw", { required: true })
 const fields = defineModel<Record<string, string>>("fields", { required: true })
+const { t } = useI18n()
 const { profile, isLoading, error } = useConnectionStringWizard(() => props.dbType)
 const showAdvanced = ref(false)
 const fieldErrors = ref<Record<string, string>>({})
@@ -81,8 +83,8 @@ function validate() {
   const next: Record<string, string> = {}
   for (const field of profile.value.fields) {
     const value = fields.value[field.key] ?? ""
-    if (field.required && !value.trim()) next[field.key] = `${field.label}不能为空。`
-    if (field.inputType === "number" && value.trim() && !/^\d+$/.test(value.trim())) next[field.key] = `${field.label}需要整数值。`
+    if (field.required && !value.trim()) next[field.key] = t("wizard.fieldRequired", { label: field.label })
+    if (field.inputType === "number" && value.trim() && !/^\d+$/.test(value.trim())) next[field.key] = t("wizard.fieldInteger", { label: field.label })
   }
   fieldErrors.value = next
   return Object.keys(next).length === 0
@@ -97,7 +99,7 @@ defineExpose({ validate })
       class="grid gap-2"
       :class="allowUnchanged ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'"
       role="group"
-      aria-label="连接字符串输入模式"
+      :aria-label="t('wizard.modeAria')"
     >
       <Button
         v-if="allowUnchanged"
@@ -107,7 +109,7 @@ defineExpose({ validate })
         :variant="mode === 'unchanged' ? 'default' : 'outline'"
         @click="setMode('unchanged')"
       >
-        保持现有
+        {{ t("wizard.keepExisting") }}
       </Button>
       <Button
         type="button"
@@ -117,7 +119,7 @@ defineExpose({ validate })
         :disabled="profile?.supportsWizard === false"
         @click="setMode('wizard')"
       >
-        <SlidersHorizontal class="size-4" />向导
+        <SlidersHorizontal class="size-4" />{{ t("wizard.wizard") }}
       </Button>
       <Button
         type="button"
@@ -126,28 +128,28 @@ defineExpose({ validate })
         :variant="mode === 'raw' ? 'default' : 'outline'"
         @click="setMode('raw')"
       >
-        <Braces class="size-4" />原始
+        <Braces class="size-4" />{{ t("wizard.raw") }}
       </Button>
     </div>
 
     <Alert v-if="mode === 'unchanged'" class="min-w-0 overflow-hidden">
       <Info class="size-4" />
-      <AlertTitle>保持现有连接字符串</AlertTitle>
+      <AlertTitle>{{ t("wizard.keepExistingTitle") }}</AlertTitle>
       <AlertDescription class="min-w-0 space-y-2">
-        <p>保存时不会提交或覆盖当前连接字符串。现有值仍只以脱敏形式显示：</p>
-        <code class="block max-w-full overflow-hidden rounded-md border border-border/70 bg-muted/60 px-2.5 py-2 font-mono text-[11px] leading-5 break-all whitespace-pre-wrap">{{ maskedHint || "已隐藏" }}</code>
+        <p>{{ t("wizard.keepExistingDesc") }}</p>
+        <code class="block max-w-full overflow-hidden rounded-md border border-border/70 bg-muted/60 px-2.5 py-2 font-mono text-[11px] leading-5 break-all whitespace-pre-wrap">{{ maskedHint || t("common.hidden") }}</code>
       </AlertDescription>
     </Alert>
 
     <template v-else-if="mode === 'wizard'">
       <div v-if="isLoading" class="grid gap-3 sm:grid-cols-2"><Skeleton v-for="index in 6" :key="index" class="h-16" /></div>
       <Alert v-else-if="error" variant="destructive" class="min-w-0 overflow-hidden">
-        <AlertTitle>向导加载失败</AlertTitle>
+        <AlertTitle>{{ t("wizard.loadFailed") }}</AlertTitle>
         <AlertDescription class="break-words">{{ error }}</AlertDescription>
       </Alert>
       <Alert v-else-if="profile && !profile.supportsWizard">
-        <AlertTitle>该类型暂无结构化向导</AlertTitle>
-        <AlertDescription>请切换到原始模式输入完整连接字符串。</AlertDescription>
+        <AlertTitle>{{ t("wizard.noWizardTitle") }}</AlertTitle>
+        <AlertDescription>{{ t("wizard.noWizardDesc") }}</AlertDescription>
       </Alert>
       <template v-else-if="profile">
         <div class="grid min-w-0 gap-4 sm:grid-cols-2">
@@ -165,7 +167,7 @@ defineExpose({ validate })
 
         <div v-if="advancedFields.length" class="min-w-0 space-y-4">
           <Button type="button" variant="ghost" size="sm" class="px-0" @click="showAdvanced = !showAdvanced">
-            <ChevronUp v-if="showAdvanced" class="size-4" /><ChevronDown v-else class="size-4" />高级字段
+            <ChevronUp v-if="showAdvanced" class="size-4" /><ChevronDown v-else class="size-4" />{{ t("wizard.advancedFields") }}
           </Button>
           <div v-if="showAdvanced" class="grid min-w-0 gap-4 sm:grid-cols-2">
             <Field v-for="field in advancedFields" :key="field.key" class="min-w-0" :data-invalid="Boolean(fieldErrors[field.key]) || undefined">
@@ -182,17 +184,17 @@ defineExpose({ validate })
         </div>
 
         <Field class="min-w-0">
-          <FieldLabel>脱敏预览</FieldLabel>
-          <code class="block min-h-12 max-w-full overflow-hidden break-all rounded-md border border-border bg-muted/50 px-3 py-2 font-mono text-xs leading-6 whitespace-pre-wrap">{{ maskedPreview || "填写字段后显示预览" }}</code>
-          <FieldDescription>密码等敏感字段不会出现在预览文本中。</FieldDescription>
+          <FieldLabel>{{ t("wizard.maskedPreview") }}</FieldLabel>
+          <code class="block min-h-12 max-w-full overflow-hidden break-all rounded-md border border-border bg-muted/50 px-3 py-2 font-mono text-xs leading-6 whitespace-pre-wrap">{{ maskedPreview || t("wizard.previewPlaceholder") }}</code>
+          <FieldDescription>{{ t("wizard.previewHint") }}</FieldDescription>
         </Field>
       </template>
     </template>
 
     <Field v-else class="min-w-0">
-      <FieldLabel>原始连接字符串</FieldLabel>
+      <FieldLabel>{{ t("wizard.rawConnectionString") }}</FieldLabel>
       <Textarea v-model="raw" :placeholder="maskedHint ?? 'Server=...;Database=...;'" class="min-h-32 max-w-full font-mono text-sm break-all" />
-      <FieldDescription>原始模式适用于自定义参数；编辑时必须输入完整替换值。</FieldDescription>
+      <FieldDescription>{{ t("wizard.rawHint") }}</FieldDescription>
     </Field>
   </div>
 </template>

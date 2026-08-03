@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@/types"
+import { i18n } from "@/i18n"
 
 export class ApiError extends Error {
   readonly status: number
@@ -58,7 +59,7 @@ export async function deleteJson<T>(url: string): Promise<T> {
 
 export function throwIfFailure(response: ApiResponse) {
   if (!response.success) {
-    throw new Error(response.message ?? "请求失败。")
+    throw new Error(response.message ?? String(i18n.global.t("common.requestFailed")))
   }
 }
 

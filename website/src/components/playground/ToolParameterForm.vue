@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { ToolArgumentValue, ToolMetadata, ToolParameterMetadata } from "@/types/tools"
+import { useI18n } from "vue-i18n"
 import { Braces, Play, ShieldAlert, Square } from "lucide-vue-next"
 
 defineProps<{
@@ -19,6 +20,8 @@ const emit = defineEmits<{
   (event: "update-argument", optionName: string, value: ToolArgumentValue): void
   (event: "invoke" | "abort"): void
 }>()
+
+const { t } = useI18n()
 
 function isMultiline(parameter: ToolParameterMetadata) {
   return parameter.type === "json" || /sql|query|columns|parameters/i.test(parameter.optionName)
@@ -42,8 +45,8 @@ function stringValue(value: ToolArgumentValue | undefined) {
         </div>
       </div>
       <Alert v-if="tool.requiresConfirmation" variant="destructive" class="mt-4">
-        <ShieldAlert class="size-4" /><AlertTitle>受保护 Tool</AlertTitle>
-        <AlertDescription>执行前需要输入完整 Tool 名称；服务端会再次验证。</AlertDescription>
+        <ShieldAlert class="size-4" /><AlertTitle>{{ t("playground.protectedTitle") }}</AlertTitle>
+        <AlertDescription>{{ t("playground.protectedDesc") }}</AlertDescription>
       </Alert>
     </div>
 
@@ -78,13 +81,13 @@ function stringValue(value: ToolArgumentValue | undefined) {
         <FieldError v-if="errors[parameter.optionName]" :errors="[errors[parameter.optionName]]" />
       </Field>
     </div>
-    <div v-else class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">此 Tool 无需参数。</div>
+    <div v-else class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">{{ t("playground.noParams") }}</div>
 
     <div class="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-      <Button v-if="isInvoking" type="button" variant="outline" @click="emit('abort')"><Square class="size-4" />停止等待</Button>
+      <Button v-if="isInvoking" type="button" variant="outline" @click="emit('abort')"><Square class="size-4" />{{ t("playground.stopWaiting") }}</Button>
       <Button type="submit" :disabled="isInvoking">
         <Braces v-if="tool.parameters.some(item => item.type === 'json')" class="size-4" /><Play v-else class="size-4" />
-        {{ isInvoking ? "执行中" : "执行 Tool" }}
+        {{ isInvoking ? t("playground.invoking") : t("playground.invokeTool") }}
       </Button>
     </div>
   </form>

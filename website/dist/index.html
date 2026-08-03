@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
-    <title>DatabaseMcpServer 本地运维控制台</title>
+    <title>DatabaseMcpServer</title>
     <script>
       (() => {
         try {
@@ -14,10 +14,21 @@
           document.documentElement.classList.toggle("light", !dark)
         }
         catch {}
+        try {
+          const stored = localStorage.getItem("dbmcp-locale")
+          const locale = stored === "zh-CN" || stored === "en-US"
+            ? stored
+            : (navigator.language || "zh-CN").toLowerCase().startsWith("zh") ? "zh-CN" : "en-US"
+          document.documentElement.lang = locale
+          document.title = locale === "en-US"
+            ? "DatabaseMcpServer Local Ops Console"
+            : "DatabaseMcpServer 本地运维控制台"
+        }
+        catch {}
       })()
     </script>
-    <script type="module" crossorigin src="/assets/index-tFc9bx9Y.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CfSzvpSx.css">
+    <script type="module" crossorigin src="/assets/index-ATaHr7v1.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Bc0P-xzB.css">
   </head>
   <body>
     <div id="app"></div>

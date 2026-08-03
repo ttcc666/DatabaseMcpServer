@@ -83,14 +83,24 @@
     @apply border-border;
   }
   html {
-    /* Keep scrollbar gutter reserved so workspace switches don't shift layout horizontally. */
-    scrollbar-gutter: stable;
+    height: 100%;
+    /* Document never scrolls; the app owns a dedicated scroll root. */
+    overflow: hidden;
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
     margin: 0;
-    min-height: 100vh;
+    height: 100%;
+    overflow: hidden;
+  }
+  #app {
+    height: 100%;
+  }
+  /* Neutralize residual reka-ui body-lock padding if any overlay still locks. */
+  body {
+    padding-right: 0 !important;
+    margin-right: 0 !important;
   }
   button {
     @apply cursor-pointer;
