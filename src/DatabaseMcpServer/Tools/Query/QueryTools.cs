@@ -28,7 +28,7 @@ internal class QueryTools : McpToolBase
     {
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Execute a read-only SQL statement with dangerous-operation detection, optionally binding JSON parameters, and return rowCount plus data.")]
     public string SqlQuery(
         [Description("SQL query to execute")] string sql,
@@ -51,7 +51,7 @@ internal class QueryTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Execute a read-only SQL statement and return only the first row (or null) with the same optional JSON parameters.")]
     public string SqlQuerySingle(
         [Description("SQL query to execute")] string sql,
@@ -73,7 +73,7 @@ internal class QueryTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets.")]
     public string GetDataSetAll(
         [Description("SQL query to execute (can contain multiple query statements separated by semicolons)")] string sql,
@@ -103,7 +103,7 @@ internal class QueryTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Return the first-row, first-column value from the SQL statement—ideal for COUNT/SUM scalar queries.")]
     public string GetScalar(
         [Description("SQL query to execute")] string sql,
@@ -125,7 +125,7 @@ internal class QueryTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Bind a JSON array to an IN parameter (inParameterName) plus optional otherParameters to safely execute IN-clause queries and return the rows.")]
     public string SqlQueryWithInParameter(
         [Description("SQL query containing IN parameter (e.g.: select * from [order] where id in (@ids))")] string sql,
@@ -177,7 +177,7 @@ internal class QueryTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Execute 1-5 independent read-only SQL queries sequentially over one connection and return success, rowCount, data, or error per query.")]
     public string BatchSqlQuery(
         [Description("Read-only SQL queries as a JSON string array (maximum: 5)")] JsonElement queries)

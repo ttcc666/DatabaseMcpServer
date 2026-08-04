@@ -23,7 +23,7 @@ internal class ConnectionTools : McpToolBase
     {
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Validate the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy.")]
     public string TestConnection()
     {
@@ -46,7 +46,7 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Create and validate a connection using databaseName, then return success, connected, and databaseName to prove that specific entry is healthy.")]
     public string TestConnectionByName([Description("Database connection name")] string databaseName)
     {
@@ -68,14 +68,14 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Summarize DB_CONFIG_PATH or DB_CONNECTION_STRING/DB_TYPE and return the active connection name, description, database type, masked connection string, and mode metadata.")]
     public string GetDatabaseConfig()
     {
         return ExecuteRaw(() => DatabaseConfig.GetConfigurationSummary());
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome.")]
     public string ValidateConfiguration()
     {
@@ -102,14 +102,14 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(Idempotent = true)]
     [Description("Reload the databases.json file from DB_CONFIG_PATH, refresh cached clients, and return the applied currentDatabase plus whether the previous selection was preserved. In CLI tool mode, the preserved selection is also persisted for later invocations.")]
     public string ReloadDatabaseConfig()
     {
         return Execute(() => DatabaseConfig.ReloadConfiguration());
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("List every configured database connection (name, type, description, default flag, current flag) so callers can choose a target.")]
     public string ListDatabases()
     {
@@ -138,7 +138,7 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(Idempotent = true)]
     [Description("Switch the active connection to databaseName and return previousDatabase/currentDatabase; throw an error if the name does not exist. In CLI tool mode, the selected connection is persisted per resolved config path for later invocations.")]
     public string SwitchDatabase([Description("Database connection name to switch to")] string databaseName)
     {
@@ -162,7 +162,7 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Return the currently active database connection name and database type so callers know the execution context. In CLI tool mode, this reflects the persisted current selection for the resolved config path.")]
     public string GetCurrentDatabase()
     {
@@ -174,7 +174,7 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Perform a comprehensive health check on all configured database connections, testing connectivity and response time for each.")]
     public string HealthCheck()
     {
@@ -235,7 +235,7 @@ internal class ConnectionTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(ReadOnly = true)]
     [Description("Test connection with automatic retry mechanism. Attempts to reconnect up to maxRetries times with exponential backoff.")]
     public Task<string> TestConnectionWithRetry(
         [Description("Maximum number of retry attempts (default: 3)")] int maxRetries = 3,

@@ -25,7 +25,7 @@ internal class CommandTools : McpToolBase
     {
     }
 
-    [McpServerTool]
+    [McpServerTool(Destructive = true)]
     [Description("Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, optionally binding JSON parameters, and return affectedRows.")]
     public string ExecuteCommand(
         [Description("SQL command to execute")] string sql,
@@ -43,7 +43,7 @@ internal class CommandTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(Destructive = true)]
     [Description("Invoke the specified stored procedure with optional JSON parameters and return the resulting rows and rowCount.")]
     public string CallStoredProcedure(
         [Description("Stored procedure name")] string procedureName,
@@ -85,7 +85,7 @@ internal class CommandTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(Destructive = true)]
     [Description("Invoke a stored procedure with JSON input parameters and a list of output parameter names; return rows plus the output parameter values.")]
     public string CallStoredProcedureWithOutput(
         [Description("Stored procedure name")] string procedureName,
@@ -134,7 +134,7 @@ internal class CommandTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(Destructive = true)]
     [Description("Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows.")]
     public string ExecuteCommandWithGo(
         [Description("SQL script containing GO statements")] string sql)
@@ -151,7 +151,7 @@ internal class CommandTools : McpToolBase
         });
     }
 
-    [McpServerTool]
+    [McpServerTool(Destructive = true)]
     [Description("Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command.")]
     public string BatchExecuteCommands(
         [Description("SQL commands: JSON array, single SQL string, or JSON-stringified array")] JsonElement commands,

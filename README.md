@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -246,7 +246,7 @@ dotnet tool install --global DatabaseMcpServer
 
 **安装**：
 ```bash
-dnx DatabaseMcpServer@3.6.0 --yes
+dnx DatabaseMcpServer@3.6.5 --yes
 ```
 
 **MCP 配置**：
@@ -255,7 +255,7 @@ dnx DatabaseMcpServer@3.6.0 --yes
   "mcpServers": {
     "database": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@3.6.0", "--yes"],
+      "args": ["DatabaseMcpServer@3.6.5", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -767,6 +767,11 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 
 ## 🆕 版本发布
 
+- **3.6.5**
+  - 升级 `ModelContextProtocol` 到 2.0.0，并按新版本配置 `ServerInfo` 与工具 `ReadOnly`/`Destructive`/`Idempotent` 注解
+  - 同步升级 `Microsoft.Extensions.*`、`SqlSugarCore`、`Serilog.Sinks.Seq` 与测试 SDK 到最新稳定版
+  - 构建与 94 项单元测试通过（net9.0 / net10.0）
+
 - **3.6.0**
   - 本地 Web 控制台新增中英文切换、界面文案国际化与语言偏好持久化
   - 使用应用级滚动容器并关闭弹层 body scroll lock，修复打开侧栏和下拉菜单时的界面抖动
@@ -923,7 +928,7 @@ Data Access Layer (SqlSugar ORM)
 
 ## ⚠️ 免责声明
 
-- 本项目当前版本为 3.6.0
+- 本项目当前版本为 3.6.5
 - 3.0.0 移除了 Excel 导出与数据库文档生成 tools，升级前请检查现有调用
 - 2.0.0 版本包含破坏性变更，请参考迁移指南
 - 生产环境使用前请充分测试
