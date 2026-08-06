@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -731,6 +731,11 @@ CLI highlights:
 - `-web` resolves config files with the same order as CLI tool mode and falls back to `%USERPROFILE%/.database-mcp/databases.json` as the writable target when no existing config is found.
 
 ## 🆕 Release Notes
+
+- **3.6.6**
+  - Add optional `commandTimeoutSeconds` (CLI: `--command-timeout-seconds`) to query and data-operation tools so callers can override the ~300s default
+  - Isolate explicit timeouts with `CopyNew()` to avoid contaminating the shared client pool; `0` waits indefinitely and the valid range is `0–86400`
+  - Sync `TOOLS.md`, CLI/skill docs, and unit-test coverage
 
 - **3.6.5**
   - Upgrade `ModelContextProtocol` to 2.0.0 and adopt the new `ServerInfo` configuration plus tool `ReadOnly`/`Destructive`/`Idempotent` annotations

@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.5-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -792,6 +792,11 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 ```
 
 ## 🆕 版本发布
+
+- **3.6.6**
+  - 查询与数据操作类工具新增可选 `commandTimeoutSeconds`（CLI：`--command-timeout-seconds`），可覆盖默认约 300 秒超时
+  - 指定超时通过 `CopyNew()` 隔离客户端，避免污染共享连接池；`0` 表示无限等待，合法范围 `0–86400`
+  - 同步 `TOOLS.md`、CLI/skill 文档与单测覆盖
 
 - **3.6.5**
   - 升级 `ModelContextProtocol` 到 2.0.0，并按新版本配置 `ServerInfo` 与工具 `ReadOnly`/`Destructive`/`Idempotent` 注解
