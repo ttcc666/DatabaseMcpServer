@@ -70,6 +70,28 @@ public class QueryToolsTests
         Assert.True(results[2].GetProperty("success").GetBoolean());
     }
 
+    [Fact]
+    public void SqlQuery_ShouldRejectInvalidCommandTimeout()
+    {
+        var payload = Invoke(tool => tool.SqlQuery("select 1", commandTimeoutSeconds: -1));
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean(), payload);
+        Assert.Contains("commandTimeoutSeconds", root.GetProperty("errorMessage").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SqlQuery_ShouldAcceptExplicitCommandTimeout()
+    {
+        var payload = Invoke(tool => tool.SqlQuery("select 1 as value", commandTimeoutSeconds: 60));
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        Assert.True(root.GetProperty("success").GetBoolean(), payload);
+        Assert.Equal(1, root.GetProperty("rowCount").GetInt32());
+    }
+
     private static string Invoke(Func<QueryTools, string> action)
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"dbmcp-query-{Guid.NewGuid():N}.db");

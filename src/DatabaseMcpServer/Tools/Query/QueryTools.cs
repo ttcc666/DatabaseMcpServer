@@ -32,15 +32,17 @@ internal class QueryTools : McpToolBase
     [Description("Execute a read-only SQL statement with dangerous-operation detection, optionally binding JSON parameters, and return rowCount plus data.")]
     public string SqlQuery(
         [Description("SQL query to execute")] string sql,
-        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
             EnsureSafeSql(sql);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
-            var result = parsedParams != null
-                ? db.Ado.SqlQuery<dynamic>(sql, parsedParams)
-                : db.Ado.SqlQuery<dynamic>(sql);
+            var result = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                parsedParams != null
+                    ? client.Ado.SqlQuery<dynamic>(sql, parsedParams)
+                    : client.Ado.SqlQuery<dynamic>(sql));
 
             return new
             {
@@ -55,15 +57,20 @@ internal class QueryTools : McpToolBase
     [Description("Execute a read-only SQL statement and return only the first row (or null) with the same optional JSON parameters.")]
     public string SqlQuerySingle(
         [Description("SQL query to execute")] string sql,
-        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
             EnsureSafeSql(sql);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
-            var result = parsedParams != null
-                ? db.Ado.SqlQuery<dynamic>(sql, parsedParams).FirstOrDefault()
-                : db.Ado.SqlQuery<dynamic>(sql).FirstOrDefault();
+            var result = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+            {
+                var rows = parsedParams != null
+                    ? client.Ado.SqlQuery<dynamic>(sql, parsedParams)
+                    : client.Ado.SqlQuery<dynamic>(sql);
+                return rows.FirstOrDefault();
+            });
 
             return new
             {
@@ -77,15 +84,17 @@ internal class QueryTools : McpToolBase
     [Description("Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets.")]
     public string GetDataSetAll(
         [Description("SQL query to execute (can contain multiple query statements separated by semicolons)")] string sql,
-        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
             EnsureSafeSql(sql, allowMultipleStatements: true);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
-            var dataSet = parsedParams != null
-                ? db.Ado.GetDataSetAll(sql, parsedParams)
-                : db.Ado.GetDataSetAll(sql);
+            var dataSet = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                parsedParams != null
+                    ? client.Ado.GetDataSetAll(sql, parsedParams)
+                    : client.Ado.GetDataSetAll(sql));
 
             var resultSets = new List<object>();
             foreach (DataTable table in dataSet.Tables)
@@ -107,15 +116,17 @@ internal class QueryTools : McpToolBase
     [Description("Return the first-row, first-column value from the SQL statement—ideal for COUNT/SUM scalar queries.")]
     public string GetScalar(
         [Description("SQL query to execute")] string sql,
-        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null)
+        [Description("Optional JSON parameters for parameterized queries")] string? parameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
             EnsureSafeSql(sql);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
-            var result = parsedParams != null
-                ? db.Ado.GetScalar(sql, parsedParams)
-                : db.Ado.GetScalar(sql);
+            var result = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                parsedParams != null
+                    ? client.Ado.GetScalar(sql, parsedParams)
+                    : client.Ado.GetScalar(sql));
 
             return new
             {
@@ -131,7 +142,8 @@ internal class QueryTools : McpToolBase
         [Description("SQL query containing IN parameter (e.g.: select * from [order] where id in (@ids))")] string sql,
         [Description("IN parameter name (e.g. \"ids\")")] string inParameterName,
         [Description("JSON array of IN parameter values (e.g.: [1,2,3])")] string inValues,
-        [Description("JSON of other parameters (optional)")] string? otherParameters = null)
+        [Description("JSON of other parameters (optional)")] string? otherParameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
@@ -167,7 +179,8 @@ internal class QueryTools : McpToolBase
                 }
             }
 
-            var result = db.Ado.SqlQuery<dynamic>(sql, sugarParams.ToArray());
+            var result = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                client.Ado.SqlQuery<dynamic>(sql, sugarParams.ToArray()));
             return new
             {
                 success = true,
@@ -180,41 +193,46 @@ internal class QueryTools : McpToolBase
     [McpServerTool(ReadOnly = true)]
     [Description("Execute 1-5 independent read-only SQL queries sequentially over one connection and return success, rowCount, data, or error per query.")]
     public string BatchSqlQuery(
-        [Description("Read-only SQL queries as a JSON string array (maximum: 5)")] JsonElement queries)
+        [Description("Read-only SQL queries as a JSON string array (maximum: 5)")] JsonElement queries,
+        [Description("Optional SQL command timeout in seconds applied to every query in the batch. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
             var queryList = ParseBatchQueries(queries);
-            var results = new List<object>(queryList.Length);
-            var successfulQueries = 0;
 
-            using (db.Ado.OpenAlways())
+            return SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
             {
-                for (var i = 0; i < queryList.Length; i++)
+                var results = new List<object>(queryList.Length);
+                var successfulQueries = 0;
+
+                using (client.Ado.OpenAlways())
                 {
-                    try
+                    for (var i = 0; i < queryList.Length; i++)
                     {
-                        var sql = queryList[i];
-                        EnsureSafeSql(sql);
-                        var rows = db.Ado.SqlQuery<dynamic>(sql);
-                        results.Add(new { success = true, queryIndex = i, rowCount = rows.Count, data = rows });
-                        successfulQueries++;
-                    }
-                    catch (Exception ex)
-                    {
-                        results.Add(new { success = false, queryIndex = i, error = ex.Message });
+                        try
+                        {
+                            var sql = queryList[i];
+                            EnsureSafeSql(sql);
+                            var rows = client.Ado.SqlQuery<dynamic>(sql);
+                            results.Add(new { success = true, queryIndex = i, rowCount = rows.Count, data = rows });
+                            successfulQueries++;
+                        }
+                        catch (Exception ex)
+                        {
+                            results.Add(new { success = false, queryIndex = i, error = ex.Message });
+                        }
                     }
                 }
-            }
 
-            return new
-            {
-                success = true,
-                totalQueries = queryList.Length,
-                successfulQueries,
-                failedQueries = queryList.Length - successfulQueries,
-                results
-            };
+                return new
+                {
+                    success = true,
+                    totalQueries = queryList.Length,
+                    successfulQueries,
+                    failedQueries = queryList.Length - successfulQueries,
+                    results
+                };
+            });
         });
     }
 

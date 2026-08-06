@@ -29,15 +29,17 @@ internal class CommandTools : McpToolBase
     [Description("Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, optionally binding JSON parameters, and return affectedRows.")]
     public string ExecuteCommand(
         [Description("SQL command to execute")] string sql,
-        [Description("Optional JSON parameters")] string? parameters = null)
+        [Description("Optional JSON parameters")] string? parameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClientContext(context =>
         {
             EnsureSafeSql(sql, context.AllowDangerousOperations);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
-            var affectedRows = parsedParams != null
-                ? context.Client.Ado.ExecuteCommand(sql, parsedParams)
-                : context.Client.Ado.ExecuteCommand(sql);
+            var affectedRows = SqlCommandTimeout.WithTimeout(context.Client, commandTimeoutSeconds, client =>
+                parsedParams != null
+                    ? client.Ado.ExecuteCommand(sql, parsedParams)
+                    : client.Ado.ExecuteCommand(sql));
 
             return new { success = true, affectedRows };
         });
@@ -47,13 +49,15 @@ internal class CommandTools : McpToolBase
     [Description("Invoke the specified stored procedure with optional JSON parameters and return the resulting rows and rowCount.")]
     public string CallStoredProcedure(
         [Description("Stored procedure name")] string procedureName,
-        [Description("JSON object of stored procedure parameters")] string? parameters = null)
+        [Description("JSON object of stored procedure parameters")] string? parameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
             if (string.IsNullOrWhiteSpace(parameters))
             {
-                var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName);
+                var result = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                    client.Ado.UseStoredProcedure().GetDataTable(procedureName));
                 var rows = DatabaseHelper.ConvertDataTableToList(result);
                 return new
                 {
@@ -73,7 +77,8 @@ internal class CommandTools : McpToolBase
                 kvp => kvp.Key,
                 kvp => JsonElementValueConverter.ConvertToValue(kvp.Value));
 
-            var table = db.Ado.UseStoredProcedure().GetDataTable(procedureName, convertedDict);
+            var table = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                client.Ado.UseStoredProcedure().GetDataTable(procedureName, convertedDict));
             var tableRows = DatabaseHelper.ConvertDataTableToList(table);
 
             return new
@@ -90,7 +95,8 @@ internal class CommandTools : McpToolBase
     public string CallStoredProcedureWithOutput(
         [Description("Stored procedure name")] string procedureName,
         [Description("JSON object of input parameters")] string? inputParameters = null,
-        [Description("JSON array of output parameter names")] string? outputParameters = null)
+        [Description("JSON array of output parameter names")] string? outputParameters = null,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClient(db =>
         {
@@ -118,7 +124,8 @@ internal class CommandTools : McpToolBase
                 }
             }
 
-            var result = db.Ado.UseStoredProcedure().GetDataTable(procedureName, sugarParams.ToArray());
+            var result = SqlCommandTimeout.WithTimeout(db, commandTimeoutSeconds, client =>
+                client.Ado.UseStoredProcedure().GetDataTable(procedureName, sugarParams.ToArray()));
             var rows = DatabaseHelper.ConvertDataTableToList(result);
             var outputValues = sugarParams
                 .Where(p => p.Direction == System.Data.ParameterDirection.Output)
@@ -137,12 +144,14 @@ internal class CommandTools : McpToolBase
     [McpServerTool(Destructive = true)]
     [Description("Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows.")]
     public string ExecuteCommandWithGo(
-        [Description("SQL script containing GO statements")] string sql)
+        [Description("SQL script containing GO statements")] string sql,
+        [Description("Optional SQL command timeout in seconds. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClientContext(context =>
         {
             EnsureSafeSql(sql, context.AllowDangerousOperations);
-            var affectedRows = context.Client.Ado.ExecuteCommandWithGo(sql);
+            var affectedRows = SqlCommandTimeout.WithTimeout(context.Client, commandTimeoutSeconds, client =>
+                client.Ado.ExecuteCommandWithGo(sql));
             return new
             {
                 success = true,
@@ -155,43 +164,48 @@ internal class CommandTools : McpToolBase
     [Description("Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command.")]
     public string BatchExecuteCommands(
         [Description("SQL commands: JSON array, single SQL string, or JSON-stringified array")] JsonElement commands,
-        [Description("Optional parameters per command: JSON array/object, or JSON-stringified array/object")] JsonElement? parametersArray = null)
+        [Description("Optional parameters per command: JSON array/object, or JSON-stringified array/object")] JsonElement? parametersArray = null,
+        [Description("Optional SQL command timeout in seconds applied to every command in the batch. Omit to use the provider default (typically 300). 0 means wait indefinitely.")] int? commandTimeoutSeconds = null)
     {
         return WithClientContext(context =>
         {
             var commandList = ParseCommandList(commands);
             var paramsList = ParseParametersArray(parametersArray);
-            var results = new List<object>();
 
-            using (context.Client.Ado.OpenAlways())
+            return SqlCommandTimeout.WithTimeout(context.Client, commandTimeoutSeconds, client =>
             {
-                for (var i = 0; i < commandList.Length; i++)
-                {
-                    try
-                    {
-                        var command = commandList[i];
-                        if (!context.AllowDangerousOperations && DatabaseHelper.DetectDangerousOperation(command))
-                        {
-                            results.Add(new { success = false, error = "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。", commandIndex = i });
-                            continue;
-                        }
+                var results = new List<object>();
 
-                        var affectedRows = ExecuteSingleCommand(context.Client, command, paramsList, i);
-                        results.Add(new { success = true, affectedRows, commandIndex = i });
-                    }
-                    catch (Exception ex)
+                using (client.Ado.OpenAlways())
+                {
+                    for (var i = 0; i < commandList.Length; i++)
                     {
-                        results.Add(new { success = false, error = ex.Message, commandIndex = i });
+                        try
+                        {
+                            var command = commandList[i];
+                            if (!context.AllowDangerousOperations && DatabaseHelper.DetectDangerousOperation(command))
+                            {
+                                results.Add(new { success = false, error = "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。", commandIndex = i });
+                                continue;
+                            }
+
+                            var affectedRows = ExecuteSingleCommand(client, command, paramsList, i);
+                            results.Add(new { success = true, affectedRows, commandIndex = i });
+                        }
+                        catch (Exception ex)
+                        {
+                            results.Add(new { success = false, error = ex.Message, commandIndex = i });
+                        }
                     }
                 }
-            }
 
-            return new
-            {
-                success = true,
-                totalCommands = commandList.Length,
-                results
-            };
+                return new
+                {
+                    success = true,
+                    totalCommands = commandList.Length,
+                    results
+                };
+            });
         });
     }
 

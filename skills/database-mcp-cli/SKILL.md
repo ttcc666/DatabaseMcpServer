@@ -81,10 +81,20 @@ Consequences:
 
 | Tool | Contract | Confirmation |
 | --- | --- | --- |
-| `batch_sql_query` | 1–5 independent read-only SQL strings; sequential; one shared connection; per-item success/error; no per-query parameters | No `--yes` |
-| `batch_execute_commands` | Write commands with optional per-command parameters; sequential; per-item success/error; **not transactional**, so partial success persists | Requires `--yes` |
+| `batch_sql_query` | 1–5 independent read-only SQL strings; sequential; one shared connection; per-item success/error; no per-query parameters; optional `--command-timeout-seconds` applies to the whole batch | No `--yes` |
+| `batch_execute_commands` | Write commands with optional per-command parameters; sequential; per-item success/error; **not transactional**, so partial success persists; optional `--command-timeout-seconds` applies to the whole batch | Requires `--yes` |
 
 For both tools, inspect every `results[]` item. Top-level `success: true` does not imply every item succeeded.
+
+### SQL Command Timeout
+
+Query and data-operation tools accept optional `commandTimeoutSeconds` / `--command-timeout-seconds`:
+
+- Omitted: provider default (typically 300 seconds)
+- `0`: wait indefinitely
+- Valid range: `0–86400`
+
+Prefer this for long-running reports, bulk updates, and stored procedures instead of assuming the 5-minute default.
 
 ## CLI Result Contract
 
@@ -104,6 +114,7 @@ For both tools, inspect every `results[]` item. Top-level `success: true` does n
 - Escape a literal single quote inside a PowerShell single-quoted string as `''`.
 - SQL Server `add_default_value` expects a SQL literal: `--default-value '''active'''`.
 - Pass `execute_command_with_go` a single argument containing real newlines and standalone `GO` lines; prefer a PowerShell here-string.
+- For long-running SQL, pass `--command-timeout-seconds <int>`; omit it to keep the ~300s default.
 - In automation, prefer `ProcessStartInfo.ArgumentList` over composing a shell command string.
 
 Read `references/commands.md` for exact quoting and batch examples.

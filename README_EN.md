@@ -457,26 +457,26 @@ See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples,
 
 **Basic Queries:**
 
-- **sql_query** - Execute SQL query and return strongly typed entity collection (supports parameterized queries)
-- **sql_query_single** - Execute SQL query and return single record
+- **sql_query** - Execute SQL query and return strongly typed entity collection (supports parameterized queries; optional `commandTimeoutSeconds`)
+- **sql_query_single** - Execute SQL query and return single record (optional timeout)
 
 **Advanced Queries:**
 
-- **get_data_set_all** - Get multiple result sets, supports executing multiple queries at once
-- **sql_query_with_in_parameter** - Handle IN parameter queries, supports array parameters
-- **batch_sql_query** - Sequentially execute 1-5 read-only SQL queries and return success or error per query
+- **get_data_set_all** - Get multiple result sets, supports executing multiple queries at once (optional timeout)
+- **sql_query_with_in_parameter** - Handle IN parameter queries, supports array parameters (optional timeout)
+- **batch_sql_query** - Sequentially execute 1-5 read-only SQL queries and return success or error per query (optional timeout applies to every item)
 
 **Scalar Value Queries:**
 
-- **get_scalar** - Get first row first column value (scalar value)
+- **get_scalar** - Get first row first column value (scalar value; optional timeout)
 
 ### ✏️ 5. Data Operation Tools
 
-- **execute_command** - Execute SQL commands (INSERT, UPDATE, DELETE)
-- **batch_execute_commands** - Batch execute SQL commands (performance optimized)
-- **call_stored_procedure** - Call stored procedure (simple usage)
-- **call_stored_procedure_with_output** - Call stored procedure with output parameters
-- **execute_command_with_go** - Execute SQL Server script containing GO statements
+- **execute_command** - Execute SQL commands (INSERT, UPDATE, DELETE; optional `commandTimeoutSeconds`)
+- **batch_execute_commands** - Batch execute SQL commands (performance optimized; optional timeout applies to every item)
+- **call_stored_procedure** - Call stored procedure (simple usage; optional timeout)
+- **call_stored_procedure_with_output** - Call stored procedure with output parameters (optional timeout)
+- **execute_command_with_go** - Execute SQL Server script containing GO statements (optional timeout)
 
 ### 🛠️ 6. Database Schema Operations (High Risk)
 
@@ -650,6 +650,33 @@ All queries support parameterized queries, automatically preventing SQL injectio
   "parameters": "{\"age\":18,\"city\":\"Beijing\"}"
 }
 ```
+
+### SQL Command Timeout
+
+Query and data-operation tools accept optional `commandTimeoutSeconds` (CLI: `--command-timeout-seconds`):
+
+- Omitted: use the SqlSugar/provider default (typically 300 seconds)
+- `0`: wait indefinitely
+- Valid range: `0–86400`
+- On batch tools, the timeout applies to the whole batch
+
+```json
+{
+  "sql": "SELECT * FROM large_report WHERE day = @day",
+  "parameters": "{\"day\":\"2026-08-01\"}",
+  "commandTimeoutSeconds": 900
+}
+```
+
+```bash
+DatabaseMcpServer tool execute_command \
+  --sql 'update large_table set status=@status where id=@id' \
+  --parameters '{"status":"done","id":1}' \
+  --command-timeout-seconds 900 \
+  --yes
+```
+
+See [TOOLS.md](TOOLS.md) for the full parameter catalog.
 
 ### Sensitive Information Protection
 

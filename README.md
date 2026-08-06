@@ -561,24 +561,24 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 ### 📊 四、数据查询工具
 
 **基础查询：**
-- **sql_query** - 执行 SQL 查询并返回强类型实体集合（支持参数化查询）
-- **sql_query_single** - 执行 SQL 查询并返回单条记录
+- **sql_query** - 执行 SQL 查询并返回强类型实体集合（支持参数化查询，可选 `commandTimeoutSeconds`）
+- **sql_query_single** - 执行 SQL 查询并返回单条记录（可选超时）
 
 **高级查询：**
-- **get_data_set_all** - 获取多个结果集，支持一次执行多个查询
-- **sql_query_with_in_parameter** - 处理 IN 参数查询，支持数组参数
-- **batch_sql_query** - 顺序执行 1-5 条只读 SQL，并逐条返回成功结果或错误
+- **get_data_set_all** - 获取多个结果集，支持一次执行多个查询（可选超时）
+- **sql_query_with_in_parameter** - 处理 IN 参数查询，支持数组参数（可选超时）
+- **batch_sql_query** - 顺序执行 1-5 条只读 SQL，并逐条返回成功结果或错误（可选超时作用于批内每条）
 
 **标量值查询：**
-- **get_scalar** - 获取首行首列的值（标量值）
+- **get_scalar** - 获取首行首列的值（标量值，可选超时）
 
 ### ✏️ 五、数据操作工具
 
-- **execute_command** - 执行 SQL 命令（INSERT、UPDATE、DELETE）
-- **batch_execute_commands** - 批量执行 SQL 命令（性能优化）
-- **call_stored_procedure** - 调用存储过程（简单用法）
-- **call_stored_procedure_with_output** - 调用带有输出参数的存储过程
-- **execute_command_with_go** - 执行包含 GO 语句的 SQL Server 脚本
+- **execute_command** - 执行 SQL 命令（INSERT、UPDATE、DELETE；可选 `commandTimeoutSeconds`）
+- **batch_execute_commands** - 批量执行 SQL 命令（性能优化；可选超时作用于批内每条）
+- **call_stored_procedure** - 调用存储过程（简单用法；可选超时）
+- **call_stored_procedure_with_output** - 调用带有输出参数的存储过程（可选超时）
+- **execute_command_with_go** - 执行包含 GO 语句的 SQL Server 脚本（可选超时）
 
 ### 🛠️ 六、数据库架构操作（高风险）
 
@@ -728,6 +728,32 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
   "parameters": "{\"age\":18,\"city\":\"北京\"}"
 }
 ```
+
+### SQL 命令超时
+查询与数据操作类工具支持可选参数 `commandTimeoutSeconds`（CLI：`--command-timeout-seconds`）：
+
+- 省略：使用 SqlSugar/驱动默认（通常 300 秒）
+- `0`：无限等待
+- 合法范围：`0–86400`
+- 批处理工具上的超时作用于整批
+
+```json
+{
+  "sql": "SELECT * FROM large_report WHERE day = @day",
+  "parameters": "{\"day\":\"2026-08-01\"}",
+  "commandTimeoutSeconds": 900
+}
+```
+
+```bash
+DatabaseMcpServer tool execute_command \
+  --sql 'update large_table set status=@status where id=@id' \
+  --parameters '{"status":"done","id":1}' \
+  --command-timeout-seconds 900 \
+  --yes
+```
+
+完整参数说明见 [TOOLS.md](TOOLS.md)。
 
 ### 敏感信息保护
 - 连接字符串中的密码自动隐藏（显示为 `Password=****`）

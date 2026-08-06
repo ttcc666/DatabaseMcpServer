@@ -23,5 +23,15 @@ public class CliToolCatalogTests
         var switchDatabase = Assert.Single(catalog.Tools, tool => tool.Name == "switch_database");
         var databaseNameParameter = Assert.Single(switchDatabase.Parameters);
         Assert.Equal("database-name", databaseNameParameter.OptionName);
+
+        var executeCommand = Assert.Single(catalog.Tools, tool => tool.Name == "execute_command");
+        var timeoutParameter = Assert.Single(executeCommand.Parameters, parameter => parameter.ParameterName == "commandTimeoutSeconds");
+        Assert.Equal("command-timeout-seconds", timeoutParameter.OptionName);
+        Assert.False(timeoutParameter.IsRequired);
+        Assert.Equal(typeof(int?), timeoutParameter.ParameterType);
+        Assert.Equal("int", timeoutParameter.DisplayTypeName);
+
+        var sqlQuery = Assert.Single(catalog.Tools, tool => tool.Name == "sql_query");
+        Assert.Contains(sqlQuery.Parameters, parameter => parameter.OptionName == "command-timeout-seconds");
     }
 }

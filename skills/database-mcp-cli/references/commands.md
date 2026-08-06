@@ -110,7 +110,32 @@ DatabaseMcpServer tool batch_execute_commands `
 
 Both tools continue after an item-level failure and return per-item status in `results[]`. `batch_execute_commands` is not transactional, so successful earlier writes remain committed.
 
-### 5. Scripted automation — skip the shell entirely
+### 5. Long-running SQL needs `--command-timeout-seconds`
+
+Query and write tools default to the provider command timeout (typically 300 seconds). Raise it for reports, bulk DML, and long stored procedures:
+
+```powershell
+DatabaseMcpServer tool sql_query `
+  --sql 'select * from large_report where day = @day' `
+  --parameters '{"day":"2026-08-01"}' `
+  --command-timeout-seconds 900 `
+  --config 'D:\config\databases.json'
+
+DatabaseMcpServer tool execute_command `
+  --sql 'update large_table set status=@status where id=@id' `
+  --parameters '{"status":"done","id":1}' `
+  --command-timeout-seconds 900 `
+  --yes `
+  --config 'D:\config\databases.json'
+```
+
+Rules:
+
+- `0` means wait indefinitely
+- Valid range is `0–86400`
+- On batch tools the timeout applies to the whole batch
+
+### 6. Scripted automation — skip the shell entirely
 
 ```csharp
 var psi = new ProcessStartInfo("DatabaseMcpServer") {

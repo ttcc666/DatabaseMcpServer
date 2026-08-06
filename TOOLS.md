@@ -10,6 +10,7 @@
 - CLI 示例省略 `--config` 时会按 `./databases.json → ./local-databases.json → DB_CONFIG_PATH → %USERPROFILE%/.database-mcp/databases.json` 查找配置。自动化场景建议显式追加 `--config 'D:\config\databases.json'`。
 - 标记为“是”的工具会修改数据或 schema，CLI 必须追加 `--yes`。
 - PowerShell 中 SQL 和 JSON 参数应使用单引号包裹。调用前可运行 `DatabaseMcpServer tool help <tool_name>` 查看实时参数。
+- 查询与数据操作类工具支持可选 `commandTimeoutSeconds / --command-timeout-seconds`：单位秒，省略时使用驱动默认（通常 300），`0` 表示无限等待，合法范围 `0–86400`。
 
 ## 连接与配置（10）
 
@@ -30,12 +31,12 @@
 
 | Tool | 参数（MCP / CLI） | 使用说明 | CLI 示例 | `--yes` |
 | --- | --- | --- | --- | --- |
-| `sql_query` | `sql / --sql`、`[parameters / --parameters]` | 执行单条只读 SQL；可使用 JSON 对象绑定参数，返回 `rowCount` 和 `data`。 | `DatabaseMcpServer tool sql_query --sql 'select * from users where status=@status' --parameters '{"status":"active"}'` | 否 |
-| `sql_query_single` | `sql / --sql`、`[parameters / --parameters]` | 执行只读 SQL，仅返回首行或 `null`。 | `DatabaseMcpServer tool sql_query_single --sql 'select * from users where id=@id' --parameters '{"id":1}'` | 否 |
-| `get_data_set_all` | `sql / --sql`、`[parameters / --parameters]` | 执行包含多个 SELECT 的 SQL，返回多个 `resultSets`。 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles'` | 否 |
-| `get_scalar` | `sql / --sql`、`[parameters / --parameters]` | 返回首行首列，适合 `COUNT/SUM/MAX`。 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users'` | 否 |
-| `sql_query_with_in_parameter` | `sql / --sql`、`inParameterName / --in-parameter-name`、`inValues / --in-values`、`[otherParameters / --other-parameters]` | 安全绑定 IN 数组，并可附加其他参数。 | `DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]'` | 否 |
-| `batch_sql_query` | `queries / --queries` | 在同一连接顺序执行 1–5 条只读 SQL；逐条返回成功结果或错误，单条失败不阻止后续查询。 | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]'` | 否 |
+| `sql_query` | `sql / --sql`、`[parameters / --parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 执行单条只读 SQL；可使用 JSON 对象绑定参数，返回 `rowCount` 和 `data`。可选超时单位为秒，省略时使用驱动默认（通常 300）；`0` 表示无限等待。 | `DatabaseMcpServer tool sql_query --sql 'select * from users where status=@status' --parameters '{"status":"active"}' --command-timeout-seconds 600` | 否 |
+| `sql_query_single` | `sql / --sql`、`[parameters / --parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 执行只读 SQL，仅返回首行或 `null`。 | `DatabaseMcpServer tool sql_query_single --sql 'select * from users where id=@id' --parameters '{"id":1}'` | 否 |
+| `get_data_set_all` | `sql / --sql`、`[parameters / --parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 执行包含多个 SELECT 的 SQL，返回多个 `resultSets`。 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles'` | 否 |
+| `get_scalar` | `sql / --sql`、`[parameters / --parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 返回首行首列，适合 `COUNT/SUM/MAX`。 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users'` | 否 |
+| `sql_query_with_in_parameter` | `sql / --sql`、`inParameterName / --in-parameter-name`、`inValues / --in-values`、`[otherParameters / --other-parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 安全绑定 IN 数组，并可附加其他参数。 | `DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]'` | 否 |
+| `batch_sql_query` | `queries / --queries`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 在同一连接顺序执行 1–5 条只读 SQL；逐条返回成功结果或错误，单条失败不阻止后续查询。超时作用于批内每条查询。 | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]'` | 否 |
 
 ## 数据写入与存储过程（5）
 
@@ -43,11 +44,11 @@
 
 | Tool | 参数（MCP / CLI） | 使用说明 | CLI 示例 | `--yes` |
 | --- | --- | --- | --- | --- |
-| `execute_command` | `sql / --sql`、`[parameters / --parameters]` | 执行单条 INSERT/UPDATE/DELETE，返回 `affectedRows`。 | `DatabaseMcpServer tool execute_command --sql 'update users set status=@status where id=@id' --parameters '{"status":"active","id":1}' --yes` | 是 |
-| `call_stored_procedure` | `procedureName / --procedure-name`、`[parameters / --parameters]` | 调用存储过程并返回结果集和行数。 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '{"year":2026,"month":7}' --yes` | 是 |
-| `call_stored_procedure_with_output` | `procedureName / --procedure-name`、`[inputParameters / --input-parameters]`、`[outputParameters / --output-parameters]` | 调用带输出参数的存储过程，返回结果集和输出值。 | `DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes` | 是 |
-| `execute_command_with_go` | `sql / --sql` | 执行含独立 `GO` 行的 SQL Server 脚本并汇总影响行数；SQL 必须作为单个多行参数传入。 | `DatabaseMcpServer tool execute_command_with_go --sql "<含换行的 GO 脚本>" --yes` | 是 |
-| `batch_execute_commands` | `commands / --commands`、`[parametersArray / --parameters-array]` | 同一连接顺序执行命令数组，每条可绑定独立参数并独立返回结果；当前不提供事务，允许部分成功。 | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' --parameters-array '[{"status":"active","id":1},{"id":1}]' --yes` | 是 |
+| `execute_command` | `sql / --sql`、`[parameters / --parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 执行单条 INSERT/UPDATE/DELETE，返回 `affectedRows`。可选超时单位为秒，省略时使用驱动默认（通常 300）；`0` 表示无限等待。 | `DatabaseMcpServer tool execute_command --sql 'update users set status=@status where id=@id' --parameters '{"status":"active","id":1}' --command-timeout-seconds 900 --yes` | 是 |
+| `call_stored_procedure` | `procedureName / --procedure-name`、`[parameters / --parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 调用存储过程并返回结果集和行数。 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '{"year":2026,"month":7}' --yes` | 是 |
+| `call_stored_procedure_with_output` | `procedureName / --procedure-name`、`[inputParameters / --input-parameters]`、`[outputParameters / --output-parameters]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 调用带输出参数的存储过程，返回结果集和输出值。 | `DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes` | 是 |
+| `execute_command_with_go` | `sql / --sql`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 执行含独立 `GO` 行的 SQL Server 脚本并汇总影响行数；SQL 必须作为单个多行参数传入。 | `DatabaseMcpServer tool execute_command_with_go --sql "<含换行的 GO 脚本>" --yes` | 是 |
+| `batch_execute_commands` | `commands / --commands`、`[parametersArray / --parameters-array]`、`[commandTimeoutSeconds / --command-timeout-seconds]` | 同一连接顺序执行命令数组，每条可绑定独立参数并独立返回结果；当前不提供事务，允许部分成功。超时作用于批内每条命令。 | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' --parameters-array '[{"status":"active","id":1},{"id":1}]' --yes` | 是 |
 
 ### `execute_command_with_go` PowerShell 示例
 

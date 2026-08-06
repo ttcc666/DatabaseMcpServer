@@ -435,17 +435,42 @@ DatabaseMcpServer tool sql_query_with_in_parameter `
   --config 'D:\config\databases.json'
 ```
 
-### 6.4 批量只读查询示例
+### 6.4 命令超时示例
+
+查询与数据操作类工具支持可选 `--command-timeout-seconds`：
+
+- 省略：使用驱动默认（通常 300 秒）
+- `0`：无限等待
+- 合法范围：`0–86400`
+- 批处理工具上的超时作用于整批
+
+```powershell
+DatabaseMcpServer tool sql_query `
+  --sql 'select * from large_report where day = @day' `
+  --parameters '{"day":"2026-08-01"}' `
+  --command-timeout-seconds 900 `
+  --config 'D:\config\databases.json'
+
+DatabaseMcpServer tool execute_command `
+  --sql 'update large_table set status=@status where id=@id' `
+  --parameters '{"status":"done","id":1}' `
+  --command-timeout-seconds 900 `
+  --yes `
+  --config 'D:\config\databases.json'
+```
+
+### 6.5 批量只读查询示例
 
 `batch_sql_query` 一次接受 1-5 条 SQL，不需要 `--yes`，并逐条返回结果或错误：
 
 ```powershell
 DatabaseMcpServer tool batch_sql_query `
   --queries '["select count(*) from users","select count(*) from roles"]' `
+  --command-timeout-seconds 600 `
   --config 'D:\config\databases.json'
 ```
 
-### 6.5 批量写命令示例
+### 6.6 批量写命令示例
 
 `batch_execute_commands` 不是事务；单条失败不会回滚之前成功的命令。调用方必须检查每个 `results[]`：
 
@@ -453,6 +478,7 @@ DatabaseMcpServer tool batch_sql_query `
 DatabaseMcpServer tool batch_execute_commands `
   --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' `
   --parameters-array '[{"status":"active","id":1},{"id":1}]' `
+  --command-timeout-seconds 900 `
   --yes `
   --config 'D:\config\databases.json'
 ```
@@ -545,19 +571,19 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
-| `sql_query` | 执行只读查询 | `DatabaseMcpServer tool sql_query --sql 'select top 10 * from users' --config 'D:\config\databases.json'` |
+| `sql_query` | 执行只读查询（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool sql_query --sql 'select top 10 * from users' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
 | `sql_query_single` | 查询单条记录 | `DatabaseMcpServer tool sql_query_single --sql 'select top 1 * from users order by id desc' --config 'D:\config\databases.json'` |
 | `get_data_set_all` | 多结果集查询 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles' --config 'D:\config\databases.json'` |
 | `get_scalar` | 查询标量值 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'` |
 | `sql_query_with_in_parameter` | 带 IN 参数查询 | `DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]' --config 'D:\config\databases.json'` |
-| `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果 | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --config 'D:\config\databases.json'` |
+| `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果（可选超时作用于整批） | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
 
 ## 8.5 数据写入
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
-| `execute_command` | 执行 DML | `DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --yes --config 'D:\config\databases.json'` |
-| `batch_execute_commands` | 非事务批量执行 DML，逐条返回结果 | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --yes --config 'D:\config\databases.json'` |
+| `execute_command` | 执行 DML（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
+| `batch_execute_commands` | 非事务批量执行 DML，逐条返回结果（可选超时作用于整批） | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
 | `call_stored_procedure` | 调用存储过程 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '{"year":2025,"month":11}' --yes --config 'D:\config\databases.json'` |
 | `call_stored_procedure_with_output` | 调用带输出参数的存储过程 | `DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes --config 'D:\config\databases.json'` |
 | `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | `DatabaseMcpServer tool execute_command_with_go --sql \"UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2\" --yes --config 'D:\config\databases.json'` |

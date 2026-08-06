@@ -196,6 +196,31 @@ Examples:
 --queries '["select count(*) from users","select count(*) from roles"]'
 ```
 
+## 6.1 Invalid command timeout
+
+Typical symptom:
+
+```text
+commandTimeoutSeconds 必须在 0-86400 之间（0 表示无限等待）
+```
+
+or CLI usage:
+
+```text
+选项 '--command-timeout-seconds' 需要 int 值。
+```
+
+Fix:
+
+- pass an integer number of seconds, not a duration string
+- omit the option to keep the provider default (typically 300)
+- use `0` only when infinite wait is intentional
+- valid range is `0–86400`
+
+```powershell
+--command-timeout-seconds 900
+```
+
 ## 7. SQL Server `add_default_value` string literal confusion
 
 Wrong:

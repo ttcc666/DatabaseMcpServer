@@ -75,4 +75,24 @@ public class InfrastructureAndSafetyTests
         Assert.Equal("bad input", document.RootElement.GetProperty("errorMessage").GetString());
         Assert.Equal((int)DatabaseErrorCode.InvalidParameters, document.RootElement.GetProperty("errorCode").GetInt32());
     }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(86_401)]
+    public void SqlCommandTimeout_Validate_ShouldRejectOutOfRangeValues(int timeoutSeconds)
+    {
+        var exception = Assert.Throws<DatabaseMcpException>(() => SqlCommandTimeout.Validate(timeoutSeconds));
+
+        Assert.Equal(DatabaseErrorCode.InvalidParameters, exception.ErrorCode);
+        Assert.Contains("commandTimeoutSeconds", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(300)]
+    [InlineData(86_400)]
+    public void SqlCommandTimeout_Validate_ShouldAcceptBoundaryValues(int timeoutSeconds)
+    {
+        SqlCommandTimeout.Validate(timeoutSeconds);
+    }
 }
