@@ -1,0 +1,260 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
+        x:Class="DatabaseMcpServer.Gui.Avalonia.MainWindow"
+        Width="800" Height="600"
+        MinWidth="800" MaxWidth="800"
+        MinHeight="600" MaxHeight="600"
+        CanResize="False"
+        Title="DMSConfigManager"
+        WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="8">
+    <Border Classes="card" Padding="0" Margin="0,0,0,5">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+            RowDefinitions="Auto,Auto"
+            ColumnSpacing="6"
+            RowSpacing="5"
+            Margin="18,7">
+        <TextBlock Text="配置来源" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1"
+                  Width="130"
+                  Height="27"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Center"
+                  VerticalContentAlignment="Center"
+                  ItemsSource="{Binding ConfigSources}"
+                  SelectedItem="{Binding SelectedConfigSource, Mode=TwoWay}" />
+        <Button Grid.Column="2"
+                Classes="toolbar-button command-button header-action"
+                Content="刷新"
+                Command="{Binding ReloadCommand}" />
+        <Button Grid.Column="3"
+                Classes="toolbar-button command-button primary header-action"
+                Content="保存"
+                Command="{Binding SaveCommand}" />
+
+        <TextBlock Grid.Row="1" Text="配置文件" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+        <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                 Text="{Binding CurrentPath, Mode=TwoWay}"
+                 VerticalAlignment="Center"
+                 VerticalContentAlignment="Center"
+                 IsReadOnly="{Binding IsPathReadOnly}"
+                 ToolTip.Tip="{Binding CurrentPath}" />
+        <Button Grid.Row="1" Grid.Column="4"
+                Classes="toolbar-button command-button"
+                Width="30"
+                Content="..."
+                ToolTip.Tip="修改配置文件位置"
+                Command="{Binding ChoosePathCommand}"
+                IsVisible="{Binding IsEnvironmentSource}" />
+      </Grid>
+    </Border>
+
+
+    <Grid Grid.Row="1" ColumnDefinitions="270,8,*">
+      <Border Classes="card" Padding="0">
+        <Grid RowDefinitions="Auto,Auto,Auto,*">
+          <Grid Height="38">
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0">
+              <Button Classes="toolbar-button command-button" Content="＋ 新建连接" Command="{Binding NewCommand}" />
+              <Button Classes="toolbar-button command-button" Content="编辑" Command="{Binding EditCommand}" />
+              <Button Classes="toolbar-button command-button" Content="设为默认" Command="{Binding SetDefaultCommand}" />
+              <Button Classes="toolbar-button command-button" Content="删除" Command="{Binding DeleteCommand}" />
+            </StackPanel>
+          </Grid>
+          <Border Grid.Row="1" Height="1" Background="#E5EAF2" />
+          <StackPanel Grid.Row="2" Margin="10,7,10,2">
+            <TextBlock Classes="section-title" Text="连接列表" />
+          </StackPanel>
+          <ListBox x:Name="DatabaseList"
+                   Grid.Row="3"
+                   ItemsSource="{Binding Databases}"
+                   SelectedItem="{Binding SelectedDatabase, Mode=TwoWay}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="6,1,6,6">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Background="Transparent"
+                        BorderBrush="#E4E9F2"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="8,6">
+                  <Grid RowDefinitions="Auto,Auto" RowSpacing="3" HorizontalAlignment="Left" ToolTip.Tip="{Binding ListTitle}">
+                    <Grid ColumnDefinitions="Auto,*" Width="228">
+                      <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" MaxWidth="88" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                        <Border Height="18" Padding="5,0" CornerRadius="4" Background="#FFF7E8" BorderBrush="#F0D4A0" BorderThickness="1" VerticalAlignment="Center" IsVisible="{Binding IsDraft}" ToolTip.Tip="未保存的修改">
+                          <TextBlock Text="草稿" Foreground="#B54708" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding Description}" Classes="muted" FontSize="11" FontWeight="Normal" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Right" Margin="8,0,0,0" />
+                    </Grid>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Width="228">
+                      <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                        <Border Width="18" Height="18" Background="#EEF2FF" BorderBrush="#DCE4FF" BorderThickness="1" CornerRadius="5" VerticalAlignment="Center">
+                          <Grid>
+                            <svg:Svg Path="{Binding IconPath}" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IconIsSvg}" />
+                            <Image Source="{Binding IconPath}" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IconIsRaster}" />
+                            <TextBlock Text="{Binding DbIconFallback}" FontSize="11" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding ShowIconFallback}" />
+                          </Grid>
+                        </Border>
+                        <TextBlock Text="{Binding DbType}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border Width="50" Height="20" Background="#E8F5EF" BorderBrush="#C9E9D8" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsDefault}" ToolTip.Tip="默认连接">
+                          <TextBlock Text="★ 默认" Foreground="#16805B" FontSize="10" FontWeight="SemiBold" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <Border Width="50" Height="20" Background="#FDE7E7" BorderBrush="#F3B4B4" BorderThickness="1" CornerRadius="6" IsVisible="{Binding AllowDangerousOperations}" ToolTip.Tip="允许危险操作">
+                          <TextBlock Text="危险 ⚠" Foreground="#B42318" FontSize="10" FontWeight="SemiBold" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                      </StackPanel>
+                    </Grid>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2" Classes="card" Padding="0">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid Height="38">
+            <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="10,0">
+              <Button Classes="toolbar-button command-button" Content="测试连接" Command="{Binding TestConnectionCommand}" />
+              <Button Classes="toolbar-button command-button" Content="暂存" Command="{Binding DoneCommand}" IsVisible="{Binding IsEditing}" />
+              <Button Classes="toolbar-button command-button" Content="取消" Command="{Binding CancelCommand}" IsVisible="{Binding IsEditing}" />
+            </StackPanel>
+          </Grid>
+          <Border Grid.Row="1" Height="1" Background="#E5EAF2" />
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" Margin="10" IsVisible="{Binding HasSelection}">
+            <ContentControl Content="{Binding SelectedDatabase}" HorizontalAlignment="Stretch" VerticalAlignment="Top">
+              <ContentControl.ContentTemplate>
+                <DataTemplate>
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                    <Border Classes="surface" Padding="8,6">
+                      <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="基本信息" />
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="5" RowSpacing="3" Margin="0,3,0,0">
+                          <TextBlock Classes="muted" Text="数据库类型" TextAlignment="Right" TextWrapping="NoWrap" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                          <ComboBox Grid.Column="1" Width="168" MaxDropDownHeight="300" VerticalAlignment="Center" VerticalContentAlignment="Center" ItemsSource="{Binding DataContext.DbTypes, RelativeSource={RelativeSource AncestorType=Window}}" SelectedItem="{Binding DbType, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+                          <TextBlock Grid.Column="2" Classes="muted" Text="连接名称" TextAlignment="Right" TextWrapping="NoWrap" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                          <TextBox Grid.Column="3" Text="{Binding Name, Mode=TwoWay}" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding CanEdit}" />
+                          <TextBlock Grid.Row="1" Classes="muted" Text="描述" TextAlignment="Right" TextWrapping="NoWrap" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                          <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Description, Mode=TwoWay}" MinHeight="28" VerticalContentAlignment="Center" IsEnabled="{Binding CanEdit}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="86,*" Margin="0,3,0,0">
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                            <CheckBox Content="设为默认连接" VerticalAlignment="Center" IsChecked="{Binding IsDefault, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+                            <CheckBox Classes="danger-option" Foreground="#B42318" Content="允许危险操作 ⚠" VerticalAlignment="Center" IsChecked="{Binding AllowDangerousOperations, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+                          </StackPanel>
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="1" Classes="surface" Padding="8,6" Margin="0,5,0,0" IsVisible="{Binding HasStructuredFields}">
+                      <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="必须参数" />
+                        <ItemsControl ItemsSource="{Binding ConnectionFields}" Margin="0,3,0,0">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Grid ColumnDefinitions="64,*" Margin="0,0,6,3">
+                                <TextBlock Classes="muted" Text="{Binding Label}" TextAlignment="Right" TextWrapping="NoWrap" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" PasswordChar="{Binding IsPassword, Converter={StaticResource PasswordCharConverter}}" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="2" Margin="0,5,0,0" IsVisible="{Binding HasRawConnection}">
+                      <TextBlock FontWeight="SemiBold" Text="连接字符串" />
+                      <TextBox Text="{Binding ConnectionString, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="46" IsEnabled="{Binding CanEdit}" Margin="0,3,0,0" />
+                    </StackPanel>
+
+                    <Border Grid.Row="3" Classes="surface" Padding="8,6" Margin="0,5,0,0" IsVisible="{Binding HasPerformanceCatalog}">
+                      <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontWeight="SemiBold" Text="性能优化参数" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Classes="soft" Content="＋ 添加参数" VerticalAlignment="Center" Command="{Binding AddPerformanceCommand}" IsEnabled="{Binding CanEdit}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding PerformanceSettings}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Grid ColumnDefinitions="*,*,Auto" Margin="0,3,0,0">
+                                <ComboBox HorizontalAlignment="Stretch" VerticalAlignment="Center" VerticalContentAlignment="Center" ItemsSource="{Binding KeyOptions}" SelectedItem="{Binding SelectedKey, Mode=TwoWay}" IsEditable="False" MaxDropDownHeight="260" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,0,0,0" />
+                                <Button Grid.Column="2" Classes="ghost danger" Content="×" ToolTip.Tip="移除参数" Command="{Binding RemoveCommand}" VerticalAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,0,0,0" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="4" Classes="surface" Padding="8,6" Margin="0,5,0,0" IsVisible="{Binding HasOptionalCatalog}">
+                      <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontWeight="SemiBold" Text="可选参数" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Classes="soft" Content="＋ 添加参数" VerticalAlignment="Center" Command="{Binding AddOptionalCommand}" IsEnabled="{Binding CanEdit}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding OptionalSettings}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Grid ColumnDefinitions="*,*,Auto" Margin="0,3,0,0">
+                                <ComboBox HorizontalAlignment="Stretch" VerticalAlignment="Center" VerticalContentAlignment="Center" ItemsSource="{Binding KeyOptions}" SelectedItem="{Binding SelectedKey, Mode=TwoWay}" IsEditable="False" MaxDropDownHeight="260" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,0,0,0" />
+                                <Button Grid.Column="2" Classes="ghost danger" Content="×" ToolTip.Tip="移除参数" Command="{Binding RemoveCommand}" VerticalAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,0,0,0" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="5" Classes="surface" Padding="8,6" Margin="0,5,0,0" IsVisible="{Binding HasOptimizationCatalog}">
+                      <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock FontWeight="SemiBold" Text="优化配置选项" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Classes="soft" Content="＋ 添加设置" VerticalAlignment="Center" Command="{Binding AddOptimizationCommand}" IsEnabled="{Binding CanEdit}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding OptimizationSettings}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Grid ColumnDefinitions="*,*,Auto" Margin="0,3,0,0">
+                                <ComboBox HorizontalAlignment="Stretch" VerticalAlignment="Center" VerticalContentAlignment="Center" ItemsSource="{Binding KeyOptions}" SelectedItem="{Binding SelectedKey, Mode=TwoWay}" IsEditable="False" MaxDropDownHeight="260" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,0,0,0" />
+                                <Button Grid.Column="2" Classes="ghost danger" Content="×" ToolTip.Tip="移除设置" Command="{Binding RemoveCommand}" VerticalAlignment="Center" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,0,0,0" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+            </Grid>
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+    <Border Grid.Row="2"
+            Height="24"
+            Background="#EAF0FF"
+            BorderBrush="#D7E1FF"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="7,0"
+            Margin="0,5,0,0">
+      <TextBlock Text="{Binding StatusText}" Foreground="#344E87" FontSize="11" VerticalAlignment="Center" />
+    </Border>
+  </Grid>
+</Window>

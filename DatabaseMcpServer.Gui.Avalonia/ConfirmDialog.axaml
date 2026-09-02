@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DatabaseMcpServer.Gui.Avalonia.ConfirmDialog"
+        Width="400"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Title="暂存修改">
+  <StackPanel Margin="18,16" Spacing="14">
+    <TextBlock x:Name="MessageText"
+               TextWrapping="Wrap"
+               FontSize="13"
+               LineHeight="20" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Classes="toolbar-button command-button" Content="取消" MinWidth="72" Click="OnCancel" />
+      <Button Classes="toolbar-button command-button primary" Content="确定" MinWidth="72" Click="OnConfirm" />
+    </StackPanel>
+  </StackPanel>
+</Window>

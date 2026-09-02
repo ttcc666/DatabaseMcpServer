@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DatabaseMcpServer is a .NET MCP (Model Context Protocol) server published as a .NET Global Tool on NuGet. It gives AI assistants structured access to 19+ database types via 57 MCP tools over stdio transport. The core ORM is **SqlSugar**.
 
+Desktop GUI: `DatabaseMcpServer.Gui.Avalonia/` is the Avalonia config editor. Shared path/JSON logic lives in `DatabaseMcpServer.Gui.Core/` (`InternalsVisibleTo`), so the file it edits is the same file the MCP server / CLI / `-web` read.
+
 ## Build & Run Commands
 
 ```bash

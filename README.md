@@ -969,3 +969,13 @@ Data Access Layer (SqlSugar ORM)
 ---
 
 **DatabaseMCP** - 让 AI 助手轻松操作数据库！
+
+## Avalonia 配置编辑器
+
+桌面配置编辑器位于 `DatabaseMcpServer.Gui.Avalonia`，共享逻辑位于 `DatabaseMcpServer.Gui.Core`：
+
+```powershell
+dotnet run --project DatabaseMcpServer.Gui.Avalonia\DatabaseMcpServer.Gui.Avalonia.csproj -f net9.0
+```
+
+该版本采用 AXAML + MVVM。编辑器只在“环境变量”和“用户目录”两种来源之间工作：环境变量来源使用 `DB_CONFIG_PATH`，用户目录来源使用 `%USERPROFILE%/.database-mcp/databases.json`。如需在保存默认连接后同步已运行的 Web MCP Server，可设置可选环境变量 `DMS_MCP_WEB_URL`（例如 `http://127.0.0.1:5100`）；未设置时仍会正常保存配置，但需要 MCP Server 重新加载或重启后生效。

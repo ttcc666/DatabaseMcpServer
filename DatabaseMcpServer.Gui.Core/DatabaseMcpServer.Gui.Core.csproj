@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DatabaseMcpServer.Gui.Core</RootNamespace>
+    <AssemblyName>DatabaseMcpServer.Gui.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\src\DatabaseMcpServer\DatabaseMcpServer.csproj" />
+  </ItemGroup>
+</Project>

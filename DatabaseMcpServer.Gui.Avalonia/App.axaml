@@ -1,0 +1,284 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="using:DatabaseMcpServer.Gui.Avalonia.Converters"
+             x:Class="DatabaseMcpServer.Gui.Avalonia.App">
+  <Application.Resources>
+    <converters:PasswordCharConverter x:Key="PasswordCharConverter" />
+    <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#F7F9FC" />
+    <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="#6B7689" />
+    <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#E6EBF3" />
+    <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#F7F9FC" />
+    <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="#6B7689" />
+    <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="#E6EBF3" />
+    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundDisabled" Color="#9AA5B8" />
+    <SolidColorBrush x:Key="ComboBoxPlaceholderForegroundDisabled" Color="#9AA5B8" />
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#F5F7FB" />
+    <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#8A94A6" />
+    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#E3E9F2" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedDisabled" Color="#8A94A6" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedDisabled" Color="#8A94A6" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedDisabled" Color="#F4F7FB" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedDisabled" Color="#D9E3F5" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedDisabled" Color="#D5DCE8" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedDisabled" Color="#C5D0E4" />
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphDisabled" Color="#7C8AA0" />
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="Background" Value="#F4F6FA" />
+      <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI" />
+      <Setter Property="Foreground" Value="#172033" />
+    </Style>
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="21" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#172033" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#172033" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#667085" />
+    </Style>
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#5272C8" />
+      <Setter Property="LetterSpacing" Value="1.2" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="BorderBrush" Value="#E1E6EF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Border.surface">
+      <Setter Property="Background" Value="#F8FAFD" />
+      <Setter Property="BorderBrush" Value="#E8EDF5" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="27" />
+      <Setter Property="Padding" Value="7,1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.toolbar-button">
+      <Setter Property="Height" Value="27" />
+      <Setter Property="MinHeight" Value="27" />
+      <Setter Property="Padding" Value="7,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.header-action">
+      <Setter Property="MinWidth" Value="78" />
+      <Setter Property="Padding" Value="18,0" />
+    </Style>
+    <Style Selector="Button.command-button">
+      <Setter Property="Background" Value="#F6F8FC" />
+      <Setter Property="Foreground" Value="#344E87" />
+      <Setter Property="BorderBrush" Value="#CBD6EA" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.command-button:pointerover">
+      <Setter Property="Background" Value="#EAF0FF" />
+      <Setter Property="BorderBrush" Value="#9FB3E5" />
+      <Setter Property="Foreground" Value="#294A9C" />
+    </Style>
+    <Style Selector="Button.command-button:pressed">
+      <Setter Property="Background" Value="#DDE7FF" />
+      <Setter Property="BorderBrush" Value="#7895D8" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#4568C5" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#3D5BB6" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="#3859B2" />
+      <Setter Property="BorderBrush" Value="#2F4CA0" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pressed">
+      <Setter Property="Background" Value="#2F4CA0" />
+      <Setter Property="BorderBrush" Value="#29448F" />
+    </Style>
+    <Style Selector="Button.primary:disabled">
+      <Setter Property="Background" Value="#D9E2F6" />
+      <Setter Property="Foreground" Value="#8A97B8" />
+      <Setter Property="BorderBrush" Value="#CDD7EC" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.soft">
+      <Setter Property="Background" Value="#EEF2FF" />
+      <Setter Property="Foreground" Value="#405EB8" />
+      <Setter Property="BorderBrush" Value="#DCE4FF" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Padding" Value="7,2" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#526071" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Foreground" Value="#B42318" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="BorderBrush" Value="#D9E0EA" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox:disabled /template/ TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Keep disabled form fields light and readable instead of Fluent's dark gray. -->
+    <Style Selector="TextBox:disabled">
+      <Setter Property="Background" Value="#F7F9FC" />
+      <Setter Property="Foreground" Value="#6B7689" />
+      <Setter Property="BorderBrush" Value="#E6EBF3" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="TextBox:disabled /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#F7F9FC" />
+      <Setter Property="BorderBrush" Value="#E6EBF3" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ComboBox:disabled">
+      <Setter Property="Background" Value="#F7F9FC" />
+      <Setter Property="Foreground" Value="#6B7689" />
+      <Setter Property="BorderBrush" Value="#E6EBF3" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ComboBox:disabled /template/ Border#Background">
+      <Setter Property="Background" Value="#F7F9FC" />
+      <Setter Property="BorderBrush" Value="#E6EBF3" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ComboBox:disabled /template/ ContentPresenter">
+      <Setter Property="Foreground" Value="#6B7689" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ComboBox:disabled /template/ TextBlock">
+      <Setter Property="Foreground" Value="#6B7689" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Background" Value="#F5F7FB" />
+      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="BorderBrush" Value="#E3E9F2" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.command-button:disabled">
+      <Setter Property="Background" Value="#F5F7FB" />
+      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="BorderBrush" Value="#E3E9F2" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.command-button.primary:pointerover">
+      <Setter Property="Background" Value="#3859B2" />
+      <Setter Property="BorderBrush" Value="#2F4CA0" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.command-button.primary:pressed">
+      <Setter Property="Background" Value="#2F4CA0" />
+      <Setter Property="BorderBrush" Value="#29448F" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.command-button.primary:disabled">
+      <Setter Property="Background" Value="#D9E2F6" />
+      <Setter Property="Foreground" Value="#8A97B8" />
+      <Setter Property="BorderBrush" Value="#CDD7EC" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.soft:disabled">
+      <Setter Property="Background" Value="#F5F7FB" />
+      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="BorderBrush" Value="#E3E9F2" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.ghost:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#B0B8C6" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="CheckBox:disabled">
+      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="CheckBox.danger-option:disabled">
+      <Setter Property="Foreground" Value="#D4A19C" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- Slim, stable scrollbars: hovering must not expand the track. -->
+    <Style Selector="ScrollBar:vertical">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="MinWidth" Value="7" />
+      <Setter Property="MaxWidth" Value="7" />
+    </Style>
+    <Style Selector="ScrollBar:horizontal">
+      <Setter Property="Height" Value="7" />
+      <Setter Property="MinHeight" Value="7" />
+      <Setter Property="MaxHeight" Value="7" />
+    </Style>
+    <Style Selector="ScrollBar:vertical:pointerover">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="MinWidth" Value="7" />
+      <Setter Property="MaxWidth" Value="7" />
+    </Style>
+    <Style Selector="ScrollBar:horizontal:pointerover">
+      <Setter Property="Height" Value="7" />
+      <Setter Property="MinHeight" Value="7" />
+      <Setter Property="MaxHeight" Value="7" />
+    </Style>
+    <Style Selector="ScrollBar /template/ Thumb">
+      <Setter Property="Background" Value="#B8C4D8" />
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="ScrollBar:pointerover /template/ Thumb">
+      <Setter Property="Background" Value="#8FA4C8" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,5" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F4F7FF" />
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#EDF2FF" />
+      <Setter Property="BorderBrush" Value="#9CB3F2" />
+    </Style>
+    <Style Selector="Expander">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Margin" Value="0,2,0,2" />
+    </Style>
+    <Style Selector="CheckBox.danger-option">
+      <Setter Property="Foreground" Value="#B42318" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Application.Styles>
+</Application>

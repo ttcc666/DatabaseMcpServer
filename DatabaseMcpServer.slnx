@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="src\DatabaseMcpServer\DatabaseMcpServer.csproj" />
   <Project Path="tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj" />
+  <Project Path="DatabaseMcpServer.Gui.Core\DatabaseMcpServer.Gui.Core.csproj" />
+  <Project Path="DatabaseMcpServer.Gui.Avalonia\DatabaseMcpServer.Gui.Avalonia.csproj" />
 </Solution>

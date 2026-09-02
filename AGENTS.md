@@ -6,6 +6,7 @@
 - Group runtime logic by responsibility: `Services/` for implementations, `Interfaces/` for contracts, `Helpers/` for shared parsing/sanitization/configuration utilities, `Filters/` for cross-cutting MCP filters, and `Models/` for DTOs.
 - Tool classes belong under `Tools/Command`, `Tools/Query`, `Tools/Documentation`, `Tools/Export`, or `Tools/Management`; keep each tool focused and single-purpose.
 - CLI and local web configuration code live in `Cli/` and `Web/`. Tests are in `tests/DatabaseMcpServer.Tests/`. Documentation and database presets are in `Doc/` and `DatabaseSetting/`. The optional Vue UI is in `website/`.
+- Desktop config editor: `DatabaseMcpServer.Gui.Avalonia/` (Avalonia) with shared services in `DatabaseMcpServer.Gui.Core/`. It uses `InternalsVisibleTo` so it edits the same `databases.json` the MCP server / CLI / `-web` read.
 
 ## Build, Test, and Development Commands
 - `dotnet build 'DatabaseMcpServer.slnx'` — compile the full solution and validate package references.

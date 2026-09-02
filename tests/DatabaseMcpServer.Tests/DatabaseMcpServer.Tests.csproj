@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DatabaseMcpServer\DatabaseMcpServer.csproj" SetTargetFramework="TargetFramework=net9.0" />
+    <ProjectReference Include="..\..\DatabaseMcpServer.Gui.Core\DatabaseMcpServer.Gui.Core.csproj" SetTargetFramework="TargetFramework=net9.0" />
   </ItemGroup>
 
 </Project>

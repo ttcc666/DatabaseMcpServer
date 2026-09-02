@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DatabaseMcpServer.Gui.Avalonia</RootNamespace>
+    <AssemblyName>DatabaseMcpServer.Gui.Avalonia</AssemblyName>
+    <Product>DMSConfigManager</Product>
+    <ApplicationIcon>icons\dms-config-manager.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Svg.Skia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="icons\**" />
+    <ProjectReference Include="..\DatabaseMcpServer.Gui.Core\DatabaseMcpServer.Gui.Core.csproj" />
+  </ItemGroup>
+</Project>
