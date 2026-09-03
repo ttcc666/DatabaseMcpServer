@@ -17,9 +17,10 @@ internal sealed class CliRunner
     private readonly CliConfigCommandHandler _configCommandHandler;
     private readonly ICliWebHost _webHost;
     private readonly string? _currentDatabaseStateFilePath;
+    private readonly bool? _enableMonitorConfig;
 
-    public CliRunner()
-        : this(new CliToolCatalog(), new CliConfigCommandHandler(), new CliWebHost(), null)
+    public CliRunner(bool? enableMonitorConfig = null)
+        : this(new CliToolCatalog(), new CliConfigCommandHandler(), new CliWebHost(), null, enableMonitorConfig)
     {
     }
 
@@ -27,13 +28,15 @@ internal sealed class CliRunner
         CliToolCatalog catalog,
         CliConfigCommandHandler configCommandHandler,
         ICliWebHost webHost,
-        string? currentDatabaseStateFilePath)
+        string? currentDatabaseStateFilePath,
+        bool? enableMonitorConfig = null)
     {
         _catalog = catalog;
         _parser = new CliCommandParser(catalog);
         _configCommandHandler = configCommandHandler;
         _webHost = webHost;
         _currentDatabaseStateFilePath = currentDatabaseStateFilePath;
+        _enableMonitorConfig = enableMonitorConfig;
     }
 
     public async Task<int> RunAsync(IReadOnlyList<string> args, TextWriter stdout, TextWriter stderr)
@@ -64,7 +67,11 @@ internal sealed class CliRunner
                         new CliWebCommandOptions(
                             parseResult.ConfigPath,
                             GetOptionalIntOption(parseResult.Command!, parseResult.OptionValues, "port"),
-                            !GetBoolOption(parseResult.Command!, parseResult.OptionValues, "no-browser")),
+                            !GetBoolOption(parseResult.Command!, parseResult.OptionValues, "no-browser"),
+                            _enableMonitorConfig
+                                ?? (HasOption(parseResult.OptionValues, "enable-monitor-config")
+                                    ? GetBoolOption(parseResult.Command!, parseResult.OptionValues, "enable-monitor-config")
+                                    : null)),
                         stdout,
                         stderr);
                     return SuccessExitCode;
@@ -135,7 +142,7 @@ internal sealed class CliRunner
                             GetOptionalStringOption(parseResult.OptionValues, "connection-string"),
                             GetOptionalStringOption(parseResult.OptionValues, "description"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default"),
-                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "allow-dangerous-operations"),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "enable-dangerous-operations"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "print-only")),
                         stdout);
 
@@ -148,7 +155,7 @@ internal sealed class CliRunner
                             GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "connection-string"),
                             GetOptionalStringOption(parseResult.OptionValues, "description"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "set-default"),
-                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "allow-dangerous-operations")),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "enable-dangerous-operations")),
                         stdout);
 
                 case CliCommandKind.ConfigRename:
@@ -174,8 +181,8 @@ internal sealed class CliRunner
                             HasOption(parseResult.OptionValues, "description"),
                             HasOption(parseResult.OptionValues, "clear-description"),
                             HasOption(parseResult.OptionValues, "set-default"),
-                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "allow-dangerous-operations"),
-                            HasOption(parseResult.OptionValues, "allow-dangerous-operations")),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "enable-dangerous-operations"),
+                            HasOption(parseResult.OptionValues, "enable-dangerous-operations")),
                         stdout);
 
                 case CliCommandKind.ConfigClone:
@@ -270,8 +277,8 @@ internal sealed class CliRunner
     {
         var builder = new StringBuilder();
         builder.AppendLine("Usage:");
-        builder.AppendLine("  DatabaseMcpServer");
-        builder.AppendLine("  DatabaseMcpServer -web [--config path] [--port 0-65535] [--no-browser]");
+        builder.AppendLine("  DatabaseMcpServer [--enable-monitor-config true|false]");
+        builder.AppendLine("  DatabaseMcpServer [--enable-monitor-config true|false] -web [--config path] [--port 0-65535] [--no-browser] [--enable-monitor-config true|false]");
         builder.AppendLine("  DatabaseMcpServer init [--config path] [--force]");
         builder.AppendLine("  DatabaseMcpServer config <subcommand> [options]");
         builder.AppendLine("  DatabaseMcpServer tool list");
@@ -280,6 +287,7 @@ internal sealed class CliRunner
         builder.AppendLine();
         builder.AppendLine("Notes:");
         builder.AppendLine("  No arguments starts the stdio MCP server.");
+        builder.AppendLine("  --enable-monitor-config true|false enables or disables databases.json monitoring for this process; it overrides ENABLE_MONITOR_CONFIG and enableMonitorConfig.");
         builder.AppendLine("  -web starts a local Web configuration UI on localhost.");
         builder.AppendLine("  CLI help and metadata are written to stderr.");
         builder.AppendLine("  CLI command results are written to stdout as JSON.");
@@ -338,7 +346,8 @@ internal sealed class CliRunner
                 [],
                 silentLogs: true,
                 cliToolMode: true,
-                currentDatabaseStateFilePath: _currentDatabaseStateFilePath);
+                currentDatabaseStateFilePath: _currentDatabaseStateFilePath,
+                enableMonitorConfig: _enableMonitorConfig);
             using var host = builder.Build();
             var toolInstance = host.Services.GetRequiredService(tool.ToolType);
             var payload = await CliToolInvoker.InvokeAsync(tool, toolInstance, arguments);

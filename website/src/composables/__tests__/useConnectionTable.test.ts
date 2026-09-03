@@ -5,9 +5,9 @@ import type { DatabaseSummary } from "@/types"
 import type { ConnectionHealthResult, ConnectionTableItem } from "@/types/connections"
 
 const connections: DatabaseSummary[] = [
-  { name: "zeta", dbType: "Sqlite", description: "local", connectionString: "masked", isDefault: false, allowDangerousOperations: false, isCurrent: false },
-  { name: "alpha", dbType: "MySql", description: "analytics", connectionString: "masked", isDefault: true, allowDangerousOperations: false, isCurrent: false },
-  { name: "beta", dbType: "MySql", description: "primary", connectionString: "masked", isDefault: false, allowDangerousOperations: true, isCurrent: true },
+  { name: "zeta", dbType: "Sqlite", description: "local", connectionString: "masked", isDefault: false, enableDangerousOperations: false, isCurrent: false },
+  { name: "alpha", dbType: "MySql", description: "analytics", connectionString: "masked", isDefault: true, enableDangerousOperations: false, isCurrent: false },
+  { name: "beta", dbType: "MySql", description: "primary", connectionString: "masked", isDefault: false, enableDangerousOperations: true, isCurrent: true },
 ]
 
 describe("useConnectionTable", () => {
@@ -36,7 +36,7 @@ describe("useConnectionTable", () => {
       { ...connections[0]!, health: healthResult("zeta", true, 1) },
       { ...connections[0]!, isCurrent: true },
       { ...connections[0]!, isDefault: true },
-      { ...connections[0]!, allowDangerousOperations: true },
+      { ...connections[0]!, enableDangerousOperations: true },
       { ...connections[0]! },
     ]
 

@@ -65,6 +65,7 @@ dotnet tool list --global | Select-String databasemcpserver
 
 ```json
 {
+  "enableMonitorConfig": false,
   "databases": [
     {
       "name": "default",
@@ -76,6 +77,8 @@ dotnet tool list --global | Select-String databasemcpserver
   ]
 }
 ```
+
+`enableMonitorConfig` 为可选根字段，默认 `false`。设为 `true` 后，长驻 MCP stdio / `-web` 会监听该文件，并在默认库变化时切换运行时当前库。优先级见下方[配置文件监听](#配置文件监听可选)。
 
 ### 第三步：配置 MCP 客户端
 
@@ -127,6 +130,12 @@ dotnet tool list --global | Select-String databasemcpserver
 DatabaseMcpServer -web
 DatabaseMcpServer -web --config "D:\config\databases.json" --no-browser
 
+# 启动 stdio MCP / -web，并在本进程启用或关闭配置文件监听
+DatabaseMcpServer --enable-monitor-config
+DatabaseMcpServer --enable-monitor-config true
+DatabaseMcpServer --enable-monitor-config false -web --no-browser
+DatabaseMcpServer -web --enable-monitor-config true --no-browser
+
 # 初始化默认配置文件（默认写到 %USERPROFILE%/.database-mcp/databases.json）
 DatabaseMcpServer init
 
@@ -165,6 +174,7 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
   - 页面同时管理两套状态：`databases.json` 中的默认连接，以及 `%USERPROFILE%/.database-mcp/cli-state.json` 中的当前连接
   - `--port <number>` 可显式指定端口；不传则自动分配可用端口
   - `--no-browser` 可禁用自动打开浏览器
+  - `--enable-monitor-config true|false` 可在本进程强制开启或关闭 `databases.json` 监听，优先级高于环境变量和配置文件
 - `init` / `config` 主要用于**本地配置管理**
   - 默认操作 `%USERPROFILE%/.database-mcp/databases.json`
   - 可以用 `--config <path>` 临时覆盖目标配置文件
@@ -175,7 +185,7 @@ DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\d
   - `config presets` / `config preset` 用来查看内置连接模板
   - `config create --from-preset` 用来直接基于模板生成连接骨架，也可顺手覆盖连接串/描述
   - `config update --clear-description` 用来显式清空说明
-  - `--allow-dangerous-operations true|false` 可在 `config create/add/update` 中写入危险操作开关（默认 `false`）
+  - `--enable-dangerous-operations true|false` 可在 `config create/add/update` 中写入危险操作开关（默认 `false`）
   - `config doctor` 用来做诊断，默认会测试各连接连通性，并给出修复建议；`--summary-only` 适合脚本
   - `config export` / `config import` 用来备份和迁移配置文件
 - tool 名称与 MCP 中保持一致，使用 `snake_case`
@@ -328,6 +338,7 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 
 ```json
 {
+  "enableMonitorConfig": false,
   "databases": [
     {
       "name": "mysql-main",
@@ -335,7 +346,7 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
       "dbType": "MySql",
       "description": "MySQL 主库",
       "isDefault": true,
-      "allowDangerousOperations": false,
+      "enableDangerousOperations": false,
       "optimizationSettings": {
         "enableCache": "true",
         "batchSize": "1000"
@@ -354,6 +365,23 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
   ]
 }
 ```
+
+根级字段 `enableMonitorConfig` 可写入配置文件，控制长驻 MCP stdio / `-web` 是否监听该文件。省略时视为 `false`。
+
+### 配置文件监听（可选）
+
+长驻进程（MCP stdio / `-web`）可以监听 `databases.json`：文件里的默认库变化时，运行时当前库会跟着切换。一次性 `tool` / `config` 命令不会启用监听。
+
+可通过以下来源配置，**优先级从高到低**：
+
+| 优先级 | 来源 | 说明 |
+| --- | --- | --- |
+| 1（最高） | 启动参数 `--enable-monitor-config true\|false` | 仅对本进程生效，强制开启或关闭；不写回配置文件 |
+| 2 | 环境变量 `ENABLE_MONITOR_CONFIG` | `true`/`false`（也接受 `1`/`0`/`yes`/`no`/`on`/`off`）；未设置时继续往下看 |
+| 3 | 配置文件 `enableMonitorConfig` | `databases.json` 根字段；可直接编辑 JSON，桌面 GUI 保存时也会写入这里 |
+| 4（默认） | 未配置 | 关闭监听 |
+
+示例：配置文件里写了 `"enableMonitorConfig": true`，但启动时带 `--enable-monitor-config false` 或环境变量 `ENABLE_MONITOR_CONFIG=false`，本进程仍不会监听。
 
 **多数据库管理工具：**
 - `list_databases` - 列出所有可用的数据库连接
@@ -377,6 +405,7 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 - `SEQ_SERVER_URL`: Seq 日志服务器地址（可选）
 - `SEQ_API_KEY`: Seq API 密钥（可选）
 - `DB_DDL_WHITELIST`: DDL 操作白名单（可选，分号分隔的正则表达式）
+- `ENABLE_MONITOR_CONFIG`: 是否监听 `databases.json` 并让长驻 MCP / `-web` 跟随默认库变更（`true`/`false`，默认关闭）。也可在配置文件根级设置 `"enableMonitorConfig": true`。优先级：`--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`。
 
 ### 数据库特定优化配置
 从 2.0.0 版本开始，所有数据库特定优化配置都在 `databases.json` 的 `optimizationSettings` 中设置。
@@ -441,7 +470,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
       "dbType": "MySql",
       "description": "默认数据库",
       "isDefault": true,
-      "allowDangerousOperations": false,
+      "enableDangerousOperations": false,
       "optimizationSettings": {
         "lowercaseTables": "true"
       }
@@ -717,7 +746,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 - `ALTER TABLE` - 修改表结构
 - 无 WHERE 条件的 `DELETE` / `UPDATE`
 
-如需执行这些操作，建议优先使用专门的架构操作工具（如 `create_table`、`drop_table`、`truncate_table` 等），这些工具会明确提示风险。若确需通过 `execute_command`、`execute_command_with_go` 或 `batch_execute_commands` 执行 DDL，可在当前连接配置中显式设置 `"allowDangerousOperations": true`，或使用 `config update --allow-dangerous-operations true` 写入配置；默认值为 `false`。
+如需执行这些操作，建议优先使用专门的架构操作工具（如 `create_table`、`drop_table`、`truncate_table` 等），这些工具会明确提示风险。若确需通过 `execute_command`、`execute_command_with_go` 或 `batch_execute_commands` 执行 DDL，可在当前连接配置中显式设置 `"enableDangerousOperations": true`，或使用 `config update --enable-dangerous-operations true` 写入配置；默认值为 `false`。
 
 ### SQL 注入防护
 所有查询都支持参数化查询，自动防止 SQL 注入：
@@ -815,7 +844,7 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 
 - **3.5.0**
   - 新增 `create_table` 工具，支持通过列定义 JSON 创建数据表
-  - 新增连接级 `allowDangerousOperations` 配置，默认关闭危险 SQL
+  - 新增连接级 `enableDangerousOperations` 配置，默认关闭危险 SQL
   - 阻止无 `WHERE` 的 `UPDATE` / `DELETE`，并将执行客户端与安全策略绑定为同一配置快照
 
 - **3.0.0**

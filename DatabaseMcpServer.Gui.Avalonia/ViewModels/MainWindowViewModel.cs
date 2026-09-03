@@ -146,7 +146,7 @@ public sealed class DatabaseItemViewModel : ObservableObject
     private string _dbType;
     private string _description;
     private bool _isDefault;
-    private bool _allowDangerousOperations;
+    private bool _enableDangerousOperations;
     private bool _hasStructuredFields;
     private bool _isEditing;
     private bool _isDraft;
@@ -164,7 +164,7 @@ public sealed class DatabaseItemViewModel : ObservableObject
         WasDbTypeRecovered = !string.Equals(originalDbType, _dbType, StringComparison.Ordinal);
         _description = model.Description ?? string.Empty;
         _isDefault = model.IsDefault;
-        _allowDangerousOperations = model.AllowDangerousOperations;
+        _enableDangerousOperations = model.EnableDangerousOperations;
         ConnectionFields = new();
         PerformanceSettings = new();
         OptionalSettings = new();
@@ -265,7 +265,7 @@ public sealed class DatabaseItemViewModel : ObservableObject
         }
     }
     public bool IsDefault { get => _isDefault; set { if (SetProperty(ref _isDefault, value)) { _model.IsDefault = value; Changed?.Invoke(); } } }
-    public bool AllowDangerousOperations { get => _allowDangerousOperations; set { if (SetProperty(ref _allowDangerousOperations, value)) { _model.AllowDangerousOperations = value; Changed?.Invoke(); } } }
+    public bool EnableDangerousOperations { get => _enableDangerousOperations; set { if (SetProperty(ref _enableDangerousOperations, value)) { _model.EnableDangerousOperations = value; Changed?.Invoke(); } } }
     public bool HasStructuredFields { get => _hasStructuredFields; private set => SetProperty(ref _hasStructuredFields, value); }
     public bool HasRawConnection => !HasStructuredFields;
     public bool CanEdit => IsEditing;
@@ -405,6 +405,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _normalizingDefaults;
     private bool _suppressItemDrafts;
     private bool _selectionPromptInFlight;
+    private bool _enableMonitorConfig;
     private readonly Dictionary<DatabaseItemViewModel, Action> _databaseChangedHandlers = new();
 
     public MainWindowViewModel()
@@ -510,6 +511,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
     public bool IsEnvironmentSource => SelectedConfigSource.Source == PathSource.EnvironmentVariable;
     public bool IsPathReadOnly => !IsEnvironmentSource;
+
+    public bool EnableMonitorConfig
+    {
+        get => _enableMonitorConfig;
+        set
+        {
+            if (!SetProperty(ref _enableMonitorConfig, value))
+            {
+                return;
+            }
+
+            IsDirty = true;
+            StatusText = value
+                ? "已启用配置文件监听。保存后，已开启监听的 MCP / -web 会跟随默认库变更。"
+                : "已关闭配置文件监听。保存后需重启 MCP 才会停止监听。";
+        }
+    }
     public bool IsDirty
     {
         get => _isDirty;
@@ -678,6 +696,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             ApplySelection(Databases.FirstOrDefault());
+            _enableMonitorConfig = config.EnableMonitorConfig;
+            OnPropertyChanged(nameof(EnableMonitorConfig));
             IsEditing = false;
             ClearEditSession();
             _watcher.Watch(_store.ActivePath);
@@ -857,7 +877,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (!string.Equals(left.DbType, right.DbType, StringComparison.OrdinalIgnoreCase)) return false;
         if (!string.Equals(left.Description ?? string.Empty, right.Description ?? string.Empty, StringComparison.Ordinal)) return false;
         if (left.IsDefault != right.IsDefault) return false;
-        if (left.AllowDangerousOperations != right.AllowDangerousOperations) return false;
+        if (left.EnableDangerousOperations != right.EnableDangerousOperations) return false;
         return OptimizationEquals(left.OptimizationSettings, right.OptimizationSettings);
     }
 
@@ -890,7 +910,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         DbType = source.DbType,
         Description = source.Description,
         IsDefault = source.IsDefault,
-        AllowDangerousOperations = source.AllowDangerousOperations,
+        EnableDangerousOperations = source.EnableDangerousOperations,
         OptimizationSettings = source.OptimizationSettings == null
             ? null
             : new Dictionary<string, string>(source.OptimizationSettings, StringComparer.Ordinal)
@@ -998,7 +1018,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        database.AllowDangerousOperations = enabled;
+        database.EnableDangerousOperations = enabled;
         Save();
     }
 
@@ -1017,7 +1037,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SetCurrentPath(resolution.Path);
             _store.UseResolution(resolution);
 
-            var config = new DatabasesConfig { Databases = Databases.Select(x => x.ToModel()).ToList() };
+            var config = new DatabasesConfig
+            {
+                EnableMonitorConfig = EnableMonitorConfig,
+                Databases = Databases.Select(x => x.ToModel()).ToList()
+            };
             _watcher.SuppressNextChange();
             _store.Save(config);
 

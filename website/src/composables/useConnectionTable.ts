@@ -104,7 +104,7 @@ export function getStatusRank(item: ConnectionTableItem) {
   if (item.health?.isHealthy) return 1
   if (item.isCurrent) return 2
   if (item.isDefault) return 3
-  if (item.allowDangerousOperations) return 4
+  if (item.enableDangerousOperations) return 4
   return 5
 }
 
@@ -112,7 +112,7 @@ function matchesStatus(item: ConnectionTableItem, status: ConnectionStatusFilter
   switch (status) {
     case "default": return item.isDefault
     case "current": return item.isCurrent
-    case "dangerous": return item.allowDangerousOperations
+    case "dangerous": return item.enableDangerousOperations
     case "healthy": return item.health?.isHealthy === true
     case "unhealthy": return item.health?.isHealthy === false
     case "unchecked": return item.health === undefined

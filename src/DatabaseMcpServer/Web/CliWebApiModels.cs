@@ -3,7 +3,8 @@ namespace DatabaseMcpServer.Web;
 internal sealed record CliWebCommandOptions(
     string? ConfigPath,
     int? Port,
-    bool OpenBrowser);
+    bool OpenBrowser,
+    bool? EnableMonitorConfig = null);
 
 internal sealed record CliWebConfigContext(
     string ConfigPath,
@@ -21,7 +22,7 @@ internal sealed record CliWebCreateFromPresetRequest(
     IReadOnlyDictionary<string, string?>? ConnectionFields,
     string? Description,
     bool SetDefault,
-    bool AllowDangerousOperations,
+    bool EnableDangerousOperations,
     bool PrintOnly);
 
 internal sealed record CliWebAddDatabaseRequest(
@@ -31,7 +32,7 @@ internal sealed record CliWebAddDatabaseRequest(
     IReadOnlyDictionary<string, string?>? ConnectionFields,
     string? Description,
     bool SetDefault,
-    bool AllowDangerousOperations);
+    bool EnableDangerousOperations);
 
 internal sealed record CliWebRenameDatabaseRequest(string NewName);
 
@@ -47,8 +48,8 @@ internal sealed record CliWebUpdateDatabaseRequest(
     bool ApplyDescription,
     bool ApplyClearDescription,
     bool ApplySetDefault,
-    bool AllowDangerousOperations,
-    bool ApplyAllowDangerousOperations);
+    bool EnableDangerousOperations,
+    bool ApplyEnableDangerousOperations);
 
 internal sealed record CliWebCloneDatabaseRequest(
     string NewName,

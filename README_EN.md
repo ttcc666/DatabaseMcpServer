@@ -68,6 +68,7 @@ Create `databases.json` configuration file:
 
 ```json
 {
+  "enableMonitorConfig": false,
   "databases": [
     {
       "name": "default",
@@ -79,6 +80,8 @@ Create `databases.json` configuration file:
   ]
 }
 ```
+
+`enableMonitorConfig` is an optional root field (default `false`). When `true`, a long-running MCP stdio / `-web` process watches this file and switches the runtime current database if the file default changes. See [Config File Monitoring](#config-file-monitoring-optional) for priority.
 
 ### Step 3: Configure MCP Client
 
@@ -231,6 +234,7 @@ After `databases.json` changes, call `reload_database_config` to reload the file
 
 ```json
 {
+  "enableMonitorConfig": false,
   "databases": [
     {
       "name": "mysql-main",
@@ -238,7 +242,7 @@ After `databases.json` changes, call `reload_database_config` to reload the file
       "dbType": "MySql",
       "description": "MySQL Main Database",
       "isDefault": true,
-      "allowDangerousOperations": false,
+      "enableDangerousOperations": false,
       "optimizationSettings": {
         "enableCache": "true",
         "batchSize": "1000"
@@ -257,6 +261,23 @@ After `databases.json` changes, call `reload_database_config` to reload the file
   ]
 }
 ```
+
+The root field `enableMonitorConfig` can be stored in the config file to control whether a long-running MCP stdio / `-web` process watches that file. It is treated as `false` when omitted.
+
+### Config File Monitoring (Optional)
+
+A long-running process (MCP stdio / `-web`) can watch `databases.json` and switch the runtime current database when the file default changes. One-shot `tool` / `config` commands do not start the watcher.
+
+It can be set in three places, **highest priority first**:
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 (highest) | Startup flag `--enable-monitor-config true\|false` | Process-local force on/off; not written back to the config file |
+| 2 | Environment variable `ENABLE_MONITOR_CONFIG` | `true`/`false` (also accepts `1`/`0`/`yes`/`no`/`on`/`off`); if unset, fall through |
+| 3 | Config file `enableMonitorConfig` | Root field in `databases.json`; edit the JSON directly, or let the desktop GUI persist it |
+| 4 (default) | Unset | Monitoring is off |
+
+Example: even if the file has `"enableMonitorConfig": true`, this process will not watch when started with `--enable-monitor-config false` or `ENABLE_MONITOR_CONFIG=false`.
 
 **Multi-Database Management Tools:**
 - `list_databases` - List all available database connections
@@ -280,6 +301,7 @@ After `databases.json` changes, call `reload_database_config` to reload the file
 - `SEQ_SERVER_URL`: Seq log server address (optional)
 - `SEQ_API_KEY`: Seq API key (optional)
 - `DB_DDL_WHITELIST`: DDL operation whitelist (optional, semicolon-separated regex patterns)
+- `ENABLE_MONITOR_CONFIG`: Monitor `databases.json` and let a long-running MCP / `-web` process follow default-database changes (`true`/`false`, off by default). You can also set `"enableMonitorConfig": true` at the config-file root. Priority: `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`.
 
 ### Database-Specific Optimization Configuration
 Starting from version 2.0.0, all database-specific optimization configurations are set in the `optimizationSettings` section of `databases.json`.
@@ -344,7 +366,7 @@ DatabaseMcpServer 2.0.0 has removed environment variable configuration method an
       "dbType": "MySql",
       "description": "Default database",
       "isDefault": true,
-      "allowDangerousOperations": false,
+      "enableDangerousOperations": false,
       "optimizationSettings": {
         "lowercaseTables": "true"
       }
@@ -638,7 +660,7 @@ System automatically detects and blocks the following dangerous operations:
 - `ALTER TABLE` - Modify table structure
 - `DELETE` / `UPDATE` without WHERE condition
 
-To execute these operations, prefer dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which clearly prompt risks. If you must run DDL through `execute_command`, `execute_command_with_go`, or `batch_execute_commands`, explicitly set `"allowDangerousOperations": true` on the current connection, or run `config update --allow-dangerous-operations true`; the default is `false`.
+To execute these operations, prefer dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which clearly prompt risks. If you must run DDL through `execute_command`, `execute_command_with_go`, or `batch_execute_commands`, explicitly set `"enableDangerousOperations": true` on the current connection, or run `config update --enable-dangerous-operations true`; the default is `false`.
 
 ### SQL Injection Protection
 
@@ -723,6 +745,7 @@ CLI highlights:
 
 - `DatabaseMcpServer` with no arguments still starts the stdio MCP server.
 - `DatabaseMcpServer -web` starts a localhost-only configuration UI and opens the browser by default.
+- `DatabaseMcpServer --enable-monitor-config true|false` starts stdio MCP (or prefix `-web`) with config-file monitoring forced on or off for this process. Priority: `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > config-file `enableMonitorConfig` (default off).
 - `DatabaseMcpServer tool ...` invokes existing MCP tools directly.
 - In CLI tool mode, `switch_database` persists the current connection per resolved config path for later `tool` invocations.
 - `config use` / `config set-default` updates the default connection stored in `databases.json`; it is distinct from the persisted CLI current connection.
@@ -754,7 +777,7 @@ CLI highlights:
 
 - **3.5.0**
   - Add the `create_table` tool for creating tables from JSON column definitions
-  - Add per-connection `allowDangerousOperations` configuration, disabled by default
+  - Add per-connection `enableDangerousOperations` configuration, disabled by default
   - Block `UPDATE` / `DELETE` without `WHERE` and bind each database client to the matching safety-policy snapshot
 
 - **3.0.0**

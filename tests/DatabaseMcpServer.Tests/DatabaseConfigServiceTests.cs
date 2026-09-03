@@ -71,13 +71,13 @@ public class DatabaseConfigServiceTests
                   "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
                   "dbType": "SqlServer",
                   "isDefault": true,
-                  "allowDangerousOperations": false
+                  "enableDangerousOperations": false
                 },
                 {
                   "name": "maintenance",
                   "connectionString": "Server=localhost;Database=maintenance;User Id=sa;Password=secret;",
                   "dbType": "SqlServer",
-                  "allowDangerousOperations": true
+                  "enableDangerousOperations": true
                 }
               ]
             }
@@ -93,20 +93,63 @@ public class DatabaseConfigServiceTests
             var service = CreateService(clientFactory, stateFilePath);
 
             var primaryContext = service.CreateClientContext();
-            Assert.False(primaryContext.AllowDangerousOperations);
+            Assert.False(primaryContext.EnableDangerousOperations);
             Assert.Equal("primary", clientFactory.GetConnectionName(primaryContext.Client));
 
             Assert.True(service.SwitchDatabase("maintenance"));
             var maintenanceContext = service.CreateClientContext();
-            Assert.True(maintenanceContext.AllowDangerousOperations);
+            Assert.True(maintenanceContext.EnableDangerousOperations);
             Assert.Equal("maintenance", clientFactory.GetConnectionName(maintenanceContext.Client));
 
             using var document = JsonDocument.Parse(service.GetConfigurationSummary());
-            Assert.True(document.RootElement.GetProperty("allowDangerousOperations").GetBoolean());
+            Assert.True(document.RootElement.GetProperty("enableDangerousOperations").GetBoolean());
         }
         finally
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public void IsEnableMonitorConfigEnabled_ShouldHonorProcessOverrideOverFileAndEnvironment()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "enableMonitorConfig": false,
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "isDefault": true
+                }
+              ]
+            }
+            """);
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var originalMonitor = Environment.GetEnvironmentVariable("ENABLE_MONITOR_CONFIG");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            Environment.SetEnvironmentVariable("ENABLE_MONITOR_CONFIG", "false");
+            var disabled = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+            Assert.False(disabled.IsEnableMonitorConfigEnabled());
+
+            var enabled = CreateService(
+                new TrackingSqlSugarClientFactory(),
+                stateFilePath,
+                new DatabaseRuntimeOptions(EnableMonitorConfig: true));
+            Assert.True(enabled.IsEnableMonitorConfigEnabled());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            Environment.SetEnvironmentVariable("ENABLE_MONITOR_CONFIG", originalMonitor);
             DeleteFileIfExists(configPath);
             DeleteFileIfExists(stateFilePath);
         }
@@ -418,7 +461,206 @@ public class DatabaseConfigServiceTests
         }
     }
 
-    private static DatabaseConfigService CreateService(ISqlSugarClientFactory clientFactory, string? stateFilePath = null)
+    [Fact]
+    public void ReloadConfiguration_FollowFileDefault_ShouldSwitchCurrentWhenDefaultChanges()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer"
+                }
+              ]
+            }
+            """);
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+            Assert.True(service.SwitchDatabase("analytics"));
+
+            File.WriteAllText(configPath, """
+                {
+                  "enableMonitorConfig": true,
+                  "databases": [
+                    {
+                      "name": "primary",
+                      "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer"
+                    },
+                    {
+                      "name": "analytics",
+                      "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer",
+                      "isDefault": true
+                    }
+                  ]
+                }
+                """);
+
+            var preserved = service.ReloadConfiguration();
+            Assert.True(preserved.Success);
+            Assert.Equal("analytics", preserved.CurrentDatabase);
+            Assert.True(preserved.PreservedCurrentDatabase);
+
+            File.WriteAllText(configPath, """
+                {
+                  "enableMonitorConfig": true,
+                  "databases": [
+                    {
+                      "name": "primary",
+                      "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer",
+                      "isDefault": true
+                    },
+                    {
+                      "name": "analytics",
+                      "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer"
+                    }
+                  ]
+                }
+                """);
+
+            var followed = service.ReloadConfiguration(followFileDefault: true);
+
+            Assert.True(followed.Success);
+            Assert.Equal("analytics", followed.PreviousDatabase);
+            Assert.Equal("primary", followed.CurrentDatabase);
+            Assert.False(followed.PreservedCurrentDatabase);
+            Assert.Equal("primary", service.GetCurrentDatabaseName());
+            Assert.True(service.IsEnableMonitorConfigEnabled());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public void ReloadConfiguration_FollowFileDefault_ShouldKeepCurrentWhenDefaultUnchanged()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "isDefault": true
+                },
+                {
+                  "name": "analytics",
+                  "connectionString": "Server=localhost;Database=analytics;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer"
+                }
+              ]
+            }
+            """);
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+            Assert.True(service.SwitchDatabase("analytics"));
+
+            File.WriteAllText(configPath, """
+                {
+                  "databases": [
+                    {
+                      "name": "primary",
+                      "connectionString": "Server=localhost;Database=main_v2;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer",
+                      "isDefault": true
+                    },
+                    {
+                      "name": "analytics",
+                      "connectionString": "Server=localhost;Database=analytics_v2;User Id=sa;Password=secret;",
+                      "dbType": "SqlServer"
+                    }
+                  ]
+                }
+                """);
+
+            var result = service.ReloadConfiguration(followFileDefault: true);
+
+            Assert.True(result.Success);
+            Assert.Equal("analytics", result.CurrentDatabase);
+            Assert.True(result.PreservedCurrentDatabase);
+            Assert.Equal("analytics", service.GetCurrentDatabaseName());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    [Fact]
+    public void IsEnableMonitorConfigEnabled_ShouldPreferEnvironmentOverride()
+    {
+        var configPath = WriteConfigFile("""
+            {
+              "enableMonitorConfig": true,
+              "databases": [
+                {
+                  "name": "primary",
+                  "connectionString": "Server=localhost;Database=main;User Id=sa;Password=secret;",
+                  "dbType": "SqlServer",
+                  "isDefault": true
+                }
+              ]
+            }
+            """);
+
+        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var originalWatch = Environment.GetEnvironmentVariable("ENABLE_MONITOR_CONFIG");
+        var stateFilePath = WriteStateFile("""{ "entries": [] }""");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
+            Environment.SetEnvironmentVariable("ENABLE_MONITOR_CONFIG", null);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+            Assert.True(service.IsEnableMonitorConfigEnabled());
+
+            Environment.SetEnvironmentVariable("ENABLE_MONITOR_CONFIG", "false");
+            Assert.False(service.IsEnableMonitorConfigEnabled());
+
+            Environment.SetEnvironmentVariable("ENABLE_MONITOR_CONFIG", "true");
+            Assert.True(service.IsEnableMonitorConfigEnabled());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            Environment.SetEnvironmentVariable("ENABLE_MONITOR_CONFIG", originalWatch);
+            DeleteFileIfExists(configPath);
+            DeleteFileIfExists(stateFilePath);
+        }
+    }
+
+    private static DatabaseConfigService CreateService(
+        ISqlSugarClientFactory clientFactory,
+        string? stateFilePath = null,
+        DatabaseRuntimeOptions? runtimeOptions = null)
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
         var serializer = new JsonResultSerializer();
@@ -431,7 +673,8 @@ public class DatabaseConfigServiceTests
             helper,
             clientFactory,
             serializer,
-            stateStore);
+            stateStore,
+            runtimeOptions);
     }
 
     private static string WriteConfigFile(string json)

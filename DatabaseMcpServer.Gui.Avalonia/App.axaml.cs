@@ -94,10 +94,10 @@ public partial class App : Application
                         new Win32TrayIcon.MenuItem
                         {
                             Header = "允许危险操作",
-                            IsChecked = current.AllowDangerousOperations,
+                            IsChecked = current.EnableDangerousOperations,
                             Click = () => _mainWindow.ViewModel.SetDangerousOperationsFromTray(
                                 current,
-                                !current.AllowDangerousOperations)
+                                !current.EnableDangerousOperations)
                         }
                     ]
                 });
@@ -193,7 +193,7 @@ public partial class App : Application
             or nameof(DatabaseItemViewModel.ListTitle)
             or nameof(DatabaseItemViewModel.DbType)
             or nameof(DatabaseItemViewModel.IsDefault)
-            or nameof(DatabaseItemViewModel.AllowDangerousOperations))
+            or nameof(DatabaseItemViewModel.EnableDangerousOperations))
         {
             RefreshTrayMenu();
         }
@@ -234,13 +234,13 @@ public partial class App : Application
             var dangerousItem = new NativeMenuItem("允许危险操作")
             {
                 ToggleType = NativeMenuItemToggleType.CheckBox,
-                IsChecked = database.AllowDangerousOperations
+                IsChecked = database.EnableDangerousOperations
             };
             dangerousItem.Click += (_, _) =>
             {
                 _mainWindow.ViewModel.SetDangerousOperationsFromTray(
                     database,
-                    !database.AllowDangerousOperations);
+                    !database.EnableDangerousOperations);
             };
 
             submenu.Items.Add(setDefaultItem);

@@ -112,7 +112,8 @@
     "DB_CONFIG_PATH": "（必需）数据库配置文件绝对路径，如 D:\\config\\databases.json",
     "SEQ_SERVER_URL": "（可选）Seq 日志服务器地址，如 http://localhost:5341",
     "SEQ_API_KEY": "（可选）Seq API 密钥",
-    "DB_DDL_WHITELIST": "（可选）DDL 操作白名单（分号分隔的正则表达式）"
+    "DB_DDL_WHITELIST": "（可选）DDL 操作白名单（分号分隔的正则表达式）",
+    "ENABLE_MONITOR_CONFIG": "（可选）true/false。为 true 时，长驻 MCP stdio / -web 监听 databases.json，并在文件默认库变化时切换运行时当前库。也可在 databases.json 根级设置 enableMonitorConfig。优先级：--enable-monitor-config > ENABLE_MONITOR_CONFIG > enableMonitorConfig，默认关闭。"
   },
 
   "// 优化配置选项 (optimizationSettings)": {
@@ -164,7 +165,8 @@
     "3": "VS Code: <WORKSPACE>/.vscode/mcp.json",
     "4": "Visual Studio: <SOLUTION>/.mcp.json",
     "5": "修改 DB_CONFIG_PATH 指向你的 databases.json 文件",
-    "6": "重启 IDE 或重新加载 MCP 配置"
+    "6": "重启 IDE 或重新加载 MCP 配置",
+    "7": "如需在本进程启用配置文件监听，可增加 args: [\"--enable-monitor-config\", \"true\"]"
   },
 
   "// 从 1.x 迁移到 2.0": {

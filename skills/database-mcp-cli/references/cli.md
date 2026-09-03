@@ -16,7 +16,8 @@
 CLI 模式的基本格式：
 
 ```powershell
-DatabaseMcpServer -web [--config path] [--port number] [--no-browser]
+DatabaseMcpServer [--enable-monitor-config true|false]
+DatabaseMcpServer [--enable-monitor-config true|false] -web [--config path] [--port number] [--no-browser]
 DatabaseMcpServer init [--config path] [--force]
 DatabaseMcpServer config <subcommand> [options]
 DatabaseMcpServer tool <tool_name> [--option value...]
@@ -27,13 +28,15 @@ DatabaseMcpServer tool <tool_name> [--option value...]
 ```powershell
 DatabaseMcpServer -web
 DatabaseMcpServer -web --config 'D:\config\databases.json' --no-browser
+DatabaseMcpServer --enable-monitor-config true
+DatabaseMcpServer -web --enable-monitor-config false --no-browser
 DatabaseMcpServer init
 DatabaseMcpServer config list
 DatabaseMcpServer config presets
 DatabaseMcpServer config preset --db-type 'Sqlite'
 DatabaseMcpServer config create --from-preset 'Sqlite' --name 'sqlite-local' --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' --description 'local sqlite' --set-default
 DatabaseMcpServer config add --name 'sqlite-local' --db-type 'Sqlite' --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' --set-default
-DatabaseMcpServer config update --name 'sqlite-local' --allow-dangerous-operations true
+DatabaseMcpServer config update --name 'sqlite-local' --enable-dangerous-operations true
 DatabaseMcpServer config rename --name 'sqlite-local' --new-name 'sqlite-dev'
 DatabaseMcpServer config update --name 'sqlite-dev' --description 'dev sqlite'
 DatabaseMcpServer config validate
@@ -64,7 +67,32 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
 - 常用参数：
   - `--port <number>`：手工指定本地端口；必须在 `0-65535` 之间
   - `--no-browser`：只启动服务，不自动打开浏览器
+  - `--enable-monitor-config true|false`：本进程强制开启或关闭 `databases.json` 监听，优先级高于环境变量和配置文件
 - 对外网暴露不是这个模式的目标；如果用户想“让别人从另一台机器打开这个页面”，应明确说明当前实现是 localhost-only。
+
+### 1.2 配置文件监听
+
+长驻进程（无参数 stdio MCP / `-web`）可以监听 `databases.json`：文件里的默认库变化时，运行时当前库会跟着切换。一次性 `tool` / `config` / `init` 命令不会启用监听。
+
+可以写在配置文件根级：
+
+```json
+{
+  "enableMonitorConfig": true,
+  "databases": []
+}
+```
+
+优先级从高到低：
+
+| 优先级 | 来源 | 说明 |
+| --- | --- | --- |
+| 1（最高） | `--enable-monitor-config true\|false` | 仅对本进程生效，强制开启或关闭；不写回配置文件 |
+| 2 | 环境变量 `ENABLE_MONITOR_CONFIG` | `true`/`false`（也接受 `1`/`0`/`yes`/`no`/`on`/`off`）；未设置时继续往下看 |
+| 3 | 配置文件 `enableMonitorConfig` | `databases.json` 根字段；可直接编辑 JSON，桌面 GUI 保存时也会写入这里 |
+| 4（默认） | 未配置 | 关闭监听 |
+
+配置文件里的 `enableMonitorConfig` 是持久默认值。启动参数和环境变量只覆盖当前进程，不会改文件。
 
 ---
 
@@ -119,10 +147,10 @@ DatabaseMcpServer config add `
   --connection-string 'Server=127.0.0.1;Port=3306;Database=crm;User=root;Password=secret;SslMode=None;' `
   --description '本地 MySQL 开发库' `
   --set-default `
-  --allow-dangerous-operations false
+  --enable-dangerous-operations false
 ```
 
-`--allow-dangerous-operations` 控制 `execute_command` 等通用命令是否允许执行 DDL/无 WHERE 更新；默认关闭，建议仅对受控维护连接开启。
+`--enable-dangerous-operations` 控制 `execute_command` 等通用命令是否允许执行 DDL/无 WHERE 更新；默认关闭，建议仅对受控维护连接开启。
 
 或从模板创建（自动套用该 DB 类型的合理默认）：
 
@@ -320,17 +348,17 @@ DatabaseMcpServer config add `
   --connection-string 'Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;' `
   --description '本地 SQLite 开发库' `
   --set-default `
-  --allow-dangerous-operations false
+  --enable-dangerous-operations false
 ```
 
-`--allow-dangerous-operations true|false` 也可用于 `config create` 和 `config update`；开启后当前连接允许通用命令工具执行危险操作。
+`--enable-dangerous-operations true|false` 也可用于 `config create` 和 `config update`；开启后当前连接允许通用命令工具执行危险操作。
 
 ### 4.5 重命名 / 更新连接
 
 ```powershell
 DatabaseMcpServer config rename --name 'sqlite-local' --new-name 'sqlite-dev'
 DatabaseMcpServer config update --name 'sqlite-dev' --description '开发环境 SQLite' --set-default
-DatabaseMcpServer config update --name 'sqlite-dev' --allow-dangerous-operations true
+DatabaseMcpServer config update --name 'sqlite-dev' --enable-dangerous-operations true
 DatabaseMcpServer config update --name 'sqlite-dev' --clear-description
 ```
 

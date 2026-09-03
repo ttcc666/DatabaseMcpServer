@@ -90,7 +90,8 @@ internal sealed class CliWebHost : ICliWebHost
         SqlSugarProviderWarmup.Warmup(logger);
         builder.Services.AddDatabaseMcpApplicationServices(
             cliToolMode: true,
-            currentDatabaseStateFilePath: _currentDatabaseStateFilePath);
+            currentDatabaseStateFilePath: _currentDatabaseStateFilePath,
+            enableMonitorConfig: options.EnableMonitorConfig);
         builder.Services.AddDatabaseMcpToolServices();
         builder.Services.AddSingleton(configContext);
         builder.Services.AddSingleton<CliConfigFileService>();

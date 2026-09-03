@@ -43,6 +43,15 @@ public class CliCommandParserTests
     }
 
     [Fact]
+    public void Parse_ShouldParseWebEnableMonitorConfigOption()
+    {
+        var result = _parser.Parse(["-web", "--enable-monitor-config"]);
+
+        Assert.Equal(CliCommandKind.WebInvoke, result.Kind);
+        Assert.Equal("true", result.OptionValues?["enable-monitor-config"]);
+    }
+
+    [Fact]
     public void Parse_ShouldParseConfigPresetsCommand()
     {
         var result = _parser.Parse(["config", "presets"]);
@@ -62,7 +71,7 @@ public class CliCommandParserTests
     [Fact]
     public void Parse_ShouldParseConfigCreateCommand()
     {
-        var result = _parser.Parse(["config", "create", "--from-preset", "Sqlite", "--name", "sqlite-dev", "--connection-string", "Data Source=dev.db;", "--description", "dev", "--set-default", "--allow-dangerous-operations", "--print-only"]);
+        var result = _parser.Parse(["config", "create", "--from-preset", "Sqlite", "--name", "sqlite-dev", "--connection-string", "Data Source=dev.db;", "--description", "dev", "--set-default", "--enable-dangerous-operations", "--print-only"]);
 
         Assert.Equal(CliCommandKind.ConfigCreate, result.Kind);
         Assert.Equal("Sqlite", result.OptionValues?["from-preset"]);
@@ -70,7 +79,7 @@ public class CliCommandParserTests
         Assert.Equal("Data Source=dev.db;", result.OptionValues?["connection-string"]);
         Assert.Equal("dev", result.OptionValues?["description"]);
         Assert.Equal("true", result.OptionValues?["set-default"]);
-        Assert.Equal("true", result.OptionValues?["allow-dangerous-operations"]);
+        Assert.Equal("true", result.OptionValues?["enable-dangerous-operations"]);
         Assert.Equal("true", result.OptionValues?["print-only"]);
     }
 
@@ -103,7 +112,7 @@ public class CliCommandParserTests
             "--db-type", "Sqlite",
             "--connection-string", "Data Source=test.db;",
             "--set-default",
-            "--allow-dangerous-operations"
+            "--enable-dangerous-operations"
         ]);
 
         Assert.Equal(CliCommandKind.ConfigAdd, result.Kind);
@@ -111,7 +120,7 @@ public class CliCommandParserTests
         Assert.Equal("Sqlite", result.OptionValues?["db-type"]);
         Assert.Equal("Data Source=test.db;", result.OptionValues?["connection-string"]);
         Assert.Equal("true", result.OptionValues?["set-default"]);
-        Assert.Equal("true", result.OptionValues?["allow-dangerous-operations"]);
+        Assert.Equal("true", result.OptionValues?["enable-dangerous-operations"]);
     }
 
     [Fact]

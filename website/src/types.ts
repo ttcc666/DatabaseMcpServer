@@ -15,7 +15,7 @@ export interface DatabaseSummary {
   description?: string | null
   connectionString: string
   isDefault: boolean
-  allowDangerousOperations: boolean
+  enableDangerousOperations: boolean
   isCurrent: boolean
   optimizationSettings?: Record<string, string> | null
 }
@@ -36,7 +36,7 @@ export interface DatabaseDetail {
   dbType: string
   description?: string | null
   isDefault: boolean
-  allowDangerousOperations: boolean
+  enableDangerousOperations: boolean
   optimizationSettings?: Record<string, string> | null
 }
 
@@ -88,5 +88,5 @@ export interface EditorDraft {
   description: string
   clearDescription: boolean
   setDefault: boolean
-  allowDangerousOperations: boolean
+  enableDangerousOperations: boolean
 }

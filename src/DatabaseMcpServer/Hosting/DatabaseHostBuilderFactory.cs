@@ -12,7 +12,8 @@ internal static class DatabaseHostBuilderFactory
         string[] args,
         bool silentLogs = false,
         bool cliToolMode = false,
-        string? currentDatabaseStateFilePath = null)
+        string? currentDatabaseStateFilePath = null,
+        bool? enableMonitorConfig = null)
     {
         var builder = Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
@@ -22,7 +23,10 @@ internal static class DatabaseHostBuilderFactory
         builder.Services.AddSerilog(serilogLogger);
 
         SqlSugarProviderWarmup.Warmup(serilogLogger);
-        builder.Services.AddDatabaseMcpApplicationServices(cliToolMode, currentDatabaseStateFilePath);
+        builder.Services.AddDatabaseMcpApplicationServices(
+            cliToolMode,
+            currentDatabaseStateFilePath,
+            enableMonitorConfig);
         builder.Services.AddDatabaseMcpToolServices();
 
         return builder;

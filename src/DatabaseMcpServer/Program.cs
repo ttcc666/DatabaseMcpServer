@@ -7,14 +7,24 @@ return await MainAsync(args);
 
 static async Task<int> MainAsync(string[] args)
 {
-    if (args.Length == 0)
+    var startup = DatabaseStartupArguments.Parse(args);
+    if (startup.ErrorMessage != null)
     {
-        var builder = DatabaseHostBuilderFactory.CreateBaseBuilder(args);
+        await Console.Error.WriteLineAsync(startup.ErrorMessage);
+        await CliRunner.WriteRootHelpAsync(Console.Error);
+        return 2;
+    }
+
+    if (startup.RunMcpServer)
+    {
+        var builder = DatabaseHostBuilderFactory.CreateBaseBuilder(
+            [],
+            enableMonitorConfig: startup.EnableMonitorConfig);
         builder.Services.AddDatabaseMcpServer();
         await builder.Build().RunAsync();
         return 0;
     }
 
-    var cliRunner = new CliRunner();
-    return await cliRunner.RunAsync(args, Console.Out, Console.Error);
+    var cliRunner = new CliRunner(enableMonitorConfig: startup.EnableMonitorConfig);
+    return await cliRunner.RunAsync(startup.RemainingArgs, Console.Out, Console.Error);
 }

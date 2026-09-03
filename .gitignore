@@ -366,3 +366,5 @@ FodyWeavers.xsd
 databases.json
 .ace-tool/
 website/*.tsbuildinfo
+**/.idea
+.vscode

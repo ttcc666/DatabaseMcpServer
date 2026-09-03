@@ -37,6 +37,7 @@ Tests live in `tests/DatabaseMcpServer.Tests/` and use xUnit.
 | `SEQ_SERVER_URL` | No | Seq log server URL |
 | `SEQ_API_KEY` | No | Seq API key |
 | `DB_DDL_WHITELIST` | No | Semicolon-separated regex patterns to whitelist DDL operations |
+| `ENABLE_MONITOR_CONFIG` | No | `true`/`false`. When true, long-running MCP stdio / `-web` monitor `databases.json` and switch the runtime current database if the file default changes. Priority: `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > file field `enableMonitorConfig` (default off). |
 
 Legacy v1.x env vars (`DB_CONNECTION_STRING`, `DB_TYPE`) are rejected at startup with an error.
 

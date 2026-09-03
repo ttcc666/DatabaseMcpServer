@@ -86,8 +86,8 @@ function ariaSort(key: ConnectionSortKey) {
               <div class="flex max-w-[210px] flex-wrap gap-1.5">
                 <Badge v-if="database.isDefault" variant="outline">{{ t("common.default") }}</Badge>
                 <Badge v-if="database.isCurrent"><CircleDot class="mr-1 size-3" />{{ t("common.current") }}</Badge>
-                <Badge v-if="database.allowDangerousOperations" variant="destructive">{{ t("dataTable.dangerousOps") }}</Badge>
-                <span v-if="!database.isDefault && !database.isCurrent && !database.allowDangerousOperations" class="text-xs text-muted-foreground">{{ t("common.ordinary") }}</span>
+                <Badge v-if="database.enableDangerousOperations" variant="destructive">{{ t("dataTable.dangerousOps") }}</Badge>
+                <span v-if="!database.isDefault && !database.isCurrent && !database.enableDangerousOperations" class="text-xs text-muted-foreground">{{ t("common.ordinary") }}</span>
               </div>
             </TableCell>
             <TableCell class="align-top">

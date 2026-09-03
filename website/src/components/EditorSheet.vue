@@ -82,7 +82,7 @@ function handlePresetModelValue(value: unknown) {
   emit("apply-preset", value)
 }
 
-function updateCheckbox(key: "setDefault" | "clearDescription" | "allowDangerousOperations", value: boolean | "indeterminate") {
+function updateCheckbox(key: "setDefault" | "clearDescription" | "enableDangerousOperations", value: boolean | "indeterminate") {
   if (localDraft.value) localDraft.value[key] = value === true
 }
 
@@ -167,8 +167,8 @@ function cloneDraft(draft: EditorDraft): EditorDraft {
                 <FieldContent class="min-w-0"><FieldLabel>{{ t("editor.setAsDefault") }}</FieldLabel><FieldDescription>{{ t("editor.setAsDefaultHint") }}</FieldDescription></FieldContent>
               </Field>
               <Field v-if="localDraft.mode !== 'clone'" orientation="horizontal" class="min-w-0 items-start">
-                <Checkbox :checked="localDraft.allowDangerousOperations" @update:checked="updateCheckbox('allowDangerousOperations', $event)" />
-                <FieldContent class="min-w-0"><FieldLabel>{{ t("editor.allowDangerous") }}</FieldLabel><FieldDescription>{{ t("editor.allowDangerousHint") }}</FieldDescription></FieldContent>
+                <Checkbox :checked="localDraft.enableDangerousOperations" @update:checked="updateCheckbox('enableDangerousOperations', $event)" />
+                <FieldContent class="min-w-0"><FieldLabel>{{ t("editor.enableDangerous") }}</FieldLabel><FieldDescription>{{ t("editor.enableDangerousHint") }}</FieldDescription></FieldContent>
               </Field>
               <Field v-if="localDraft.mode === 'edit'" orientation="horizontal" class="min-w-0 items-start">
                 <Checkbox :checked="localDraft.clearDescription" @update:checked="updateCheckbox('clearDescription', $event)" />

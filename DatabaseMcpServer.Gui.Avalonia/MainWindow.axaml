@@ -11,7 +11,7 @@
   <Grid RowDefinitions="Auto,*,Auto" Margin="8">
     <Border Classes="card" Padding="0" Margin="0,0,0,5">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
-            RowDefinitions="Auto,Auto"
+            RowDefinitions="Auto,Auto,Auto"
             ColumnSpacing="6"
             RowSpacing="5"
             Margin="18,7">
@@ -47,6 +47,13 @@
                 ToolTip.Tip="修改配置文件位置"
                 Command="{Binding ChoosePathCommand}"
                 IsVisible="{Binding IsEnvironmentSource}" />
+        <CheckBox Grid.Row="2"
+                  Grid.ColumnSpan="5"
+                  Content="监听配置文件（MCP / -web 跟随默认库）"
+                  FontSize="12"
+                  VerticalAlignment="Center"
+                  IsChecked="{Binding EnableMonitorConfig, Mode=TwoWay}"
+                  ToolTip.Tip="写入 databases.json 的 enableMonitorConfig。优先级：--enable-monitor-config > ENABLE_MONITOR_CONFIG > 本选项。保存后需重启尚未监听的 MCP / -web 才会生效。" />
       </Grid>
     </Border>
 
@@ -105,7 +112,7 @@
                         <Border Width="50" Height="20" Background="#E8F5EF" BorderBrush="#C9E9D8" BorderThickness="1" CornerRadius="6" IsVisible="{Binding IsDefault}" ToolTip.Tip="默认连接">
                           <TextBlock Text="★ 默认" Foreground="#16805B" FontSize="10" FontWeight="SemiBold" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <Border Width="50" Height="20" Background="#FDE7E7" BorderBrush="#F3B4B4" BorderThickness="1" CornerRadius="6" IsVisible="{Binding AllowDangerousOperations}" ToolTip.Tip="允许危险操作">
+                        <Border Width="50" Height="20" Background="#FDE7E7" BorderBrush="#F3B4B4" BorderThickness="1" CornerRadius="6" IsVisible="{Binding EnableDangerousOperations}" ToolTip.Tip="允许危险操作">
                           <TextBlock Text="危险 ⚠" Foreground="#B42318" FontSize="10" FontWeight="SemiBold" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                       </StackPanel>
@@ -147,7 +154,7 @@
                         <Grid ColumnDefinitions="86,*" Margin="0,3,0,0">
                           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
                             <CheckBox Content="设为默认连接" VerticalAlignment="Center" IsChecked="{Binding IsDefault, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
-                            <CheckBox Classes="danger-option" Foreground="#B42318" Content="允许危险操作 ⚠" VerticalAlignment="Center" IsChecked="{Binding AllowDangerousOperations, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+                            <CheckBox Classes="danger-option" Foreground="#B42318" Content="允许危险操作 ⚠" VerticalAlignment="Center" IsChecked="{Binding EnableDangerousOperations, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
                           </StackPanel>
                         </Grid>
                       </StackPanel>
