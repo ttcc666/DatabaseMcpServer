@@ -756,6 +756,8 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 如需执行这些操作，建议优先使用专门的架构操作工具（如 `create_table`、`drop_table`、`truncate_table` 等），这些工具会明确提示风险。若确需通过 `execute_command`、`execute_command_with_go` 或 `batch_execute_commands` 执行 DDL，可在当前连接配置中显式设置 `"enableDangerousOperations": true`，或使用 `config update --enable-dangerous-operations true` 写入配置；默认值为 `false`。
 
+兼容旧配置字段 `allowDangerousOperations` 和 CLI 参数 `--allow-dangerous-operations`。配置保存时统一写入 `enableDangerousOperations`；新旧 JSON 字段同时存在时，以新字段为准，与字段顺序无关。
+
 ### SQL 注入防护
 所有查询都支持参数化查询，自动防止 SQL 注入：
 

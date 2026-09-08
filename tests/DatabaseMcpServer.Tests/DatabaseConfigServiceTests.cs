@@ -478,25 +478,20 @@ public class DatabaseConfigServiceTests
             """);
 
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        var userProfileDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        using var userProfile = new TemporaryUserProfile();
+        var userProfileDir = userProfile.DirectoryPath;
         var userConfigPath = Path.Combine(userProfileDir, ".database-mcp", "databases.json");
-        var fileExistedBefore = File.Exists(userConfigPath);
-        var backupPath = userConfigPath + ".bak-" + Guid.NewGuid().ToString("N");
         var stateFilePath = WriteStateFile("""{ "entries": [] }""");
 
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
-            if (fileExistedBefore)
-            {
-                File.Move(userConfigPath, backupPath);
-            }
             File.WriteAllText(userConfigPath, """
                 { "databases": [ { "name": "user-profile", "connectionString": "Server=up", "dbType": "SqlServer", "isDefault": true } ] }
                 """);
 
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
-            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath);
+            var service = CreateService(new TrackingSqlSugarClientFactory(), stateFilePath, userProfileDirectory: userProfileDir);
 
             File.Delete(configPath);
 
@@ -511,14 +506,6 @@ public class DatabaseConfigServiceTests
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
             DeleteFileIfExists(configPath);
             DeleteFileIfExists(stateFilePath);
-            if (File.Exists(userConfigPath))
-            {
-                File.Delete(userConfigPath);
-            }
-            if (fileExistedBefore)
-            {
-                File.Move(backupPath, userConfigPath);
-            }
         }
     }
 
@@ -721,7 +708,8 @@ public class DatabaseConfigServiceTests
     private static DatabaseConfigService CreateService(
         ISqlSugarClientFactory clientFactory,
         string? stateFilePath = null,
-        DatabaseRuntimeOptions? runtimeOptions = null)
+        DatabaseRuntimeOptions? runtimeOptions = null,
+        string? userProfileDirectory = null)
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
         var serializer = new JsonResultSerializer();
@@ -735,7 +723,8 @@ public class DatabaseConfigServiceTests
             clientFactory,
             serializer,
             stateStore,
-            runtimeOptions);
+            runtimeOptions,
+            userProfileDirectory);
     }
 
     private static string WriteConfigFile(string json)

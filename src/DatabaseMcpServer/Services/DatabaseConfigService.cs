@@ -19,6 +19,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private readonly IJsonResultSerializer _resultSerializer;
     private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
     private readonly DatabaseRuntimeOptions _runtimeOptions;
+    private readonly string _userProfileDirectory;
     private readonly object _stateLock = new();
     private readonly Dictionary<string, DatabaseConnection> _connections = new(StringComparer.Ordinal);
     private string _configPath = string.Empty;
@@ -32,7 +33,8 @@ internal class DatabaseConfigService : IDatabaseConfigService
         ISqlSugarClientFactory clientFactory,
         IJsonResultSerializer resultSerializer,
         ICurrentDatabaseStateStore currentDatabaseStateStore,
-        DatabaseRuntimeOptions? runtimeOptions = null)
+        DatabaseRuntimeOptions? runtimeOptions = null,
+        string? userProfileDirectory = null)
     {
         _logger = logger;
         _databaseHelper = databaseHelper;
@@ -40,6 +42,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
         _resultSerializer = resultSerializer;
         _currentDatabaseStateStore = currentDatabaseStateStore;
         _runtimeOptions = runtimeOptions ?? DatabaseRuntimeOptions.Default;
+        _userProfileDirectory = userProfileDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         if (_runtimeOptions.EnableMonitorConfig == true)
         {
@@ -87,10 +90,9 @@ internal class DatabaseConfigService : IDatabaseConfigService
         CheckDeprecatedEnvironmentVariables();
 
         var environmentConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        var userProfileDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var resolution = CliConfigurationPathResolver.ResolveForMcpStdio(
             environmentConfigPath,
-            userProfileDirectory);
+            _userProfileDirectory);
 
         if (!resolution.Success)
         {

@@ -784,6 +784,8 @@ System automatically detects and blocks the following dangerous operations:
 
 To execute these operations, prefer dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which clearly prompt risks. If you must run DDL through `execute_command`, `execute_command_with_go`, or `batch_execute_commands`, explicitly set `"enableDangerousOperations": true` on the current connection, or run `config update --enable-dangerous-operations true`; the default is `false`.
 
+The legacy configuration field `allowDangerousOperations` and CLI option `--allow-dangerous-operations` remain accepted. Saving a configuration writes only `enableDangerousOperations`. When both JSON fields are present, the new field takes precedence regardless of field order.
+
 ### SQL Injection Protection
 
 All queries support parameterized queries, automatically preventing SQL injection:

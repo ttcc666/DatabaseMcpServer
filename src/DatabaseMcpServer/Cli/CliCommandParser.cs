@@ -327,6 +327,11 @@ internal sealed class CliCommandParser
             }
 
             var optionName = token[2..];
+            if (optionName == "allow-dangerous-operations" && optionMap.ContainsKey("enable-dangerous-operations"))
+            {
+                optionName = "enable-dangerous-operations";
+            }
+
             if (!optionMap.TryGetValue(optionName, out var parameter))
             {
                 return new ParsedOptions($"未知选项: '{token}'。");

@@ -481,7 +481,11 @@ internal sealed class CliWebApiService
         try
         {
             var databaseConfigService = _serviceProvider.GetService<IDatabaseConfigService>();
-            _ = databaseConfigService?.ReloadConfiguration();
+            if (databaseConfigService != null)
+            {
+                _ = databaseConfigService.ReloadConfiguration(
+                    followFileDefault: databaseConfigService.IsEnableMonitorConfigEnabled());
+            }
             var monitor = _serviceProvider.GetServices<IHostedService>()
                 .OfType<DatabaseConfigFileMonitorService>()
                 .FirstOrDefault();

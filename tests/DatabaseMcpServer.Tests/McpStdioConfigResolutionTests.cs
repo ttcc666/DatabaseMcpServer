@@ -20,18 +20,13 @@ public class McpStdioConfigResolutionTests
     public void DatabaseConfigService_ShouldStart_WhenEnvironmentUnset_AndUserProfileConfigExists()
     {
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        var userProfileDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        using var userProfile = new TemporaryUserProfile();
+        var userProfileDir = userProfile.DirectoryPath;
         var userConfigPath = Path.Combine(userProfileDir, ".database-mcp", "databases.json");
-        var fileExistedBefore = File.Exists(userConfigPath);
-        var backupPath = userConfigPath + ".bak-" + Guid.NewGuid().ToString("N");
 
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
-            if (fileExistedBefore)
-            {
-                File.Move(userConfigPath, backupPath);
-            }
             File.WriteAllText(userConfigPath, """
                 {
                   "databases": [
@@ -42,7 +37,7 @@ public class McpStdioConfigResolutionTests
 
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", null);
 
-            var service = CreateService();
+            var service = CreateService(userProfileDir);
 
             Assert.Equal(userConfigPath, service.GetConfigFilePath());
             Assert.Equal("default", service.GetCurrentDatabaseName());
@@ -50,14 +45,6 @@ public class McpStdioConfigResolutionTests
         finally
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
-            if (File.Exists(userConfigPath))
-            {
-                File.Delete(userConfigPath);
-            }
-            if (fileExistedBefore)
-            {
-                File.Move(backupPath, userConfigPath);
-            }
         }
     }
 
@@ -66,38 +53,25 @@ public class McpStdioConfigResolutionTests
     {
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
         var missingPath = Path.Combine(Path.GetTempPath(), $"dbmcp-missing-{Guid.NewGuid():N}.json");
-        var userProfileDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        using var userProfile = new TemporaryUserProfile();
+        var userProfileDir = userProfile.DirectoryPath;
         var userConfigPath = Path.Combine(userProfileDir, ".database-mcp", "databases.json");
-        var fileExistedBefore = File.Exists(userConfigPath);
-        var backupPath = userConfigPath + ".bak-" + Guid.NewGuid().ToString("N");
 
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
-            if (fileExistedBefore)
-            {
-                File.Move(userConfigPath, backupPath);
-            }
             File.WriteAllText(userConfigPath, """
                 { "databases": [ { "name": "user-profile", "connectionString": "Server=up", "dbType": "SqlServer", "isDefault": true } ] }
                 """);
 
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", missingPath);
 
-            var exception = Assert.Throws<InvalidOperationException>(CreateService);
+            var exception = Assert.Throws<InvalidOperationException>(() => CreateService(userProfileDir));
             Assert.Contains(Path.GetFullPath(missingPath), exception.Message, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
-            if (File.Exists(userConfigPath))
-            {
-                File.Delete(userConfigPath);
-            }
-            if (fileExistedBefore)
-            {
-                File.Move(backupPath, userConfigPath);
-            }
         }
     }
 
@@ -106,18 +80,13 @@ public class McpStdioConfigResolutionTests
     {
         var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
         var explicitPath = Path.Combine(Path.GetTempPath(), $"dbmcp-explicit-{Guid.NewGuid():N}.json");
-        var userProfileDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        using var userProfile = new TemporaryUserProfile();
+        var userProfileDir = userProfile.DirectoryPath;
         var userConfigPath = Path.Combine(userProfileDir, ".database-mcp", "databases.json");
-        var fileExistedBefore = File.Exists(userConfigPath);
-        var backupPath = userConfigPath + ".bak-" + Guid.NewGuid().ToString("N");
 
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
-            if (fileExistedBefore)
-            {
-                File.Move(userConfigPath, backupPath);
-            }
             File.WriteAllText(userConfigPath, """
                 { "databases": [ { "name": "user-profile", "connectionString": "Server=up", "dbType": "SqlServer", "isDefault": true } ] }
                 """);
@@ -127,7 +96,7 @@ public class McpStdioConfigResolutionTests
                 """);
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", explicitPath);
 
-            var service = CreateService();
+            var service = CreateService(userProfileDir);
 
             Assert.Equal(explicitPath, service.GetConfigFilePath());
             Assert.Equal("explicit", service.GetCurrentDatabaseName());
@@ -136,18 +105,10 @@ public class McpStdioConfigResolutionTests
         {
             Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
             File.Delete(explicitPath);
-            if (File.Exists(userConfigPath))
-            {
-                File.Delete(userConfigPath);
-            }
-            if (fileExistedBefore)
-            {
-                File.Move(backupPath, userConfigPath);
-            }
         }
     }
 
-    private static DatabaseConfigService CreateService()
+    private static DatabaseConfigService CreateService(string userProfileDirectory)
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
         var serializer = new JsonResultSerializer();
@@ -160,7 +121,8 @@ public class McpStdioConfigResolutionTests
             helper,
             new NoopSqlSugarClientFactory(),
             serializer,
-            stateStore);
+            stateStore,
+            userProfileDirectory: userProfileDirectory);
     }
 
     private sealed class NoopSqlSugarClientFactory : ISqlSugarClientFactory

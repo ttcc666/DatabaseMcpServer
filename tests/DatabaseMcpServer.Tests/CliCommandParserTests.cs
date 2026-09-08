@@ -13,6 +13,26 @@ public class CliCommandParserTests
         _parser = new CliCommandParser(_catalog);
     }
 
+    [Theory]
+    [InlineData("create", "ConfigCreate")]
+    [InlineData("add", "ConfigAdd")]
+    [InlineData("update", "ConfigUpdate")]
+    public void Parse_ShouldAcceptLegacyDangerousOperationsOption(string command, string expectedKind)
+    {
+        var result = _parser.Parse(["config", command, "--allow-dangerous-operations", "true"]);
+
+        Assert.Equal(expectedKind, result.Kind.ToString());
+        Assert.Equal("true", result.OptionValues?["enable-dangerous-operations"]);
+    }
+
+    [Fact]
+    public void Parse_ShouldRejectConflictingDangerousOperationsAliases()
+    {
+        var result = _parser.Parse(["config", "update", "--allow-dangerous-operations", "true", "--enable-dangerous-operations", "false"]);
+
+        Assert.Equal(CliCommandKind.Error, result.Kind);
+    }
+
     [Fact]
     public void Parse_ShouldReturnToolHelp_WhenHelpFlagIsPresent()
     {
