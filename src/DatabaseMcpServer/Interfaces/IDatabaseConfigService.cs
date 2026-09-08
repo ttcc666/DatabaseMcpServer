@@ -84,8 +84,21 @@ public interface IDatabaseConfigService
     string GetCurrentDatabaseName();
 
     /// <summary>
-    /// 重新加载数据库配置文件并刷新客户端缓存
+    /// 重新加载数据库配置文件并刷新客户端缓存。
+    /// 默认保留仍存在的当前库；文件监听应使用 <paramref name="followFileDefault"/> = true，
+    /// 以便在 JSON 中的默认库变化时切换运行时当前库。
     /// </summary>
     /// <returns>刷新结果</returns>
-    ConfigurationReloadResult ReloadConfiguration();
+    ConfigurationReloadResult ReloadConfiguration(bool followFileDefault = false);
+
+    /// <summary>
+    /// 当前已加载的配置文件绝对路径。
+    /// </summary>
+    string GetConfigFilePath();
+
+    /// <summary>
+    /// 当前是否应应用文件监听。
+    /// 优先级：启动参数 --enable-monitor-config > 环境变量 ENABLE_MONITOR_CONFIG > 配置文件 enableMonitorConfig。
+    /// </summary>
+    bool IsEnableMonitorConfigEnabled();
 }

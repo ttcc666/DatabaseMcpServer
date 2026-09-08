@@ -27,6 +27,6 @@ function createDraft(): EditorDraft {
     description: "",
     clearDescription: false,
     setDefault: false,
-    allowDangerousOperations: false,
+    enableDangerousOperations: false,
   }
 }

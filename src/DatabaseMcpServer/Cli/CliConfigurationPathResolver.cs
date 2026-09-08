@@ -29,7 +29,8 @@ internal static class CliConfigurationPathResolver
         string? explicitConfigPath,
         string currentDirectory,
         string? environmentConfigPath,
-        string? userProfileDirectory)
+        string? userProfileDirectory,
+        bool includeCurrentDirectory = true)
     {
         if (!string.IsNullOrWhiteSpace(explicitConfigPath))
         {
@@ -39,21 +40,27 @@ internal static class CliConfigurationPathResolver
                 : new CliConfigurationPathResolution(null, "--config", $"配置文件不存在: {fullPath}");
         }
 
-        var currentDatabases = Path.Combine(currentDirectory, "databases.json");
-        if (File.Exists(currentDatabases))
+        if (includeCurrentDirectory)
         {
-            return new CliConfigurationPathResolution(currentDatabases, "current-directory/databases.json", null);
+            var currentDatabases = Path.Combine(currentDirectory, "databases.json");
+            if (File.Exists(currentDatabases))
+            {
+                return new CliConfigurationPathResolution(currentDatabases, "current-directory/databases.json", null);
+            }
+
+            var currentLocalDatabases = Path.Combine(currentDirectory, "local-databases.json");
+            if (File.Exists(currentLocalDatabases))
+            {
+                return new CliConfigurationPathResolution(currentLocalDatabases, "current-directory/local-databases.json", null);
+            }
         }
 
-        var currentLocalDatabases = Path.Combine(currentDirectory, "local-databases.json");
-        if (File.Exists(currentLocalDatabases))
+        if (!string.IsNullOrWhiteSpace(environmentConfigPath))
         {
-            return new CliConfigurationPathResolution(currentLocalDatabases, "current-directory/local-databases.json", null);
-        }
-
-        if (!string.IsNullOrWhiteSpace(environmentConfigPath) && File.Exists(environmentConfigPath))
-        {
-            return new CliConfigurationPathResolution(environmentConfigPath, "DB_CONFIG_PATH", null);
+            var fullEnvironmentPath = Path.GetFullPath(environmentConfigPath);
+            return File.Exists(fullEnvironmentPath)
+                ? new CliConfigurationPathResolution(fullEnvironmentPath, "DB_CONFIG_PATH", null)
+                : new CliConfigurationPathResolution(null, "DB_CONFIG_PATH", $"配置文件不存在: {fullEnvironmentPath}");
         }
 
         if (!string.IsNullOrWhiteSpace(userProfileDirectory))
@@ -69,6 +76,23 @@ internal static class CliConfigurationPathResolver
             null,
             null,
             "未找到数据库配置文件。CLI 查找顺序: --config -> ./databases.json -> ./local-databases.json -> DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json");
+    }
+
+    /// <summary>
+    /// 为 MCP stdio 模式解析配置路径，跳过当前目录查找。
+    /// MCP 客户端（Claude Desktop、VS Code 等）从自己的目录启动子进程，
+    /// 自动读取 ./databases.json 可能命中无关文件，因此只检查 DB_CONFIG_PATH 和用户目录。
+    /// </summary>
+    internal static CliConfigurationPathResolution ResolveForMcpStdio(
+        string? environmentConfigPath,
+        string? userProfileDirectory)
+    {
+        return Resolve(
+            explicitConfigPath: null,
+            currentDirectory: string.Empty,
+            environmentConfigPath: environmentConfigPath,
+            userProfileDirectory: userProfileDirectory,
+            includeCurrentDirectory: false);
     }
 
     internal static CliConfigurationPathResolution ResolveWritablePath(

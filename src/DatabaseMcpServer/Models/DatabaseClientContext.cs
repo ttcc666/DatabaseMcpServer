@@ -7,4 +7,4 @@ namespace DatabaseMcpServer.Models;
 /// </summary>
 public sealed record DatabaseClientContext(
     ISqlSugarClient Client,
-    bool AllowDangerousOperations);
+    bool EnableDangerousOperations);

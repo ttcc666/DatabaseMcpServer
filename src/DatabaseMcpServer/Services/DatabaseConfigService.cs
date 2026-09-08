@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
@@ -17,23 +18,37 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private readonly ISqlSugarClientFactory _clientFactory;
     private readonly IJsonResultSerializer _resultSerializer;
     private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
+    private readonly DatabaseRuntimeOptions _runtimeOptions;
     private readonly object _stateLock = new();
     private readonly Dictionary<string, DatabaseConnection> _connections = new(StringComparer.Ordinal);
     private string _configPath = string.Empty;
     private string? _currentDatabaseName;
+    private string? _defaultDatabaseName;
+    private bool _enableMonitorConfig;
 
     public DatabaseConfigService(
         ILogger<DatabaseConfigService> logger,
         IDatabaseHelperService databaseHelper,
         ISqlSugarClientFactory clientFactory,
         IJsonResultSerializer resultSerializer,
-        ICurrentDatabaseStateStore currentDatabaseStateStore)
+        ICurrentDatabaseStateStore currentDatabaseStateStore,
+        DatabaseRuntimeOptions? runtimeOptions = null)
     {
         _logger = logger;
         _databaseHelper = databaseHelper;
         _clientFactory = clientFactory;
         _resultSerializer = resultSerializer;
         _currentDatabaseStateStore = currentDatabaseStateStore;
+        _runtimeOptions = runtimeOptions ?? DatabaseRuntimeOptions.Default;
+
+        if (_runtimeOptions.EnableMonitorConfig == true)
+        {
+            _logger.LogInformation("已通过启动参数 --enable-monitor-config 在本进程中启用配置文件监听。");
+        }
+        else if (_runtimeOptions.EnableMonitorConfig == false)
+        {
+            _logger.LogInformation("已通过启动参数 --enable-monitor-config false 在本进程中关闭配置文件监听。");
+        }
 
         LoadDatabaseConnections();
     }
@@ -71,18 +86,30 @@ internal class DatabaseConfigService : IDatabaseConfigService
     {
         CheckDeprecatedEnvironmentVariables();
 
-        var configPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        if (string.IsNullOrWhiteSpace(configPath))
+        var environmentConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        var userProfileDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var resolution = CliConfigurationPathResolver.ResolveForMcpStdio(
+            environmentConfigPath,
+            userProfileDirectory);
+
+        if (!resolution.Success)
         {
+            if (string.Equals(resolution.Source, "DB_CONFIG_PATH", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(resolution.ErrorMessage))
+            {
+                throw new InvalidOperationException(resolution.ErrorMessage);
+            }
+
             throw new InvalidOperationException(
-                "未配置数据库连接。请设置 DB_CONFIG_PATH 环境变量指向 databases.json 配置文件。\n\n" +
+                "未找到数据库配置文件。请设置 DB_CONFIG_PATH 环境变量指向 databases.json 配置文件，\n" +
+                "或在用户目录下创建 %USERPROFILE%/.database-mcp/databases.json。\n\n" +
                 "示例:\n" +
                 "  DB_CONFIG_PATH=D:\\config\\databases.json\n\n" +
                 "配置文件格式请参考: databases.json.example");
         }
 
-        _logger.LogInformation("使用配置文件路径: {Path}", configPath);
-        return configPath;
+        _logger.LogInformation("使用配置文件路径: {Path} (来源: {Source})", resolution.Path, resolution.Source);
+        return resolution.Path!;
     }
 
     private bool TryLoadConfigurationSnapshot(
@@ -130,7 +157,12 @@ internal class DatabaseConfigService : IDatabaseConfigService
                 ? preferredDatabaseName
                 : defaultDatabaseName ?? connections.Keys.First();
 
-            snapshot = new ConfigurationSnapshot(configPath, connections, currentDatabaseName);
+            snapshot = new ConfigurationSnapshot(
+                configPath,
+                connections,
+                currentDatabaseName,
+                defaultDatabaseName,
+                config.EnableMonitorConfig);
             _logger.LogInformation("成功从配置文件加载 {Count} 个数据库连接: {Path}", config.Databases.Count, configPath);
             errorMessage = string.Empty;
             return true;
@@ -160,6 +192,8 @@ internal class DatabaseConfigService : IDatabaseConfigService
         }
 
         _currentDatabaseName = snapshot.CurrentDatabaseName;
+        _defaultDatabaseName = snapshot.DefaultDatabaseName;
+        _enableMonitorConfig = snapshot.EnableMonitorConfig;
     }
 
     private void CheckDeprecatedEnvironmentVariables()
@@ -295,7 +329,7 @@ internal class DatabaseConfigService : IDatabaseConfigService
             var connection = GetCurrentConnectionUnsafe();
             return new DatabaseClientContext(
                 _clientFactory.CreateClient(connection),
-                connection.AllowDangerousOperations);
+                connection.EnableDangerousOperations);
         }
     }
 
@@ -325,10 +359,16 @@ internal class DatabaseConfigService : IDatabaseConfigService
     {
         DatabaseConnection connection;
         int totalDatabases;
+        bool enableMonitorConfig;
+        bool enableMonitorConfigEnabled;
         lock (_stateLock)
         {
             connection = GetCurrentConnectionUnsafe();
             totalDatabases = _connections.Count;
+            enableMonitorConfig = _enableMonitorConfig;
+            enableMonitorConfigEnabled = DatabaseConfigMonitorSettings.IsEnabled(
+                _enableMonitorConfig,
+                _runtimeOptions.EnableMonitorConfig);
         }
 
         return _resultSerializer.Serialize(new
@@ -340,7 +380,9 @@ internal class DatabaseConfigService : IDatabaseConfigService
             databaseType = connection.DbType,
             description = connection.Description,
             connectionString = ConnectionStringMasker.Mask(connection.ConnectionString),
-            allowDangerousOperations = connection.AllowDangerousOperations,
+            enableDangerousOperations = connection.EnableDangerousOperations,
+            enableMonitorConfigEnabled,
+            enableMonitorConfig,
             message = "配置有效"
         });
     }
@@ -381,13 +423,31 @@ internal class DatabaseConfigService : IDatabaseConfigService
         }
     }
 
-    public ConfigurationReloadResult ReloadConfiguration()
+    public string GetConfigFilePath()
+    {
+        lock (_stateLock)
+        {
+            return _configPath;
+        }
+    }
+
+    public bool IsEnableMonitorConfigEnabled()
+    {
+        lock (_stateLock)
+        {
+            return DatabaseConfigMonitorSettings.IsEnabled(_enableMonitorConfig, _runtimeOptions.EnableMonitorConfig);
+        }
+    }
+
+    public ConfigurationReloadResult ReloadConfiguration(bool followFileDefault = false)
     {
         string previousDatabaseName;
+        string? previousDefaultDatabaseName;
         int previousDatabaseCount;
         lock (_stateLock)
         {
             previousDatabaseName = GetCurrentConnectionUnsafe().Name;
+            previousDefaultDatabaseName = _defaultDatabaseName;
             previousDatabaseCount = _connections.Count;
         }
 
@@ -414,6 +474,14 @@ internal class DatabaseConfigService : IDatabaseConfigService
         {
             ApplyConfigurationSnapshot(snapshot);
             _configPath = configPath;
+
+            var defaultChanged = !string.IsNullOrWhiteSpace(snapshot.DefaultDatabaseName)
+                && !string.Equals(previousDefaultDatabaseName, snapshot.DefaultDatabaseName, StringComparison.Ordinal);
+            if (followFileDefault && defaultChanged)
+            {
+                _currentDatabaseName = snapshot.DefaultDatabaseName;
+            }
+
             _clientFactory.ResetClientPool();
             currentDatabaseName = _currentDatabaseName ?? snapshot.CurrentDatabaseName;
             totalDatabases = _connections.Count;
@@ -427,10 +495,11 @@ internal class DatabaseConfigService : IDatabaseConfigService
             : $"已重新加载数据库配置，当前数据库已从 '{previousDatabaseName}' 切换到 '{currentDatabaseName}'";
 
         _logger.LogInformation(
-            "数据库配置刷新成功: {Path}，当前数据库 {Previous} -> {Current}",
+            "数据库配置刷新成功: {Path}，当前数据库 {Previous} -> {Current}，followFileDefault={FollowFileDefault}",
             configPath,
             previousDatabaseName,
-            currentDatabaseName);
+            currentDatabaseName,
+            followFileDefault);
 
         return new ConfigurationReloadResult
         {
@@ -465,9 +534,11 @@ internal class DatabaseConfigService : IDatabaseConfigService
     private sealed record ConfigurationSnapshot(
         string ConfigPath,
         Dictionary<string, DatabaseConnection> Connections,
-        string CurrentDatabaseName)
+        string CurrentDatabaseName,
+        string? DefaultDatabaseName,
+        bool EnableMonitorConfig)
     {
         public static ConfigurationSnapshot Empty { get; } =
-            new(string.Empty, new Dictionary<string, DatabaseConnection>(StringComparer.Ordinal), string.Empty);
+            new(string.Empty, new Dictionary<string, DatabaseConnection>(StringComparer.Ordinal), string.Empty, null, false);
     }
 }

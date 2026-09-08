@@ -12,7 +12,7 @@ DatabaseMcpServer is a .NET MCP (Model Context Protocol) server published as a .
 # Build (multi-target: net9.0 + net10.0)
 dotnet build 'DatabaseMcpServer.slnx'
 
-# Run locally (requires DB_CONFIG_PATH env var pointing to databases.json)
+# Run locally (sets DB_CONFIG_PATH env var or relies on auto-discovery from %USERPROFILE%/.database-mcp/databases.json)
 dotnet run --project 'src\DatabaseMcpServer\DatabaseMcpServer.csproj'
 
 # Package as NuGet global tool
@@ -31,10 +31,11 @@ Tests live in `tests/DatabaseMcpServer.Tests/` and use xUnit.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `DB_CONFIG_PATH` | Yes | Absolute path to `databases.json` config file |
+| `DB_CONFIG_PATH` | No | Absolute path to `databases.json` config file. When unset, MCP stdio mode auto-loads `%USERPROFILE%/.database-mcp/databases.json`. CLI / `-web` use a longer chain (current-directory `./databases.json` and `./local-databases.json` are tried first). |
 | `SEQ_SERVER_URL` | No | Seq log server URL |
 | `SEQ_API_KEY` | No | Seq API key |
 | `DB_DDL_WHITELIST` | No | Semicolon-separated regex patterns to whitelist DDL operations |
+| `ENABLE_MONITOR_CONFIG` | No | `true`/`false`. When true, long-running MCP stdio / `-web` monitor `databases.json` and switch the runtime current database if the file default changes. Priority: `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > file field `enableMonitorConfig` (default off). |
 
 Legacy v1.x env vars (`DB_CONNECTION_STRING`, `DB_TYPE`) are rejected at startup with an error.
 
