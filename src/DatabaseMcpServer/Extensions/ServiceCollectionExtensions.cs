@@ -1,5 +1,6 @@
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Strategies.DBSetting;
 using DatabaseMcpServer.Tools.Command;
@@ -9,6 +10,7 @@ using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -19,8 +21,10 @@ internal static class ServiceCollectionExtensions
     public static IServiceCollection AddDatabaseMcpApplicationServices(
         this IServiceCollection services,
         bool cliToolMode = false,
-        string? currentDatabaseStateFilePath = null)
+        string? currentDatabaseStateFilePath = null,
+        bool? enableMonitorConfig = null)
     {
+        services.AddSingleton(new DatabaseRuntimeOptions(enableMonitorConfig));
         services.AddSingleton<IJsonResultSerializer, JsonResultSerializer>();
         services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();
         services.AddSingleton<IDatabaseOptimizationStrategyFactory, DatabaseOptimizationStrategyFactory>();
@@ -31,6 +35,7 @@ internal static class ServiceCollectionExtensions
                 cliToolMode,
                 currentDatabaseStateFilePath));
         services.AddSingleton<IDatabaseConfigService, DatabaseConfigService>();
+        services.AddHostedService<DatabaseConfigFileMonitorService>();
         return services;
     }
 

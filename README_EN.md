@@ -68,6 +68,7 @@ Create `databases.json` configuration file:
 
 ```json
 {
+  "enableMonitorConfig": false,
   "databases": [
     {
       "name": "default",
@@ -79,6 +80,10 @@ Create `databases.json` configuration file:
   ]
 }
 ```
+
+`enableMonitorConfig` is an optional root field (default `false`). When `true`, a long-running MCP stdio / `-web` process watches this file and switches the runtime current database if the file default changes. See [Config File Monitoring](#config-file-monitoring-optional) for priority.
+
+> 💡 If `DB_CONFIG_PATH` is not set in the MCP client configuration, stdio mode automatically reads `%USERPROFILE%/.database-mcp/databases.json`. CLI / `-web` additionally check `./databases.json` and `./local-databases.json` in the current directory. Setting it explicitly is still recommended.
 
 ### Step 3: Configure MCP Client
 
@@ -114,6 +119,120 @@ System returns:
   "databaseType": "MySql"
 }
 ```
+
+## 💻 Command Line Mode (CLI)
+
+Starting with the current version, `DatabaseMcpServer` keeps its original MCP stdio mode while also supporting the following two categories of tasks directly from the command line:
+
+- **No arguments**: starts the stdio MCP server (compatible with existing MCP client configurations)
+- **`-web`**: starts a localhost-only configuration management page and opens the browser by default
+- **`tool` subcommand**: invokes an exposed MCP tool directly
+- **`init` / `config` subcommands**: initializes and maintains the local `databases.json`
+
+### Basic Usage
+
+```bash
+# Start the local Web configuration page (opens the browser by default)
+DatabaseMcpServer -web
+DatabaseMcpServer -web --config "D:\config\databases.json" --no-browser
+
+# Start stdio MCP / -web with config-file monitoring forced on or off for this process
+DatabaseMcpServer --enable-monitor-config
+DatabaseMcpServer --enable-monitor-config true
+DatabaseMcpServer --enable-monitor-config false -web --no-browser
+DatabaseMcpServer -web --enable-monitor-config true --no-browser
+
+# Initialize the default config file (defaults to %USERPROFILE%/.database-mcp/databases.json)
+DatabaseMcpServer init
+
+# Inspect / manage local connection configuration
+DatabaseMcpServer config list
+DatabaseMcpServer config presets
+DatabaseMcpServer config preset --db-type Sqlite
+DatabaseMcpServer config create --from-preset Sqlite --name sqlite-local --connection-string "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;" --description "local sqlite" --set-default
+DatabaseMcpServer config create --from-preset Sqlite --name sqlite-preview --print-only
+DatabaseMcpServer config add --name sqlite-local --db-type Sqlite --connection-string "Data Source=./data/local.db;Cache=Shared;Mode=ReadWriteCreate;" --set-default
+DatabaseMcpServer config rename --name sqlite-local --new-name sqlite-dev
+DatabaseMcpServer config update --name sqlite-dev --description "dev sqlite" --set-default
+DatabaseMcpServer config validate
+DatabaseMcpServer config clone --name sqlite-dev --new-name sqlite-ci
+DatabaseMcpServer config doctor
+DatabaseMcpServer config export --output ".\\backup-databases.json"
+DatabaseMcpServer config import --input ".\\backup-databases.json" --config "D:\config\databases.json" --force
+
+# List every invokable tool
+DatabaseMcpServer tool list
+
+# Show help for a single tool
+DatabaseMcpServer tool help switch_database
+
+# Invoke a tool directly
+DatabaseMcpServer tool list_databases --config "D:\config\databases.json"
+DatabaseMcpServer tool get_table_schema --table-name users --config "D:\config\databases.json"
+```
+
+### Argument Rules
+
+- `-web` is mainly for **local visual configuration management**
+  - Binds to `localhost / 127.0.0.1` by default; not exposed to the public network
+  - Reuses the CLI resolution order: `--config -> ./databases.json -> ./local-databases.json -> DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json`
+  - When no existing config file is found, falls back to `%USERPROFILE%/.database-mcp/databases.json` as the writable target
+  - The page manages two state files together: the default connection in `databases.json`, and the current connection in `%USERPROFILE%/.database-mcp/cli-state.json`
+  - `--port <number>` explicitly sets the port; otherwise a free port is assigned automatically
+  - `--no-browser` disables auto-opening the browser
+  - `--enable-monitor-config true|false` forces `databases.json` monitoring on or off for this process; it overrides the environment variable and the config-file field
+- `init` / `config` are mainly for **local configuration management**
+  - Default target is `%USERPROFILE%/.database-mcp/databases.json`
+  - `--config <path>` overrides the target config file for the current invocation
+  - `config use` / `config set-default` switches the default connection (written back to `databases.json`)
+  - `config rename` / `config update` evolves an existing connection
+  - `config validate` runs config-file-level validation (not a connectivity test)
+  - `config clone` quickly duplicates a connection
+  - `config presets` / `config preset` lists built-in connection templates
+  - `config create --from-preset` scaffolds a connection from a template and can override the connection string / description
+  - `config update --clear-description` explicitly clears the description
+  - `--enable-dangerous-operations true|false` writes the dangerous-operations switch into `config create/add/update` (default `false`)
+  - `config doctor` runs diagnostics — by default tests connectivity of each connection and provides fix suggestions; `--summary-only` is suitable for scripts
+  - `config export` / `config import` backs up and migrates the config file
+- Tool names match the MCP names and use `snake_case`
+  - For example: `list_databases`, `get_table_schema`, `execute_command`
+- Tool parameters are mapped to `kebab-case` options
+  - For example: `databaseName -> --database-name`
+  - For example: `initialDelayMs -> --initial-delay-ms`
+- `tool switch_database` switches the **current connection**
+  - Under CLI, it persists the current connection per resolved config path into `%USERPROFILE%/.database-mcp/cli-state.json`
+  - It does not modify the default connection in `databases.json`
+  - Subsequent `tool get_current_database` / `tool list_databases` / query-style commands keep using this current connection
+  - It only falls back to the default connection when there is no saved current connection, or the saved one has become invalid
+- CLI global options:
+  - `--config <path>`: temporarily sets the config file for the current invocation
+  - `--yes`: must be supplied for write / high-risk schema tools
+  - `--help`: shows help
+
+### Config File Lookup Order Under `tool` Mode
+
+When running `DatabaseMcpServer tool ...` without an explicit `--config`, the CLI looks up the database configuration in this order:
+
+1. Current directory `./databases.json`
+2. Current directory `./local-databases.json`
+3. Environment variable `DB_CONFIG_PATH`
+4. User directory `%USERPROFILE%/.database-mcp/databases.json`
+
+### High-Risk Command Confirmation
+
+The following write / high-risk commands must include `--yes`:
+
+```bash
+DatabaseMcpServer tool drop_table --table-name users --config "D:\config\databases.json" --yes
+DatabaseMcpServer tool execute_command --sql "delete from users where id = 1" --config "D:\config\databases.json" --yes
+```
+
+Under CLI mode, command result JSON is written to `stdout`, and help and logs go to `stderr`, which is convenient for script integration.
+Also note: `tool switch_database` and `config use` have different semantics — the former switches and persists the "current connection", while the latter modifies the "default connection" in the config file.
+
+See the full command reference:
+
+- [CLI command guide](Doc/cli.md)
 
 ## 📦 Installation Methods
 
@@ -206,9 +325,16 @@ dotnet run --framework net10.0
 
 DatabaseMcpServer 2.0.0 uses JSON configuration file for unified database connection management.
 
-### Configuration File (Required)
+### Configuration File (Recommended; auto-discovered when unset)
 
 Specify the **absolute path** of the configuration file through the environment variable `DB_CONFIG_PATH`:
+
+> **Auto-discovery priority:**
+>
+> - **stdio mode**: `DB_CONFIG_PATH` → `%USERPROFILE%/.database-mcp/databases.json` (does not read the current directory, to avoid picking up stray files from MCP client directories).
+> - **CLI / `-web` mode**: `--config` → `./databases.json` → `./local-databases.json` → `DB_CONFIG_PATH` → `%USERPROFILE%/.database-mcp/databases.json`.
+>
+> Setting `DB_CONFIG_PATH` explicitly is still recommended.
 
 **MCP Configuration Example:**
 
@@ -231,6 +357,7 @@ After `databases.json` changes, call `reload_database_config` to reload the file
 
 ```json
 {
+  "enableMonitorConfig": false,
   "databases": [
     {
       "name": "mysql-main",
@@ -238,7 +365,7 @@ After `databases.json` changes, call `reload_database_config` to reload the file
       "dbType": "MySql",
       "description": "MySQL Main Database",
       "isDefault": true,
-      "allowDangerousOperations": false,
+      "enableDangerousOperations": false,
       "optimizationSettings": {
         "enableCache": "true",
         "batchSize": "1000"
@@ -258,6 +385,23 @@ After `databases.json` changes, call `reload_database_config` to reload the file
 }
 ```
 
+The root field `enableMonitorConfig` can be stored in the config file to control whether a long-running MCP stdio / `-web` process watches that file. It is treated as `false` when omitted.
+
+### Config File Monitoring (Optional)
+
+A long-running process (MCP stdio / `-web`) can watch `databases.json` and switch the runtime current database when the file default changes. One-shot `tool` / `config` commands do not start the watcher.
+
+It can be set in three places, **highest priority first**:
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 (highest) | Startup flag `--enable-monitor-config true\|false` | Process-local force on/off; not written back to the config file |
+| 2 | Environment variable `ENABLE_MONITOR_CONFIG` | `true`/`false` (also accepts `1`/`0`/`yes`/`no`/`on`/`off`); if unset, fall through |
+| 3 | Config file `enableMonitorConfig` | Root field in `databases.json`; edit the JSON directly |
+| 4 (default) | Unset | Monitoring is off |
+
+Example: even if the file has `"enableMonitorConfig": true`, this process will not watch when started with `--enable-monitor-config false` or `ENABLE_MONITOR_CONFIG=false`.
+
 **Multi-Database Management Tools:**
 - `list_databases` - List all available database connections
 - `switch_database` - Switch to a specified database
@@ -272,14 +416,14 @@ After `databases.json` changes, call `reload_database_config` to reload the file
 
 ## 🌐 Environment Configuration
 
-### Required Environment Variables
-- `DB_CONFIG_PATH`: Database configuration file path (required)
-  - Example: `D:\config\databases.json`
-
 ### Optional Environment Variables
+- `DB_CONFIG_PATH`: Database configuration file path
+  - Example: `D:\config\databases.json`
+  - Priority: env var `DB_CONFIG_PATH` → `%USERPROFILE%/.database-mcp/databases.json` (stdio mode); CLI / `-web` additionally check `./databases.json` and `./local-databases.json` in the current directory
 - `SEQ_SERVER_URL`: Seq log server address (optional)
 - `SEQ_API_KEY`: Seq API key (optional)
 - `DB_DDL_WHITELIST`: DDL operation whitelist (optional, semicolon-separated regex patterns)
+- `ENABLE_MONITOR_CONFIG`: Monitor `databases.json` and let a long-running MCP / `-web` process follow default-database changes (`true`/`false`, off by default). You can also set `"enableMonitorConfig": true` at the config-file root. Priority: `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`.
 
 ### Database-Specific Optimization Configuration
 Starting from version 2.0.0, all database-specific optimization configurations are set in the `optimizationSettings` section of `databases.json`.
@@ -344,7 +488,7 @@ DatabaseMcpServer 2.0.0 has removed environment variable configuration method an
       "dbType": "MySql",
       "description": "Default database",
       "isDefault": true,
-      "allowDangerousOperations": false,
+      "enableDangerousOperations": false,
       "optimizationSettings": {
         "lowercaseTables": "true"
       }
@@ -638,7 +782,9 @@ System automatically detects and blocks the following dangerous operations:
 - `ALTER TABLE` - Modify table structure
 - `DELETE` / `UPDATE` without WHERE condition
 
-To execute these operations, prefer dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which clearly prompt risks. If you must run DDL through `execute_command`, `execute_command_with_go`, or `batch_execute_commands`, explicitly set `"allowDangerousOperations": true` on the current connection, or run `config update --allow-dangerous-operations true`; the default is `false`.
+To execute these operations, prefer dedicated schema operation tools (such as `create_table`, `drop_table`, `truncate_table`, etc.), which clearly prompt risks. If you must run DDL through `execute_command`, `execute_command_with_go`, or `batch_execute_commands`, explicitly set `"enableDangerousOperations": true` on the current connection, or run `config update --enable-dangerous-operations true`; the default is `false`.
+
+The legacy configuration field `allowDangerousOperations` and CLI option `--allow-dangerous-operations` remain accepted. Saving a configuration writes only `enableDangerousOperations`. When both JSON fields are present, the new field takes precedence regardless of field order.
 
 ### SQL Injection Protection
 
@@ -723,6 +869,7 @@ CLI highlights:
 
 - `DatabaseMcpServer` with no arguments still starts the stdio MCP server.
 - `DatabaseMcpServer -web` starts a localhost-only configuration UI and opens the browser by default.
+- `DatabaseMcpServer --enable-monitor-config true|false` starts stdio MCP (or prefix `-web`) with config-file monitoring forced on or off for this process. Priority: `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > config-file `enableMonitorConfig` (default off).
 - `DatabaseMcpServer tool ...` invokes existing MCP tools directly.
 - In CLI tool mode, `switch_database` persists the current connection per resolved config path for later `tool` invocations.
 - `config use` / `config set-default` updates the default connection stored in `databases.json`; it is distinct from the persisted CLI current connection.
@@ -754,7 +901,7 @@ CLI highlights:
 
 - **3.5.0**
   - Add the `create_table` tool for creating tables from JSON column definitions
-  - Add per-connection `allowDangerousOperations` configuration, disabled by default
+  - Add per-connection `enableDangerousOperations` configuration, disabled by default
   - Block `UPDATE` / `DELETE` without `WHERE` and bind each database client to the matching safety-policy snapshot
 
 - **3.0.0**

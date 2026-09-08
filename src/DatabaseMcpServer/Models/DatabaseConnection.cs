@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DatabaseMcpServer.Models;
 
 /// <summary>
@@ -5,6 +7,8 @@ namespace DatabaseMcpServer.Models;
 /// </summary>
 public class DatabaseConnection
 {
+    private bool? _enableDangerousOperations;
+
     /// <summary>
     /// 数据库连接名称（唯一标识）
     /// </summary>
@@ -33,7 +37,20 @@ public class DatabaseConnection
     /// <summary>
     /// 是否允许通用命令工具执行危险操作（如 CREATE/DROP/TRUNCATE/ALTER TABLE）。默认 false。
     /// </summary>
-    public bool AllowDangerousOperations { get; set; }
+    public bool EnableDangerousOperations
+    {
+        get => _enableDangerousOperations ?? false;
+        set => _enableDangerousOperations = value;
+    }
+
+    // Read legacy configs, but only write the new name. The new field wins in either JSON order.
+    [JsonPropertyName("allowDangerousOperations")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyAllowDangerousOperations
+    {
+        get => null;
+        set => _enableDangerousOperations ??= value;
+    }
 
     /// <summary>
     /// 数据库优化配置选项

@@ -143,6 +143,122 @@ public class CliConfigurationPathResolverTests
         }
     }
 
+    [Fact]
+    public void ResolveForMcpStdio_ShouldUseEnvironment_WhenFileExists()
+    {
+        var envDirectory = CreateTempDirectory();
+        var userDirectory = CreateTempDirectory();
+        var envConfigPath = Path.Combine(envDirectory, "databases.json");
+        File.WriteAllText(envConfigPath, "{}");
+
+        try
+        {
+            var result = CliConfigurationPathResolver.ResolveForMcpStdio(envConfigPath, userDirectory);
+
+            Assert.True(result.Success);
+            Assert.Equal(envConfigPath, result.Path);
+            Assert.Equal("DB_CONFIG_PATH", result.Source);
+        }
+        finally
+        {
+            DeleteDirectory(envDirectory);
+            DeleteDirectory(userDirectory);
+        }
+    }
+
+    [Fact]
+    public void Resolve_ShouldNotFallbackToUserProfile_WhenEnvironmentPathIsMissing()
+    {
+        var currentDirectory = CreateTempDirectory();
+        var userDirectory = CreateTempDirectory();
+        var missingEnvPath = Path.Combine(CreateTempDirectory(), "missing-databases.json");
+        var userConfigPath = Path.Combine(userDirectory, ".database-mcp", "databases.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
+        File.WriteAllText(userConfigPath, "{}");
+
+        try
+        {
+            var result = CliConfigurationPathResolver.Resolve(null, currentDirectory, missingEnvPath, userDirectory);
+
+            Assert.False(result.Success);
+            Assert.Equal("DB_CONFIG_PATH", result.Source);
+            Assert.Contains(Path.GetFullPath(missingEnvPath), result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteDirectory(currentDirectory);
+            DeleteDirectory(userDirectory);
+            DeleteDirectory(Path.GetDirectoryName(missingEnvPath)!);
+        }
+    }
+
+    [Fact]
+    public void ResolveForMcpStdio_ShouldError_WhenEnvironmentPathIsMissing_EvenIfUserProfileExists()
+    {
+        var userDirectory = CreateTempDirectory();
+        var missingEnvPath = Path.Combine(CreateTempDirectory(), "missing-databases.json");
+        var userConfigPath = Path.Combine(userDirectory, ".database-mcp", "databases.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
+        File.WriteAllText(userConfigPath, "{}");
+
+        try
+        {
+            var result = CliConfigurationPathResolver.ResolveForMcpStdio(missingEnvPath, userDirectory);
+
+            Assert.False(result.Success);
+            Assert.Null(result.Path);
+            Assert.Equal("DB_CONFIG_PATH", result.Source);
+            Assert.Contains(Path.GetFullPath(missingEnvPath), result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteDirectory(userDirectory);
+            DeleteDirectory(Path.GetDirectoryName(missingEnvPath)!);
+        }
+    }
+
+    [Fact]
+    public void ResolveForMcpStdio_ShouldFallbackToUserProfile_WhenEnvironmentUnset()
+    {
+        var userDirectory = CreateTempDirectory();
+        var userConfigPath = Path.Combine(userDirectory, ".database-mcp", "databases.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(userConfigPath)!);
+        File.WriteAllText(userConfigPath, "{}");
+
+        try
+        {
+            var result = CliConfigurationPathResolver.ResolveForMcpStdio(null, userDirectory);
+
+            Assert.True(result.Success);
+            Assert.Equal(userConfigPath, result.Path);
+            Assert.Equal("user-profile/.database-mcp/databases.json", result.Source);
+        }
+        finally
+        {
+            DeleteDirectory(userDirectory);
+        }
+    }
+
+    [Fact]
+    public void ResolveForMcpStdio_ShouldIgnoreCurrentDirectoryEvenWhenPresent()
+    {
+        var cwd = CreateTempDirectory();
+        var projectConfigPath = Path.Combine(cwd, "databases.json");
+        File.WriteAllText(projectConfigPath, "{}");
+
+        try
+        {
+            var result = CliConfigurationPathResolver.ResolveForMcpStdio(null, null);
+
+            Assert.False(result.Success);
+            Assert.Null(result.Path);
+        }
+        finally
+        {
+            DeleteDirectory(cwd);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"dbmcp-cli-{Guid.NewGuid():N}");

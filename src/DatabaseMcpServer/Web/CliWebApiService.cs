@@ -3,8 +3,10 @@ using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
+using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Tools.Management;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace DatabaseMcpServer.Web;
 
@@ -84,7 +86,7 @@ internal sealed class CliWebApiService
                     description = db.Description,
                     connectionString = ConnectionStringMasker.Mask(db.ConnectionString),
                     isDefault = db.IsDefault,
-                    allowDangerousOperations = db.AllowDangerousOperations,
+                    enableDangerousOperations = db.EnableDangerousOperations,
                     isCurrent = string.Equals(db.Name, currentDatabase, StringComparison.Ordinal),
                     optimizationSettings = db.OptimizationSettings
                 }).ToArray()
@@ -231,7 +233,7 @@ internal sealed class CliWebApiService
             connectionString,
             request.Description,
             request.SetDefault,
-            request.AllowDangerousOperations,
+            request.EnableDangerousOperations,
             request.PrintOnly);
 
         TryReloadRuntimeConfiguration(payload);
@@ -261,7 +263,7 @@ internal sealed class CliWebApiService
             connectionString,
             request.Description,
             request.SetDefault,
-            request.AllowDangerousOperations);
+            request.EnableDangerousOperations);
 
         TryReloadRuntimeConfiguration(payload);
         return payload;
@@ -307,8 +309,8 @@ internal sealed class CliWebApiService
             request.ApplyDescription,
             request.ApplyClearDescription,
             request.ApplySetDefault,
-            request.AllowDangerousOperations,
-            request.ApplyAllowDangerousOperations);
+            request.EnableDangerousOperations,
+            request.ApplyEnableDangerousOperations);
 
         TryReloadRuntimeConfiguration(payload);
         return payload;
@@ -479,7 +481,15 @@ internal sealed class CliWebApiService
         try
         {
             var databaseConfigService = _serviceProvider.GetService<IDatabaseConfigService>();
-            _ = databaseConfigService?.ReloadConfiguration();
+            if (databaseConfigService != null)
+            {
+                _ = databaseConfigService.ReloadConfiguration(
+                    followFileDefault: databaseConfigService.IsEnableMonitorConfigEnabled());
+            }
+            var monitor = _serviceProvider.GetServices<IHostedService>()
+                .OfType<DatabaseConfigFileMonitorService>()
+                .FirstOrDefault();
+            monitor?.EnsureMonitorStarted();
         }
         catch
         {

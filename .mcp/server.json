@@ -62,8 +62,8 @@
       "environmentVariables": [
         {
           "name": "DB_CONFIG_PATH",
-          "description": "数据库配置文件绝对路径（必需），如 D:\\config\\databases.json。配置文件格式请参考 databases.json.example",
-          "required": true
+          "description": "数据库配置文件绝对路径（可选）。未设置时会按顺序自动查找 DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json。推荐显式设置，如 D:\\config\\databases.json。配置文件格式请参考 databases.json.example",
+          "required": false
         },
         {
           "name": "SEQ_SERVER_URL",

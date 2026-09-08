@@ -27,7 +27,7 @@ function createEmptyDraft(): EditorDraft {
     description: "",
     clearDescription: false,
     setDefault: false,
-    allowDangerousOperations: false,
+    enableDangerousOperations: false,
   }
 }
 
@@ -129,7 +129,7 @@ export function useConfigWorkbench() {
           description: database.description ?? null,
           connectionString: database.connectionString,
           isDefault: database.isDefault,
-          allowDangerousOperations: database.allowDangerousOperations,
+          enableDangerousOperations: database.enableDangerousOperations,
           optimizationSettings: database.optimizationSettings ?? null,
         }
         return
@@ -197,7 +197,7 @@ export function useConfigWorkbench() {
       description: target.description ?? "",
       clearDescription: false,
       setDefault: target.isDefault,
-      allowDangerousOperations: target.allowDangerousOperations,
+      enableDangerousOperations: target.enableDangerousOperations,
     }
     editorOpen.value = true
   }
@@ -222,7 +222,7 @@ export function useConfigWorkbench() {
       description: target.description ?? "",
       clearDescription: false,
       setDefault: false,
-      allowDangerousOperations: target.allowDangerousOperations,
+      enableDangerousOperations: target.enableDangerousOperations,
     }
     editorOpen.value = true
   }
@@ -308,8 +308,8 @@ export function useConfigWorkbench() {
           applyDescription: !draft.clearDescription,
           applyClearDescription: draft.clearDescription,
           applySetDefault: true,
-          allowDangerousOperations: draft.allowDangerousOperations,
-          applyAllowDangerousOperations: true,
+          enableDangerousOperations: draft.enableDangerousOperations,
+          applyEnableDangerousOperations: true,
         })
       }
       else if (draft.mode === "preset") {
@@ -319,7 +319,7 @@ export function useConfigWorkbench() {
           ...connectionPayload,
           description: draft.description,
           setDefault: draft.setDefault,
-          allowDangerousOperations: draft.allowDangerousOperations,
+          enableDangerousOperations: draft.enableDangerousOperations,
           printOnly: false,
         })
       }
@@ -330,7 +330,7 @@ export function useConfigWorkbench() {
           ...connectionPayload,
           description: draft.description,
           setDefault: draft.setDefault,
-          allowDangerousOperations: draft.allowDangerousOperations,
+          enableDangerousOperations: draft.enableDangerousOperations,
         })
       }
 

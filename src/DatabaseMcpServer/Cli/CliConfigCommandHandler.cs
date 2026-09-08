@@ -70,7 +70,7 @@ internal sealed class CliConfigCommandHandler
                     dbType = db.DbType,
                     description = db.Description,
                     isDefault = db.IsDefault,
-                    allowDangerousOperations = db.AllowDangerousOperations
+                    enableDangerousOperations = db.EnableDangerousOperations
                 }).ToArray()
             };
         });
@@ -147,7 +147,7 @@ internal sealed class CliConfigCommandHandler
         string? connectionString,
         string? description,
         bool setDefault,
-        bool allowDangerousOperations,
+        bool enableDangerousOperations,
         bool printOnly)
     {
         return Execute(() =>
@@ -171,7 +171,7 @@ internal sealed class CliConfigCommandHandler
                 ConnectionString = string.IsNullOrWhiteSpace(connectionString) ? preset.ExampleConnectionString : connectionString,
                 Description = description ?? preset.Description,
                 IsDefault = setDefault,
-                AllowDangerousOperations = allowDangerousOperations
+                EnableDangerousOperations = enableDangerousOperations
             };
 
             if (printOnly)
@@ -217,7 +217,7 @@ internal sealed class CliConfigCommandHandler
                 databaseName,
                 dbType = preset.DbType,
                 isDefault = setDefault,
-                allowDangerousOperations
+                enableDangerousOperations
             };
         });
     }
@@ -229,7 +229,7 @@ internal sealed class CliConfigCommandHandler
         string connectionString,
         string? description,
         bool setDefault,
-        bool allowDangerousOperations)
+        bool enableDangerousOperations)
     {
         return Execute(() =>
         {
@@ -262,7 +262,7 @@ internal sealed class CliConfigCommandHandler
                 ConnectionString = connectionString,
                 Description = description,
                 IsDefault = setDefault,
-                AllowDangerousOperations = allowDangerousOperations
+                EnableDangerousOperations = enableDangerousOperations
             });
 
             _configFileService.Save(configPath, config);
@@ -274,7 +274,7 @@ internal sealed class CliConfigCommandHandler
                 configPath,
                 databaseName = name,
                 isDefault = setDefault,
-                allowDangerousOperations
+                enableDangerousOperations
             };
         });
     }
@@ -341,8 +341,8 @@ internal sealed class CliConfigCommandHandler
         bool hasDescription,
         bool hasClearDescription,
         bool hasSetDefault,
-        bool allowDangerousOperations,
-        bool hasAllowDangerousOperations)
+        bool enableDangerousOperations,
+        bool hasEnableDangerousOperations)
     {
         return Execute(() =>
         {
@@ -352,12 +352,12 @@ internal sealed class CliConfigCommandHandler
             var config = _configFileService.Load(configPath);
             var target = FindConnection(config, name);
 
-            if (!hasDbType && !hasConnectionString && !hasDescription && !hasClearDescription && !hasSetDefault && !hasAllowDangerousOperations)
+            if (!hasDbType && !hasConnectionString && !hasDescription && !hasClearDescription && !hasSetDefault && !hasEnableDangerousOperations)
             {
                 return new
                 {
                     success = false,
-                    message = "至少需要提供一个可更新选项：--db-type / --connection-string / --description / --clear-description / --set-default / --allow-dangerous-operations。",
+                    message = "至少需要提供一个可更新选项：--db-type / --connection-string / --description / --clear-description / --set-default / --enable-dangerous-operations。",
                     configPath,
                     databaseName = name
                 };
@@ -405,9 +405,9 @@ internal sealed class CliConfigCommandHandler
                 target.IsDefault = false;
             }
 
-            if (hasAllowDangerousOperations)
+            if (hasEnableDangerousOperations)
             {
-                target.AllowDangerousOperations = allowDangerousOperations;
+                target.EnableDangerousOperations = enableDangerousOperations;
             }
 
             _configFileService.Save(configPath, config);
@@ -457,7 +457,7 @@ internal sealed class CliConfigCommandHandler
                 DbType = source.DbType,
                 Description = source.Description,
                 IsDefault = setDefault,
-                AllowDangerousOperations = source.AllowDangerousOperations,
+                EnableDangerousOperations = source.EnableDangerousOperations,
                 OptimizationSettings = source.OptimizationSettings == null
                     ? null
                     : new Dictionary<string, string>(source.OptimizationSettings, StringComparer.Ordinal)

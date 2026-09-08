@@ -62,7 +62,7 @@ const { t } = useI18n()
           </div>
           <div class="flex flex-wrap gap-2">
             <Badge v-if="selectedDatabase?.isDefault" variant="outline">{{ t("common.default") }}</Badge>
-            <Badge v-if="selectedDatabase?.allowDangerousOperations" variant="destructive">{{ t("maintenance.allowDangerous") }}</Badge>
+            <Badge v-if="selectedDatabase?.enableDangerousOperations" variant="destructive">{{ t("maintenance.enableDangerous") }}</Badge>
           </div>
         </div>
 

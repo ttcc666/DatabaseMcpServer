@@ -34,7 +34,7 @@ internal class CommandTools : McpToolBase
     {
         return WithClientContext(context =>
         {
-            EnsureSafeSql(sql, context.AllowDangerousOperations);
+            EnsureSafeSql(sql, context.EnableDangerousOperations);
             var parsedParams = DatabaseHelper.ParseParameters(parameters);
             var affectedRows = SqlCommandTimeout.WithTimeout(context.Client, commandTimeoutSeconds, client =>
                 parsedParams != null
@@ -149,7 +149,7 @@ internal class CommandTools : McpToolBase
     {
         return WithClientContext(context =>
         {
-            EnsureSafeSql(sql, context.AllowDangerousOperations);
+            EnsureSafeSql(sql, context.EnableDangerousOperations);
             var affectedRows = SqlCommandTimeout.WithTimeout(context.Client, commandTimeoutSeconds, client =>
                 client.Ado.ExecuteCommandWithGo(sql));
             return new
@@ -183,9 +183,9 @@ internal class CommandTools : McpToolBase
                         try
                         {
                             var command = commandList[i];
-                            if (!context.AllowDangerousOperations && DatabaseHelper.DetectDangerousOperation(command))
+                            if (!context.EnableDangerousOperations && DatabaseHelper.DetectDangerousOperation(command))
                             {
-                                results.Add(new { success = false, error = "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。", commandIndex = i });
+                                results.Add(new { success = false, error = "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 enableDangerousOperations=true。", commandIndex = i });
                                 continue;
                             }
 
@@ -351,11 +351,11 @@ internal class CommandTools : McpToolBase
         };
     }
 
-    private void EnsureSafeSql(string sql, bool allowDangerousOperations)
+    private void EnsureSafeSql(string sql, bool enableDangerousOperations)
     {
-        if (!allowDangerousOperations && DatabaseHelper.DetectDangerousOperation(sql))
+        if (!enableDangerousOperations && DatabaseHelper.DetectDangerousOperation(sql))
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 allowDangerousOperations=true。");
+            throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到危险操作。请使用特定工具进行架构操作，或在当前连接配置中显式设置 enableDangerousOperations=true。");
         }
     }
 }

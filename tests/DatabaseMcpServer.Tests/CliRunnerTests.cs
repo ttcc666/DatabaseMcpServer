@@ -454,7 +454,7 @@ public class CliRunnerTests
             var stderr = new StringWriter();
 
             var exitCode = await runner.RunAsync(
-                ["config", "create", "--config", configPath, "--from-preset", "Sqlite", "--name", "sqlite-dev", "--connection-string", "Data Source=custom.db;", "--description", "custom sqlite", "--set-default", "--allow-dangerous-operations"],
+                ["config", "create", "--config", configPath, "--from-preset", "Sqlite", "--name", "sqlite-dev", "--connection-string", "Data Source=custom.db;", "--description", "custom sqlite", "--set-default", "--enable-dangerous-operations"],
                 stdout,
                 stderr);
 
@@ -472,7 +472,7 @@ public class CliRunnerTests
             Assert.Equal("Sqlite", database.GetProperty("dbType").GetString());
             Assert.Equal("Data Source=custom.db;", database.GetProperty("connectionString").GetString());
             Assert.Equal("custom sqlite", database.GetProperty("description").GetString());
-            Assert.True(database.GetProperty("allowDangerousOperations").GetBoolean());
+            Assert.True(database.GetProperty("enableDangerousOperations").GetBoolean());
         }
         finally
         {
@@ -564,7 +564,7 @@ public class CliRunnerTests
             var addStdout = new StringWriter();
             var addStderr = new StringWriter();
             var addExitCode = await runner.RunAsync(
-                ["config", "add", "--config", configPath, "--name", "sqlite-local", "--db-type", "Sqlite", "--connection-string", "Data Source=test.db;", "--set-default", "--allow-dangerous-operations"],
+                ["config", "add", "--config", configPath, "--name", "sqlite-local", "--db-type", "Sqlite", "--connection-string", "Data Source=test.db;", "--set-default", "--enable-dangerous-operations"],
                 addStdout,
                 addStderr);
 
@@ -584,7 +584,7 @@ public class CliRunnerTests
             {
                 Assert.Equal("sqlite-local", showDocument.RootElement.GetProperty("database").GetProperty("name").GetString());
                 Assert.Equal("Data Source=test.db;", showDocument.RootElement.GetProperty("database").GetProperty("connectionString").GetString());
-                Assert.True(showDocument.RootElement.GetProperty("database").GetProperty("allowDangerousOperations").GetBoolean());
+                Assert.True(showDocument.RootElement.GetProperty("database").GetProperty("enableDangerousOperations").GetBoolean());
             }
 
             var setDefaultStdout = new StringWriter();
@@ -664,7 +664,7 @@ public class CliRunnerTests
             var updateStdout = new StringWriter();
             var updateStderr = new StringWriter();
             var updateExitCode = await runner.RunAsync(
-                ["config", "update", "--config", configPath, "--name", "sqlite-dev", "--db-type", "SqlServer", "--connection-string", "Server=.;Database=test;User Id=sa;Password=secret;", "--description", "updated", "--allow-dangerous-operations"],
+                ["config", "update", "--config", configPath, "--name", "sqlite-dev", "--db-type", "SqlServer", "--connection-string", "Server=.;Database=test;User Id=sa;Password=secret;", "--description", "updated", "--enable-dangerous-operations"],
                 updateStdout,
                 updateStderr);
 
@@ -676,7 +676,7 @@ public class CliRunnerTests
             Assert.Equal("sqlite-dev", database.GetProperty("name").GetString());
             Assert.Equal("SqlServer", database.GetProperty("dbType").GetString());
             Assert.Equal("updated", database.GetProperty("description").GetString());
-            Assert.True(database.GetProperty("allowDangerousOperations").GetBoolean());
+            Assert.True(database.GetProperty("enableDangerousOperations").GetBoolean());
             Assert.Contains("Password=****", database.GetProperty("connectionString").GetString(), StringComparison.Ordinal);
         }
         finally
