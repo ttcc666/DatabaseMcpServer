@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.7.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -878,6 +878,12 @@ CLI highlights:
 - `-web` resolves config files with the same order as CLI tool mode and falls back to `%USERPROFILE%/.database-mcp/databases.json` as the writable target when no existing config is found.
 
 ## 🆕 Release Notes
+
+- **3.7.0**
+  - Add optional configuration monitoring so persistent MCP stdio / `-web` processes follow file default changes; precedence is `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`, disabled by default
+  - Fall back to `.database-mcp/databases.json` in the user profile when MCP stdio starts without `DB_CONFIG_PATH`
+  - Use `enableDangerousOperations` while retaining the legacy JSON field and `--allow-dangerous-operations` CLI option; the new JSON field takes precedence when both are present
+  - Fix runtime switching after Web default changes and isolate configuration path tests in temporary user profiles
 
 - **3.6.6**
   - Add optional `commandTimeoutSeconds` (CLI: `--command-timeout-seconds`) to query and data-operation tools so callers can override the ~300s default

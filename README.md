@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.6.6-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.7.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -831,6 +831,12 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 ```
 
 ## 🆕 版本发布
+
+- **3.7.0**
+  - 新增可选配置文件监听，长驻 MCP stdio / `-web` 可在默认库变化时自动切换当前连接；优先级为启动参数 `--enable-monitor-config` > 环境变量 `ENABLE_MONITOR_CONFIG` > 配置字段 `enableMonitorConfig`，默认关闭
+  - MCP stdio 未设置 `DB_CONFIG_PATH` 时，自动读取用户目录下的 `.database-mcp/databases.json`
+  - 危险操作配置统一使用 `enableDangerousOperations`，兼容旧字段及 `--allow-dangerous-operations` 参数；新旧 JSON 字段同时存在时以新字段为准
+  - 修复 Web 修改默认库后的运行时切换，并将配置路径测试隔离到临时用户目录
 
 - **3.6.6**
   - 查询与数据操作类工具新增可选 `commandTimeoutSeconds`（CLI：`--command-timeout-seconds`），可覆盖默认约 300 秒超时

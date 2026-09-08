@@ -84,6 +84,6 @@ internal static class ServiceCollectionExtensions
     private static string GetServerVersion()
     {
         var version = typeof(ServiceCollectionExtensions).Assembly.GetName().Version;
-        return version is null ? "3.6.6" : $"{version.Major}.{version.Minor}.{version.Build}";
+        return version is null ? "3.7.0" : $"{version.Major}.{version.Minor}.{version.Build}";
     }
 }
