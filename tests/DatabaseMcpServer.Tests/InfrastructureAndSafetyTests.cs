@@ -8,12 +8,52 @@ namespace DatabaseMcpServer.Tests;
 
 public class InfrastructureAndSafetyTests
 {
+    [Theory]
+    [InlineData("PRAGMA user_version=2026")]
+    [InlineData("PRAGMA main.'user_version'(2026)")]
+    [InlineData("PRAGMA [main].`journal_mode` = WAL")]
+    [InlineData("PRAGMA foreign_keys(OFF)")]
+    [InlineData("PRAGMA wal_checkpoint")]
+    [InlineData("PRAGMA optimize")]
+    [InlineData("PRAGMA incremental_vacuum")]
+    [InlineData("EXPLAIN PRAGMA foreign_keys=OFF")]
+    [InlineData("SELECT 1 INTO copy_table")]
+    [InlineData("SELECT 1 INTO OUTFILE '/tmp/dbmcp-test'")]
+    [InlineData("SELECT 1 /* ' */ INTO copy_table /* ' */")]
+    [InlineData("SELECT 1 AS \"--\" INTO copy_table")]
+    [InlineData("SELECT 1 AS \"'name\" INTO copy_table")]
+    [InlineData("SELECT 1 /*! INTO OUTFILE '/tmp/dbmcp-test' */")]
+    [InlineData("/*M! SET @value=1 */ SELECT 1")]
+    public void EnsureReadOnlySql_RejectsSideEffects(string sql)
+    {
+        var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
+        var exception = Assert.Throws<DatabaseMcpException>(() => SqlSafetyGuard.EnsureReadOnlySql(sql, helper));
+        Assert.Equal(DatabaseErrorCode.DangerousOperation, exception.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData("PRAGMA user_version;")]
+    [InlineData("PRAGMA \"main\".\"user_version\"")]
+    [InlineData("PRAGMA table_info('user''s table')")]
+    [InlineData("PRAGMA main.table_xinfo = 'users'")]
+    [InlineData("PRAGMA foreign_key_list(users)")]
+    [InlineData("PRAGMA integrity_check(1)")]
+    [InlineData("PRAGMA table_info('user;-- table') /* ; ' */")]
+    [InlineData("/* leading */ PRAGMA /* inline */ main.user_version -- trailing")]
+    [InlineData("SELECT 'INTO; PRAGMA user_version=5' AS value")]
+    [InlineData("EXPLAIN SELECT 1")]
+    public void EnsureReadOnlySql_AllowsMetadataAndReadOnlyStatements(string sql)
+    {
+        var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
+        SqlSafetyGuard.EnsureReadOnlySql(sql, helper);
+    }
+
     [Fact]
-    public void ParseParameters_ShouldConvertCommonJsonValueKinds()
+    public void Binder_ShouldConvertCommonJsonValueKinds()
     {
         var helper = new DatabaseHelper(NullLogger<DatabaseHelper>.Instance);
 
-        var parameters = helper.ParseParameters("""{"id":1,"name":"alice","enabled":true,"tags":[1,2],"meta":{"key":"value"}}""");
+        var parameters = SqlParameterBinder.Bind(JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"id","value":1},{"name":"name","value":"alice"},{"name":"enabled","value":true},{"name":"tags","value":[1,2]},{"name":"meta","value":{"key":"value"}}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!, SqlSugar.DbType.Sqlite);
 
         Assert.NotNull(parameters);
         Assert.Equal(5, parameters.Length);

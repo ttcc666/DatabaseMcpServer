@@ -17,6 +17,9 @@ internal static class DatabaseMcpToolCatalog
         new(typeof(ConnectionTools), static builder => builder.WithTools<ConnectionTools>()),
         new(typeof(SchemaTools), static builder => builder.WithTools<SchemaTools>()),
         new(typeof(QueryTools), static builder => builder.WithTools<QueryTools>()),
+        new(typeof(DatabaseQueryTools), static builder => builder.WithTools<DatabaseQueryTools>()),
+        new(typeof(MongoCollectionQueryTools), static builder => builder.WithTools<MongoCollectionQueryTools>()),
+        new(typeof(MongoCollectionCommandTools), static builder => builder.WithTools<MongoCollectionCommandTools>()),
         new(typeof(CommandTools), static builder => builder.WithTools<CommandTools>())
     ];
 

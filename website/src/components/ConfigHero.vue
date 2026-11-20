@@ -63,6 +63,11 @@ const { t } = useI18n()
       <div v-if="lastMessage" class="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
         {{ lastMessage }}
       </div>
+      <Alert v-if="dashboard?.runtime?.hasPendingChanges">
+        <AlertTriangle class="size-4" />
+        <AlertTitle>{{ t("configHero.pendingChanges") }}</AlertTitle>
+        <AlertDescription>{{ t("configHero.pendingChangesHint") }}</AlertDescription>
+      </Alert>
     </CardHeader>
 
     <CardContent class="grid flex-1 content-start gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">

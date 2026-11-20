@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef } from "vue"
 import { useI18n } from "vue-i18n"
 import { toast } from "vue-sonner"
-import { deleteJson, fetchJson, postJson, putJson } from "@/api/http"
+import { ConfigOperationError, deleteJson, fetchJson, postJson, putJson } from "@/api/http"
 import type {
   ApiResponse,
   ConfigContext,
@@ -46,6 +46,7 @@ export function useConfigWorkbench() {
   const deleteOpen = shallowRef(false)
   const pendingImportFile = shallowRef<File | null>(null)
   const importOpen = shallowRef(false)
+  let dashboardRequest = 0
 
   const hasConfig = computed(() => dashboard.value?.configExists ?? false)
   const hasDatabases = computed(() => (dashboard.value?.databases.length ?? 0) > 0)
@@ -64,7 +65,9 @@ export function useConfigWorkbench() {
   }
 
   async function loadDashboard(preserveSelection = true) {
+    const request = ++dashboardRequest
     const dashboardResponse = await fetchJson<DashboardResponse>("/api/dashboard")
+    if (request !== dashboardRequest) return
     dashboard.value = dashboardResponse
 
     if (!dashboardResponse.success) {
@@ -73,13 +76,12 @@ export function useConfigWorkbench() {
     }
 
     const candidateName = preserveSelection ? selectedName.value : null
+    const activeName = dashboardResponse.databases.some(item => item.name === dashboardResponse.currentDatabase)
+      ? dashboardResponse.currentDatabase : null
     const fallbackName
       = candidateName && dashboardResponse.databases.some(item => item.name === candidateName)
         ? candidateName
-        : dashboardResponse.currentDatabase
-          ?? dashboardResponse.currentDefaultDatabase
-          ?? dashboardResponse.databases[0]?.name
-          ?? null
+        : activeName ?? dashboardResponse.currentDefaultDatabase ?? dashboardResponse.databases[0]?.name ?? null
 
     if (fallbackName) {
       await selectDatabase(fallbackName)
@@ -96,7 +98,7 @@ export function useConfigWorkbench() {
       await loadDashboard(false)
     }
     catch (error) {
-      notifyError(t("workbench.bootstrapFailed"), error)
+      await notifyError(t("workbench.bootstrapFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -112,7 +114,7 @@ export function useConfigWorkbench() {
       toast.success(t("workbench.refreshedToast"))
     }
     catch (error) {
-      notifyError(t("workbench.refreshFailed"), error)
+      await notifyError(t("workbench.refreshFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -144,7 +146,7 @@ export function useConfigWorkbench() {
     }
     catch (error) {
       selectedDatabase.value = null
-      notifyError(t("workbench.loadDetailFailed"), error)
+      await notifyError(t("workbench.loadDetailFailed"), error)
     }
   }
 
@@ -262,7 +264,7 @@ export function useConfigWorkbench() {
       }
     }
     catch (error) {
-      notifyError(t("workbench.loadPresetFailed"), error)
+      await notifyError(t("workbench.loadPresetFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -276,6 +278,7 @@ export function useConfigWorkbench() {
 
     const draft = submittedDraft ?? editorDraft.value!
     editorDraft.value = draft
+    const activeDraft = editorDraft.value
     busyAction.value = `save:${draft.mode}`
 
     const connectionPayload = buildConnectionPayload(draft)
@@ -288,16 +291,8 @@ export function useConfigWorkbench() {
         })
       }
       else if (draft.mode === "edit") {
-        const renamed = draft.sourceName && draft.sourceName !== draft.name
-        const targetName = renamed ? draft.name : draft.sourceName ?? draft.name
-
-        if (renamed) {
-          await postJson<ApiResponse>(`/api/databases/${encodeURIComponent(draft.sourceName ?? "")}/rename`, {
-            newName: draft.name,
-          })
-        }
-
-        await putJson<ApiResponse>(`/api/databases/${encodeURIComponent(targetName)}`, {
+        await putJson<ApiResponse>(`/api/databases/${encodeURIComponent(draft.sourceName ?? draft.name)}`, {
+          newName: draft.name,
           dbType: draft.dbType,
           ...connectionPayload,
           description: draft.description,
@@ -337,11 +332,16 @@ export function useConfigWorkbench() {
       lastMessage.value = t("workbench.savedMessage")
       toast.success(t("workbench.savedToast"))
       diagnostics.value = null
-      resetEditor()
+      if (editorDraft.value === activeDraft) resetEditor()
       await loadDashboard(false)
     }
     catch (error) {
-      notifyError(t("workbench.saveFailed"), error)
+      if (error instanceof ConfigOperationError && error.response.saved && draft.mode === "edit") {
+        const savedName = error.response.databaseName ?? draft.name
+        draft.sourceName = savedName
+        if (editorDraft.value === activeDraft) editorDraft.value.sourceName = savedName
+      }
+      await notifyError(t("workbench.saveFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -357,7 +357,7 @@ export function useConfigWorkbench() {
       toast.success(force ? t("workbench.initForcedToast") : t("workbench.initToast"))
     }
     catch (error) {
-      notifyError(t("workbench.initFailed"), error)
+      await notifyError(t("workbench.initFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -386,7 +386,7 @@ export function useConfigWorkbench() {
       await loadDashboard(false)
     }
     catch (error) {
-      notifyError(t("workbench.deleteFailed"), error)
+      await notifyError(t("workbench.deleteFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -407,7 +407,7 @@ export function useConfigWorkbench() {
       await loadDashboard()
     }
     catch (error) {
-      notifyError(t("workbench.setDefaultFailed"), error)
+      await notifyError(t("workbench.setDefaultFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -423,7 +423,7 @@ export function useConfigWorkbench() {
       await loadDashboard()
     }
     catch (error) {
-      notifyError(t("workbench.switchCurrentFailed"), error)
+      await notifyError(t("workbench.switchCurrentFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -442,7 +442,7 @@ export function useConfigWorkbench() {
       response.success ? toast.success(t("workbench.testCompletedToast", { name })) : toast.error(response.message ?? t("workbench.testFailedToast"))
     }
     catch (error) {
-      notifyError(t("workbench.testFailed"), error)
+      await notifyError(t("workbench.testFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -461,7 +461,7 @@ export function useConfigWorkbench() {
       response.success ? toast.success(t("workbench.validatePassed")) : toast.error(response.message ?? t("workbench.validateFailedToast"))
     }
     catch (error) {
-      notifyError(t("workbench.validateFailed"), error)
+      await notifyError(t("workbench.validateFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -485,7 +485,7 @@ export function useConfigWorkbench() {
       response.success ? toast.success(t("workbench.doctorCompletedToast")) : toast.error(response.message ?? t("workbench.doctorFailedToast"))
     }
     catch (error) {
-      notifyError(t("workbench.doctorFailed"), error)
+      await notifyError(t("workbench.doctorFailed"), error)
     }
     finally {
       busyAction.value = null
@@ -552,7 +552,7 @@ export function useConfigWorkbench() {
       }
 
       if (!payload?.success) {
-        throw new Error(payload?.message ?? t("workbench.importFailed"))
+        throw new ConfigOperationError(payload ?? { success: false, message: t("workbench.importFailed") })
       }
 
       await loadContextAndPresets()
@@ -561,7 +561,7 @@ export function useConfigWorkbench() {
       toast.success(payload.message ?? t("workbench.importSuccess"))
     }
     catch (error) {
-      notifyError(t("workbench.importError"), error)
+      await notifyError(t("workbench.importError"), error)
     }
     finally {
       pendingImportFile.value = null
@@ -581,12 +581,16 @@ export function useConfigWorkbench() {
     pendingImportFile.value = null
   }
 
-  function notifyError(prefix: string, error: unknown) {
+  async function notifyError(prefix: string, error: unknown) {
     const message = `${prefix}: ${formatError(error)}`
     lastMessage.value = message
     toast.error(message, {
       duration: 6000,
     })
+    if (error instanceof ConfigOperationError && error.response.saved) {
+      // Show the file's actual state after a partial save, preserving the error message.
+      await loadDashboard().catch(() => {})
+    }
   }
 
   return {

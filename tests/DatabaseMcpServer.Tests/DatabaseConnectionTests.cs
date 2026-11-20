@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DatabaseMcpServer.Cli;
+using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Models;
 
 namespace DatabaseMcpServer.Tests;
@@ -42,10 +43,11 @@ public class DatabaseConnectionTests
                 }
                 """);
             var fileService = new CliConfigFileService();
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = fileService.Load(configPath);
             config.Databases[0].Description = "Edited description";
 
-            fileService.Save(configPath, config);
+            write.Save(config);
 
             using var saved = JsonDocument.Parse(File.ReadAllText(configPath));
             var connection = saved.RootElement.GetProperty("databases")[0];
@@ -57,6 +59,7 @@ public class DatabaseConnectionTests
         finally
         {
             File.Delete(configPath);
+            File.Delete(configPath + ".lock");
         }
     }
 }

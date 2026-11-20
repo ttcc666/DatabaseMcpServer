@@ -2,6 +2,8 @@
 
 本目录包含各数据库类型的详细配置文档，每个文档都包含完整的 JSON 配置和环境变量说明。
 
+当前发布的实际能力以 [ORM 配置约定](../Doc/orm-configuration.md) 和 `get_database_capabilities` 为准。HG/GBase/TDengine/DuckDB 扩展已安装，[驱动清单](../Doc/provider-drivers.md)说明原生客户端要求。MongoDB 已提供六个[集合工具](../Doc/mongodb-collections.md)；其他 SqlSugar 功能介绍不代表 MCP 已开放。池、TLS、Schema 等优化键不覆盖连接字符串，BulkCopy/原生数组开关未接入。
+
 ---
 
 ## 📚 配置文档列表

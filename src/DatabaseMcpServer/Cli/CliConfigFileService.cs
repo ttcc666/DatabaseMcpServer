@@ -31,14 +31,13 @@ internal sealed class CliConfigFileService
 
         try
         {
-            var json = File.ReadAllText(path);
+            var json = ConfigFileReader.ReadAllText(path);
             var config = JsonSerializer.Deserialize<DatabasesConfig>(json, ReadOptions);
             if (config == null)
             {
                 throw new InvalidOperationException($"配置文件内容为空或无法解析: {path}");
             }
 
-            config.Databases ??= [];
             return config;
         }
         catch (JsonException ex)
@@ -47,27 +46,16 @@ internal sealed class CliConfigFileService
         }
     }
 
-    public void Save(string path, DatabasesConfig config)
-    {
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = JsonSerializer.Serialize(config, JsonSerializationDefaults.IndentedCamelCase);
-        File.WriteAllText(path, json);
-    }
-
     public bool Initialize(string path, bool force)
     {
-        var exists = File.Exists(path);
+        using var write = new AtomicJsonFileWrite(path);
+        var exists = write.Exists;
         if (exists && !force)
         {
             return false;
         }
 
-        Save(path, new DatabasesConfig());
+        write.Save(new DatabasesConfig());
         return !exists;
     }
 

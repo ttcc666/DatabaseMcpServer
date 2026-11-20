@@ -191,12 +191,15 @@ git merge --ff-only 'origin/main'
 
 ### 5.3 本地验证
 
+当前发布仅打包 .NET 10，源码测试保留双框架。DuckDB 多平台原生库在双框架包中重复，会超过 NuGet.org 大小上限；详见[驱动清单](provider-drivers.md)。
+
 ```powershell
 powershell -ExecutionPolicy 'Bypass' -File 'scripts\verify.ps1'
 
 dotnet pack `
   'src\DatabaseMcpServer\DatabaseMcpServer.csproj' `
   '--configuration' 'Release' `
+  '-p:TargetFrameworks=net10.0' `
   '--output' 'artifacts\release'
 ```
 

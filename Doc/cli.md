@@ -72,6 +72,7 @@ DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config
   - 参数和结果仅保存在当前页面内存中，不写入 `localStorage` 或配置文件；
   - 受保护 Tool 必须输入完整 Tool 名称，服务端仍以 `CliWriteProtection` 再次校验；
   - Tool 请求仅接受本地同源 JSON 请求，并限制为 1 MiB；
+  - 调用响应中的 `queueMs` 是等待工具执行槽位的毫秒数，`durationMs` 是获得槽位后执行工具的毫秒数。
   - 关闭“等待响应”只停止浏览器等待，不代表同步数据库操作已经取消。
 - 常用参数：
   - `--port <number>`：手工指定本地端口；必须在 `0-65535` 之间
@@ -138,6 +139,10 @@ DatabaseMcpServer init
 
 默认目标位置 `%USERPROFILE%/.database-mcp/databases.json`。如果想用自定义路径，加 `--config <path>`；如果文件已存在但想重置，加 `--force`。
 
+CLI 和本地 Web 修改同一配置时，通过配置旁的 `.lock` 文件协调读改写。写入成功后一次替换完整 JSON。等待写锁超过 5 秒会返回可重试的错误。空锁文件会保留，程序运行时请保留它。编辑器和第三方脚本直接写文件时需要自行协调。
+
+Linux 容器更新已有配置时，镜像须提供 GNU coreutils 的 `/bin/cp`，用于复制访问权限。配置目录需要允许创建锁文件和同目录临时文件。
+
 ### 2.3 添加第一个连接
 
 可以先看下内置模板，再决定怎么填：
@@ -189,7 +194,7 @@ DatabaseMcpServer tool list_databases
 DatabaseMcpServer tool get_current_database
 DatabaseMcpServer tool get_table_info_list
 DatabaseMcpServer tool get_table_schema --table-name 'users'
-DatabaseMcpServer tool sql_query --sql 'select * from users limit 10'
+DatabaseMcpServer tool query_database --sql 'select * from users limit 10'
 ```
 
 不带 `--config` 时，CLI 按 `./databases.json → ./local-databases.json → DB_CONFIG_PATH → %USERPROFILE%/.database-mcp/databases.json` 顺序查找配置。
@@ -204,6 +209,8 @@ DatabaseMcpServer tool sql_query --sql 'select * from users limit 10'
 | `tool switch_database --database-name X` | `%USERPROFILE%/.database-mcp/cli-state.json` | 临时切当前连接（按 config 路径隔离），不改文件 |
 
 后续每次 `tool` 调用会优先用 cli-state；只有当 cli-state 不存在或保存的连接已被删除时，才回退到 `isDefault`。
+
+多个进程通过 `cli-state.json.lock` 协调选库记录的更新。显式切库遇到状态文件损坏、写入权限不足或等锁超时，会返回 `success=false` 和非零退出码，并保留原选择。解决报错后可重试。脚本应检查切库的退出码，再执行后续数据库命令。
 
 ```powershell
 DatabaseMcpServer config use --name 'mysql-prod'                       # 改默认（持久写入 databases.json）
@@ -439,7 +446,7 @@ Windows PowerShell 下，SQL 和 JSON 参数建议优先用**单引号**包裹�
 ### 6.1 SQL 示例
 
 ```powershell
-DatabaseMcpServer tool sql_query `
+DatabaseMcpServer tool query_database `
   --sql 'select top 10 [id],[name] from [dbo].[users] order by [id]' `
   --config 'D:\config\databases.json'
 ```
@@ -447,19 +454,18 @@ DatabaseMcpServer tool sql_query `
 ### 6.2 JSON 参数示例
 
 ```powershell
-DatabaseMcpServer tool sql_query `
+DatabaseMcpServer tool query_database `
   --sql 'select * from users where age > @age and city = @city' `
-  --parameters '{"age":18,"city":"北京"}' `
+  --parameters '[{"name":"age","value":18},{"name":"city","value":"北京"}]' `
   --config 'D:\config\databases.json'
 ```
 
 ### 6.3 JSON 数组示例
 
 ```powershell
-DatabaseMcpServer tool sql_query_with_in_parameter `
+DatabaseMcpServer tool query_database `
   --sql 'select * from users where id in (@ids)' `
-  --in-parameter-name 'ids' `
-  --in-values '[1,2,3]' `
+  --parameters '[{"name":"ids","value":[1,2,3]}]' `
   --config 'D:\config\databases.json'
 ```
 
@@ -467,21 +473,21 @@ DatabaseMcpServer tool sql_query_with_in_parameter `
 
 查询与数据操作类工具支持可选 `--command-timeout-seconds`：
 
-- 省略：使用驱动默认（通常 300 秒）
+- 省略：query_database 默认 30 秒；其他工具按执行策略配置，未启用默认预算时使用驱动默认（通常 300 秒）
 - `0`：无限等待
 - 合法范围：`0–86400`
-- 批处理工具上的超时作用于整批
+- 批处理工具上的超时作用于每条命令
 
 ```powershell
-DatabaseMcpServer tool sql_query `
+DatabaseMcpServer tool query_database `
   --sql 'select * from large_report where day = @day' `
-  --parameters '{"day":"2026-08-01"}' `
+  --parameters '[{"name":"day","value":"2026-08-01"}]' `
   --command-timeout-seconds 900 `
   --config 'D:\config\databases.json'
 
 DatabaseMcpServer tool execute_command `
   --sql 'update large_table set status=@status where id=@id' `
-  --parameters '{"status":"done","id":1}' `
+  --parameters '[{"name":"status","value":"done"},{"name":"id","value":1}]' `
   --command-timeout-seconds 900 `
   --yes `
   --config 'D:\config\databases.json'
@@ -498,14 +504,31 @@ DatabaseMcpServer tool batch_sql_query `
   --config 'D:\config\databases.json'
 ```
 
+查询结果预算示例（PowerShell）：
+
+```powershell
+DatabaseMcpServer tool query_database `
+  --sql 'select * from users' `
+  --max-rows 1000 `
+  --max-response-bytes 1048576 `
+  --config 'D:\config\databases.json'
+```
+
+同样适用于 IN 查询、batch 和 SQLite/MySQL/PostgreSQL/SQL Server 多结果集。预算在 reader 读取过程中执行，不会先加载完整结果。batch 的预算在所有查询间共享，耗尽后剩余项标为 `executed=false`。`truncated=null` 表示触发行数限制，未额外读取下一行确认是否还有数据；完整边界与最小字节数见 [TOOLS.md](../TOOLS.md#查询6)。命名目标、类型化参数、分页和服务端限制见[数据库 MCP 工作流](database-mcp-workflow.md)。
+
+配置路径在每个 Host 创建时固定，Web/CLI 不再为传递路径修改 `DB_CONFIG_PATH`。Web 写接口统一要求 `X-DatabaseMcp-Web: 1`；有 `Origin` 时必须匹配本地 scheme、host 和 port。该要求包括无请求体的 DELETE、set-default 和 multipart import。
+
+配置编辑响应分别报告 `saved`、`runtimeApplied` 和涉及选库时的 `selectionPersisted`。已保存但运行时更新失败时 `success=false`，页面显示错误并刷新实际配置；初始化空配置会明确表示没有可用运行时。重命名当前连接会同步维护运行时和 CLI 持久化选择，且不会覆盖另一进程已更改的选择。
+
+内部工具通过租约独占 SqlSugarClient，请求结束即释放，物理连接由驱动池管理。所有接口都服从准入限制。CLI JSON 输出和 Web 诊断不使用进程级 Console 重定向。
+
 ### 6.6 批量写命令示例
 
 `batch_execute_commands` 不是事务；单条失败不会回滚之前成功的命令。调用方必须检查每个 `results[]`：
 
 ```powershell
 DatabaseMcpServer tool batch_execute_commands `
-  --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' `
-  --parameters-array '[{"status":"active","id":1},{"id":1}]' `
+  --commands '[{"sql":"update users set status=@status where id=@id","parameters":[{"name":"status","value":"active"},{"name":"id","value":1}]},{"sql":"delete from sessions where user_id=@id","parameters":[{"name":"id","value":1}]}]' `
   --command-timeout-seconds 900 `
   --yes `
   --config 'D:\config\databases.json'
@@ -519,7 +542,6 @@ DatabaseMcpServer tool batch_execute_commands `
 
 - `execute_command`
 - `call_stored_procedure`
-- `call_stored_procedure_with_output`
 - `execute_command_with_go`
 - `batch_execute_commands`
 - `create_table`
@@ -599,11 +621,10 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
-| `sql_query` | 执行只读查询（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool sql_query --sql 'select top 10 * from users' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
+| `query_database` | 执行只读查询（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool query_database --sql 'select top 10 * from users' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
 | `sql_query_single` | 查询单条记录 | `DatabaseMcpServer tool sql_query_single --sql 'select top 1 * from users order by id desc' --config 'D:\config\databases.json'` |
 | `get_data_set_all` | 多结果集查询 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles' --config 'D:\config\databases.json'` |
 | `get_scalar` | 查询标量值 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'` |
-| `sql_query_with_in_parameter` | 带 IN 参数查询 | `DatabaseMcpServer tool sql_query_with_in_parameter --sql 'select * from users where id in (@ids)' --in-parameter-name 'ids' --in-values '[1,2,3]' --config 'D:\config\databases.json'` |
 | `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果（可选超时作用于整批） | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
 
 ## 8.5 数据写入
@@ -612,8 +633,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | --- | --- | --- |
 | `execute_command` | 执行 DML（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
 | `batch_execute_commands` | 非事务批量执行 DML，逐条返回结果（可选超时作用于整批） | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
-| `call_stored_procedure` | 调用存储过程 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '{"year":2025,"month":11}' --yes --config 'D:\config\databases.json'` |
-| `call_stored_procedure_with_output` | 调用带输出参数的存储过程 | `DatabaseMcpServer tool call_stored_procedure_with_output --procedure-name 'sp_user_statistics' --input-parameters '{"UserId":1001}' --output-parameters '["TotalOrders"]' --yes --config 'D:\config\databases.json'` |
+| `call_stored_procedure` | 调用存储过程 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '[{"name":"year","value":2025},{"name":"month","value":11}]' --yes --config 'D:\config\databases.json'` |
 | `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | `DatabaseMcpServer tool execute_command_with_go --sql \"UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2\" --yes --config 'D:\config\databases.json'` |
 
 ## 8.6 架构变更
@@ -662,7 +682,7 @@ DatabaseMcpServer tool get_index_list --table-name 'users' --config 'D:\config\d
 ### 9.3 先查再改
 
 ```powershell
-DatabaseMcpServer tool sql_query --sql 'select top 20 * from users where status=''inactive''' --config 'D:\config\databases.json'
+DatabaseMcpServer tool query_database --sql 'select top 20 * from users where status=''inactive''' --config 'D:\config\databases.json'
 DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where status=''inactive''' --yes --config 'D:\config\databases.json'
 ```
 
@@ -670,6 +690,16 @@ DatabaseMcpServer tool execute_command --sql 'update users set status=''active''
 
 ## 10. 相关文档
 
+### 执行与配置更新补充
+
+- `tool` 查询及普通/批量写命令支持 Ctrl+C，取消退出码为 `130`。同步 schema、存储过程、GO 和完整多结果集路径仍需等待驱动返回；不承诺立即中断。
+- 每配置连接默认 `8` 个执行、`32` 个排队、`30` 秒排队超时。可在启动前设置 `DB_MAX_CONCURRENT`、`DB_MAX_QUEUED`、`DB_QUEUE_TIMEOUT_SECONDS`；队满/超时返回 `1009`。不同 CLI 进程各自计数，不是跨进程数据库总限额。
+- Web 编辑把重命名与属性修改合为一次 `PUT /api/databases/{原名}`（可选 `newName`），先校验完整候选再保存一次。旧 rename 接口仍保留。
+- 响应的 `saved`、`runtimeApplied`、`selectionPersisted` 分别表示配置保存、当前进程应用和选择状态保存；不是跨文件事务。`databaseName` 表示已保存的实际名称，部分成功后重试使用这个名称。
+- Dashboard 的 `currentDatabase` 来自实际运行时。`runtime.runtimeVersion` / `savedVersion` 是本进程观察到的单调版本号；`hasPendingChanges=true` 表示磁盘内容与运行快照不同，`null` 表示无法确认。版本号不包含连接串或内容哈希。配置被删除/损坏后，已有运行时保留最近有效目标。
+- CLI JSON 输出和 Web 诊断不再重定向进程级 `Console.Out/Error`。诊断验证保存的候选配置，不会因旧运行时连接正常而误报成功。
+
 - [README.md](../README.md)
 - [TOOLS.md](../TOOLS.md)
 - [DatabaseSetting/README.md](../DatabaseSetting/README.md)
+- [执行能力、性能与限制](execution-optimization.md)

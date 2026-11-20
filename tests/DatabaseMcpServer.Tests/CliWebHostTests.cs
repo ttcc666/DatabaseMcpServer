@@ -8,6 +8,68 @@ namespace DatabaseMcpServer.Tests;
 public class CliWebHostTests
 {
     [Fact]
+    public async Task WriteGuards_RejectRequestsBeforeChangingConfiguration()
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        var host = new CliWebHost(new TestBrowserLauncher(), fixture.StatePath);
+        await using var handle = await host.StartAsync(new CliWebCommandOptions(fixture.Path, null, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        var original = File.ReadAllText(fixture.Path);
+        foreach (var (method, url, marker, origin, hostHeader) in new[]
+        {
+            (HttpMethod.Post, "/api/databases/analytics/set-default", false, (string?)null, (string?)null),
+            (HttpMethod.Delete, "/api/databases/primary", true, "http://external.test", null),
+            (HttpMethod.Post, "/api/config/import", true, "null", null),
+            (HttpMethod.Post, "/api/databases/analytics/set-default", true, null, "external.test"),
+            (HttpMethod.Put, "/api/databases/primary", false, null, null),
+            (HttpMethod.Patch, "/api/databases/primary", false, null, null)
+        })
+        {
+            using var request = new HttpRequestMessage(method, url);
+            if (marker) request.Headers.Add("X-DatabaseMcp-Web", "1");
+            if (origin != null) request.Headers.TryAddWithoutValidation("Origin", origin);
+            if (hostHeader != null) request.Headers.Host = hostHeader;
+            if (url.EndsWith("import", StringComparison.Ordinal))
+                request.Content = new MultipartFormDataContent { { new StringContent("{}"), "file", "invalid.json" } };
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(original, File.ReadAllText(fixture.Path));
+            Assert.False(File.Exists(fixture.StatePath));
+        }
+        using var allowed = new HttpRequestMessage(HttpMethod.Post, "/api/databases/analytics/set-default");
+        allowed.Headers.Add("X-DatabaseMcp-Web", "1");
+        allowed.Headers.Add("Origin", handle.BaseAddress.GetLeftPart(UriPartial.Authority));
+        using var success = await client.SendAsync(allowed);
+        Assert.Equal(HttpStatusCode.OK, success.StatusCode);
+        using var payload = JsonDocument.Parse(await success.Content.ReadAsStringAsync());
+        Assert.True(payload.RootElement.GetProperty("success").GetBoolean());
+        Assert.NotEqual(original, File.ReadAllText(fixture.Path));
+    }
+
+    [Fact]
+    public async Task TwoWebHosts_KeepIndependentPathsAndSelections()
+    {
+        using var first = new RuntimeConsistencyTests.Fixture();
+        using var second = new RuntimeConsistencyTests.Fixture();
+        var environmentBefore = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
+        await using var one = await new CliWebHost(new TestBrowserLauncher(), first.StatePath)
+            .StartAsync(new CliWebCommandOptions(first.Path, null, false));
+        await using var two = await new CliWebHost(new TestBrowserLauncher(), second.StatePath)
+            .StartAsync(new CliWebCommandOptions(second.Path, null, false));
+        using var clientOne = new HttpClient { BaseAddress = one.BaseAddress };
+        using var clientTwo = new HttpClient { BaseAddress = two.BaseAddress };
+        await PostJsonAsync(clientOne, "/api/current-database/switch", new { databaseName = "analytics" });
+        var renamed = await PostJsonAsync(clientOne, "/api/databases/analytics/rename", new { newName = "reporting" });
+        Assert.True(renamed.GetProperty("success").GetBoolean());
+        var currentOne = await PostToolJsonAsync(clientOne, "/api/tools/get_current_database/invoke", new { arguments = new { } });
+        var currentTwo = await PostToolJsonAsync(clientTwo, "/api/tools/get_current_database/invoke", new { arguments = new { } });
+        Assert.Equal("reporting", currentOne.Payload.GetProperty("result").GetProperty("currentDatabase").GetString());
+        Assert.Equal("primary", currentTwo.Payload.GetProperty("result").GetProperty("currentDatabase").GetString());
+        Assert.DoesNotContain("reporting", File.ReadAllText(second.Path));
+        Assert.Equal(environmentBefore, Environment.GetEnvironmentVariable("DB_CONFIG_PATH"));
+    }
+
+    [Fact]
     public async Task StartAsync_ShouldServeWebAppAndManageConfigLifecycle()
     {
         var configPath = Path.Combine(Path.GetTempPath(), $"dbmcp-web-config-{Guid.NewGuid():N}.json");
@@ -92,6 +154,17 @@ public class CliWebHostTests
             Assert.Equal(HttpStatusCode.OK, safeInvocation.StatusCode);
             Assert.True(safeInvocation.Payload.GetProperty("success").GetBoolean());
             Assert.True(safeInvocation.Payload.GetProperty("toolSuccess").GetBoolean());
+            Assert.True(safeInvocation.Payload.GetProperty("queueMs").GetInt64() >= 0);
+            Assert.True(safeInvocation.Payload.GetProperty("durationMs").GetInt64() >= 0);
+
+            var failedQuery = await PostToolJsonAsync(client, "/api/tools/sql_query_single/invoke", new
+            {
+                arguments = new Dictionary<string, object> { ["sql"] = "select * from missing_table_for_test" }
+            });
+            Assert.Equal(HttpStatusCode.OK, failedQuery.StatusCode);
+            Assert.True(failedQuery.Payload.GetProperty("success").GetBoolean());
+            Assert.False(failedQuery.Payload.GetProperty("toolSuccess").GetBoolean());
+            Assert.False(failedQuery.Payload.GetProperty("result").GetProperty("success").GetBoolean());
 
             var unknownArgument = await PostToolJsonAsync(client, "/api/tools/list_databases/invoke", new
             {
@@ -157,7 +230,9 @@ public class CliWebHostTests
 
     private static async Task<JsonElement> PostJsonAsync(HttpClient client, string url, object payload)
     {
-        using var response = await client.PostAsJsonAsync(url, payload);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(payload) };
+        request.Headers.Add("X-DatabaseMcp-Web", "1");
+        using var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return document.RootElement.Clone();

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
 using System.Diagnostics;
+using DatabaseMcpServer.Helpers;
 
 namespace DatabaseMcpServer.Tools.Management;
 
@@ -14,24 +15,35 @@ namespace DatabaseMcpServer.Tools.Management;
 [McpServerToolType]
 internal class ConnectionTools : McpToolBase
 {
+    private readonly DatabaseMcpServer.Services.DatabaseConnectionProbe _probe;
     public ConnectionTools(
         IDatabaseConfigService databaseConfig,
         IDatabaseHelperService databaseHelper,
         IJsonResultSerializer resultSerializer,
-        ILogger<ConnectionTools> logger)
-        : base(databaseConfig, databaseHelper, resultSerializer, logger)
+        ILogger<ConnectionTools> logger, DatabaseExecutionOptions executionOptions, DatabaseMcpServer.Services.DatabaseMetadataCache metadataCache,
+        DatabaseMcpServer.Services.DatabaseConnectionProbe probe)
+        : base(databaseConfig, databaseHelper, resultSerializer, logger, executionOptions, metadataCache)
     {
+        _probe = probe;
     }
 
     [McpServerTool(ReadOnly = true)]
+    [Description("Inspect provider capabilities, execution budgets, effective driver/SqlSugar settings and advisory optimization options. Does not open a database connection or disclose credentials. Choose a named connection before querying.")]
+    public string GetDatabaseCapabilities(
+        [Description("Optional database connection name. Does not change current database.")] string? databaseName = null)
+        => WithClientContext(context => DatabaseCapabilities.Describe(context, ExecutionOptions), databaseName);
+
+    [McpServerTool(ReadOnly = true)]
     [Description("Validate the currently active connection and return success, connected, currentDatabase, and databaseType so callers can confirm the session is healthy.")]
-    public string TestConnection()
+    public Task<string> TestConnection(CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("开始测试数据库连接");
 
-        return WithClient(db =>
+        return ExecuteAsync(async () =>
         {
-            db.Ado.CheckConnection();
+            using var lease = await DatabaseConfig.AcquireClientAsync(cancellationToken);
+            var context = lease.Context;
+            await _probe.CheckAsync(context, cancellationToken);
 
             Logger.LogInformation("数据库连接测试完成");
 
@@ -40,21 +52,22 @@ internal class ConnectionTools : McpToolBase
                 success = true,
                 message = "连接成功",
                 connected = true,
-                currentDatabase = DatabaseConfig.GetCurrentDatabaseName(),
-                databaseType = DatabaseConfig.GetDatabaseType()
+                currentDatabase = context.DatabaseName,
+                databaseType = context.DatabaseType
             };
-        });
+        }, cancellationToken);
     }
 
     [McpServerTool(ReadOnly = true)]
     [Description("Create and validate a connection using databaseName, then return success, connected, and databaseName to prove that specific entry is healthy.")]
-    public string TestConnectionByName([Description("Database connection name")] string databaseName)
+    public Task<string> TestConnectionByName([Description("Database connection name")] string databaseName, CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("开始测试指定数据库连接: {Name}", databaseName);
 
-        return WithNamedClient(databaseName, db =>
+        return ExecuteAsync(async () =>
         {
-            db.Ado.CheckConnection();
+            using var lease = await DatabaseConfig.AcquireClientAsync(databaseName, cancellationToken);
+            await _probe.CheckAsync(lease.Context, cancellationToken);
 
             Logger.LogInformation("数据库 '{Name}' 连接测试完成", databaseName);
 
@@ -65,7 +78,7 @@ internal class ConnectionTools : McpToolBase
                 connected = true,
                 databaseName
             };
-        });
+        }, cancellationToken);
     }
 
     [McpServerTool(ReadOnly = true)]
@@ -103,7 +116,7 @@ internal class ConnectionTools : McpToolBase
     }
 
     [McpServerTool(Idempotent = true)]
-    [Description("Reload the databases.json file from DB_CONFIG_PATH, refresh cached clients, and return the applied currentDatabase plus whether the previous selection was preserved. In CLI tool mode, the preserved selection is also persisted for later invocations.")]
+    [Description("Reload the databases.json file from DB_CONFIG_PATH, update connection admission state, and return the applied currentDatabase plus whether the previous selection was preserved. In CLI tool mode, the preserved selection is also persisted for later invocations.")]
     public string ReloadDatabaseConfig()
     {
         return Execute(() => DatabaseConfig.ReloadConfiguration());
@@ -176,11 +189,11 @@ internal class ConnectionTools : McpToolBase
 
     [McpServerTool(ReadOnly = true)]
     [Description("Perform a comprehensive health check on all configured database connections, testing connectivity and response time for each.")]
-    public string HealthCheck()
+    public Task<string> HealthCheck(CancellationToken cancellationToken = default)
     {
         Logger.LogInformation("开始执行数据库连接健康检查");
 
-        return Execute(() =>
+        return ExecuteAsync(async () =>
         {
             var connections = DatabaseConfig.GetAllConnections();
             var healthResults = new List<HealthCheckResult>();
@@ -192,20 +205,20 @@ internal class ConnectionTools : McpToolBase
 
                 try
                 {
-                    var db = DatabaseConfig.CreateClient(connection.Name);
-                    db.Ado.CheckConnection();
+                    using var lease = await DatabaseConfig.AcquireClientAsync(connection.Name, cancellationToken);
+                    await _probe.CheckAsync(lease.Context, cancellationToken);
 
                     healthResults.Add(new HealthCheckResult
                     {
                         Name = connection.Name,
-                        DbType = connection.DbType,
+                        DbType = lease.Context.DatabaseType,
                         IsHealthy = true,
                         ResponseTimeMs = stopwatch.ElapsedMilliseconds,
                         ErrorMessage = string.Empty,
                         CheckedAt = checkedAt
                     });
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
                     Logger.LogWarning(ex, "数据库 {Name} 健康检查失败", connection.Name);
                     healthResults.Add(new HealthCheckResult
@@ -232,14 +245,15 @@ internal class ConnectionTools : McpToolBase
                 unhealthyConnections = connections.Count - healthyConnections,
                 results = healthResults
             };
-        });
+        }, cancellationToken);
     }
 
     [McpServerTool(ReadOnly = true)]
     [Description("Test connection with automatic retry mechanism. Attempts to reconnect up to maxRetries times with exponential backoff.")]
     public Task<string> TestConnectionWithRetry(
         [Description("Maximum number of retry attempts (default: 3)")] int maxRetries = 3,
-        [Description("Initial retry delay in milliseconds (default: 1000)")] int initialDelayMs = 1000)
+        [Description("Initial retry delay in milliseconds (default: 1000)")] int initialDelayMs = 1000,
+        CancellationToken cancellationToken = default)
     {
         return ExecuteAsync(async () =>
         {
@@ -258,52 +272,62 @@ internal class ConnectionTools : McpToolBase
             var attempts = 0;
             var currentDelay = initialDelayMs;
             Exception? lastException = null;
+            DatabaseClientLease? lease = null;
 
-            while (attempts <= maxRetries)
+            try
             {
-                try
+                // Admission captures the target once. Busy admission is not a connection failure to retry.
+                lease = await DatabaseConfig.AcquireClientAsync(cancellationToken);
+                while (attempts <= maxRetries)
                 {
-                    attempts++;
-                    Logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
-
-                    var db = DatabaseConfig.CreateClient();
-                    db.Ado.CheckConnection();
-
-                    Logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
-                    return new
+                    try
                     {
-                        success = true,
-                        message = "连接成功",
-                        connected = true,
-                        attempts,
-                        currentDatabase = DatabaseConfig.GetCurrentDatabaseName(),
-                        databaseType = DatabaseConfig.GetDatabaseType()
-                    };
-                }
-                catch (Exception ex)
-                {
-                    lastException = ex;
-                    Logger.LogWarning(ex, "连接尝试 {Attempt} 失败", attempts);
+                        attempts++;
+                        Logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
 
-                    if (attempts <= maxRetries)
+                        var context = lease.Context;
+                        await _probe.CheckAsync(context, cancellationToken);
+
+                        Logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
+                        return new
+                        {
+                            success = true,
+                            message = "连接成功",
+                            connected = true,
+                            attempts,
+                            currentDatabase = context.DatabaseName,
+                            databaseType = context.DatabaseType
+                        };
+                    }
+                    catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OperationCanceledException)
                     {
-                        Logger.LogInformation("等待 {Delay}ms 后重试...", currentDelay);
-                        await Task.Delay(currentDelay);
-                        currentDelay *= 2;
+                        lastException = ex;
+                        Logger.LogWarning(ex, "连接尝试 {Attempt} 失败", attempts);
+
+                        if (attempts <= maxRetries)
+                        {
+                            Logger.LogInformation("等待 {Delay}ms 后重试...", currentDelay);
+                            await Task.Delay(currentDelay, cancellationToken);
+                            currentDelay *= 2;
+                        }
                     }
                 }
-            }
 
-            Logger.LogError(lastException, "数据库连接失败，已达到最大重试次数 {MaxRetries}", maxRetries);
-            return new
+                Logger.LogError(lastException, "数据库连接失败，已达到最大重试次数 {MaxRetries}", maxRetries);
+                return new
+                {
+                    success = false,
+                    message = $"连接失败，已尝试 {attempts} 次",
+                    connected = false,
+                    attempts,
+                    error = lastException?.Message ?? "未知错误"
+                };
+            }
+            finally
             {
-                success = false,
-                message = $"连接失败，已尝试 {attempts} 次",
-                connected = false,
-                attempts,
-                error = lastException?.Message ?? "未知错误"
-            };
-        });
+                lease?.Dispose();
+            }
+        }, cancellationToken);
     }
 
     private sealed class HealthCheckResult

@@ -30,8 +30,8 @@
       "数据库连接管理（连接测试、配置刷新、健康检查、自动重连）",
       "数据库架构查询（数据库列表、表列表、视图列表、表结构、列信息、主键、索引等）",
       "数据库架构操作（创建/删除/重命名表、添加/删除/修改列、索引管理、约束管理等）",
-      "基础查询（SqlQuery、SqlQuerySingle）",
-      "高级查询（多结果集、标量值、IN参数查询）",
+      "类型化有界查询（query_database、单行、分页、多结果集、标量值）",
+      "MongoDB 集合查询与写入（Extended JSON v2、游标预算、one/many 保护）",
       "数据操作（参数化执行 DML）",
       "存储过程调用（简单调用、带输出参数）",
       "批量操作（批量执行命令）",
@@ -49,7 +49,7 @@
   },
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.ttcc666/database-mcp-server",
-  "description": "一个功能强大的数据库操作 MCP 服务器，支持 34 种数据库类型，包括主流数据库、国产数据库、分布式数据库、时序数据库等。通过 JSON 配置文件管理多数据库连接，支持单实例多数据库动态切换，提供数据库连接管理、架构查询与操作、高级查询、数据操作、存储过程调用、事务处理和性能优化等功能。",
+  "description": "数据库 MCP 服务器，提供 62 个工具，涵盖连接管理、类型化有界 SQL 查询、结构管理、存储过程及 MongoDB 集合读写。Mongo 文档使用 Extended JSON v2；写入受权限和危险操作策略约束。驱动可用性与产品验证范围通过 capabilities 查询。",
   "packages": [
     {
       "packageArguments": [],
@@ -269,8 +269,8 @@
       "description": "Return a combined schema document for tableName including columns, primary keys, identity columns, and indexes."
     },
     {
-      "name": "sql_query",
-      "description": "Execute a read-only SQL statement with dangerous-operation detection, optionally binding JSON parameters, and return rowCount plus data."
+      "name": "query_database",
+      "description": "Execute read-only SQL with a typed parameter array, named database, bounded rows/UTF-8 bytes and structured results."
     },
     {
       "name": "sql_query_single",
@@ -285,8 +285,8 @@
       "description": "Return the first-row, first-column value from the SQL statement—ideal for COUNT/SUM scalar queries."
     },
     {
-      "name": "sql_query_with_in_parameter",
-      "description": "Bind a JSON array to an IN parameter (inParameterName) plus optional otherParameters to safely execute IN-clause queries and return the rows."
+      "name": "query_table_page",
+      "description": "Read a bounded table page ordered by its primary key, without implicit COUNT. Concurrent writes can move rows between pages."
     },
     {
       "name": "batch_sql_query",
@@ -301,8 +301,8 @@
       "description": "Invoke the specified stored procedure with optional JSON parameters and return the resulting rows and rowCount."
     },
     {
-      "name": "call_stored_procedure_with_output",
-      "description": "Invoke a stored procedure with JSON input parameters and a list of output parameter names; return rows plus the output parameter values."
+      "name": "get_database_capabilities",
+      "description": "Inspect provider capabilities, access policy, budgets and validated driver settings without network access."
     },
     {
       "name": "execute_command_with_go",
@@ -311,6 +311,30 @@
     {
       "name": "batch_execute_commands",
       "description": "Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command."
+    },
+    {
+      "name": "mongo_list_collections",
+      "description": "List MongoDB collection names/types with optional literal prefix and bounded rows/UTF-8 bytes."
+    },
+    {
+      "name": "mongo_find",
+      "description": "Find Mongo documents using JSON/EJSON v2 objects, projection, stable sort and bounded cursor reads. Returns Canonical EJSON."
+    },
+    {
+      "name": "mongo_count",
+      "description": "Count matching MongoDB documents using a JSON/EJSON v2 filter and operation deadline."
+    },
+    {
+      "name": "mongo_insert_one",
+      "description": "Insert one document; generate ObjectId if absent, return Canonical EJSON insertedId and writeOutcome. Requires write access and acknowledged write concern."
+    },
+    {
+      "name": "mongo_update",
+      "description": "Update one document by default using whitelisted update operators. many requires dangerous-operation permission; empty filter additionally requires allowAll. No rollback on cancellation."
+    },
+    {
+      "name": "mongo_delete",
+      "description": "Delete one document by default. many requires dangerous-operation permission; empty filter additionally requires allowAll. Returns deletedCount and writeOutcome."
     }
   ],
   "version": "3.7.0"

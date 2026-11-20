@@ -7,7 +7,22 @@ namespace DatabaseMcpServer.Models;
 /// </summary>
 public class DatabaseConnection
 {
+    internal DatabaseConnection Copy() => new()
+    {
+        Name = Name, ConnectionString = ConnectionString, DbType = DbType, Description = Description,
+        IsDefault = IsDefault, EnableDangerousOperations = EnableDangerousOperations,
+        AccessMode = AccessMode, ConfigurationVersion = ConfigurationVersion,
+        OptimizationSettings = OptimizationSettings == null ? null : new(OptimizationSettings, StringComparer.Ordinal)
+    };
+
     private bool? _enableDangerousOperations;
+
+    [JsonIgnore]
+    public long ConfigurationVersion { get; internal set; }
+
+    /// <summary>Optional tool access restriction: read-only, read-write or schema-admin (legacy default).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AccessMode { get; set; }
 
     /// <summary>
     /// 数据库连接名称（唯一标识）
@@ -55,5 +70,6 @@ public class DatabaseConnection
     /// <summary>
     /// 数据库优化配置选项
     /// </summary>
+    [JsonConverter(typeof(DatabaseMcpServer.Helpers.OptimizationSettingsJsonConverter))]
     public Dictionary<string, string>? OptimizationSettings { get; set; }
 }

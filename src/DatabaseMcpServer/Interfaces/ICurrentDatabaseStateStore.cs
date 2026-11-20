@@ -18,4 +18,8 @@ public interface ICurrentDatabaseStateStore
     /// <param name="configPath">已解析的配置文件路径。</param>
     /// <param name="databaseName">当前数据库名称。</param>
     void SaveCurrentDatabaseName(string configPath, string databaseName);
+
+    void SaveRequiredCurrentDatabaseName(string configPath, string databaseName);
+
+    bool RenameCurrentDatabase(string configPath, string oldName, string newName);
 }

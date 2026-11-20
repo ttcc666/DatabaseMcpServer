@@ -39,7 +39,7 @@ internal sealed class CliRunner
         _enableMonitorConfig = enableMonitorConfig;
     }
 
-    public async Task<int> RunAsync(IReadOnlyList<string> args, TextWriter stdout, TextWriter stderr)
+    public async Task<int> RunAsync(IReadOnlyList<string> args, TextWriter stdout, TextWriter stderr, CancellationToken cancellationToken = default)
     {
         var parseResult = _parser.Parse(args);
 
@@ -94,7 +94,7 @@ internal sealed class CliRunner
                     return SuccessExitCode;
 
                 case CliCommandKind.ToolInvoke:
-                    return await ExecuteToolAsync(parseResult, stdout, stderr);
+                    return await ExecuteToolAsync(parseResult, stdout, stderr, cancellationToken);
 
                 case CliCommandKind.InitHelp:
                     await WriteCommandHelpAsync(parseResult.Command!, stderr);
@@ -163,7 +163,8 @@ internal sealed class CliRunner
                         _configCommandHandler.Rename(
                             parseResult.ConfigPath,
                             GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name"),
-                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "new-name")),
+                            GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "new-name"),
+                            _currentDatabaseStateFilePath),
                         stdout);
 
                 case CliCommandKind.ConfigUpdate:
@@ -217,7 +218,7 @@ internal sealed class CliRunner
 
                 case CliCommandKind.ConfigTest:
                     return await ExecuteConfigPayloadAsync(
-                        await _configCommandHandler.TestAsync(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name")),
+                        await _configCommandHandler.TestAsync(parseResult.ConfigPath, GetRequiredStringOption(parseResult.Command!, parseResult.OptionValues, "name"), cancellationToken),
                         stdout);
 
                 case CliCommandKind.ConfigValidate:
@@ -232,7 +233,7 @@ internal sealed class CliRunner
                             GetOptionalStringOption(parseResult.OptionValues, "name"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "test-connections"),
                             GetBoolOption(parseResult.Command!, parseResult.OptionValues, "fix-suggestions"),
-                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "summary-only")),
+                            GetBoolOption(parseResult.Command!, parseResult.OptionValues, "summary-only"), cancellationToken),
                         stdout);
 
                 case CliCommandKind.ConfigExport:
@@ -260,6 +261,11 @@ internal sealed class CliRunner
                     await stderr.WriteLineAsync("未知 CLI 状态。");
                     return UsageErrorExitCode;
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await stderr.WriteLineAsync("操作已取消。");
+            return 130;
         }
         catch (InvalidOperationException ex)
         {
@@ -305,7 +311,7 @@ internal sealed class CliRunner
         return stderr.WriteAsync(builder.ToString());
     }
 
-    private async Task<int> ExecuteToolAsync(CliParseResult parseResult, TextWriter stdout, TextWriter stderr)
+    private async Task<int> ExecuteToolAsync(CliParseResult parseResult, TextWriter stdout, TextWriter stderr, CancellationToken cancellationToken)
     {
         var tool = parseResult.Tool!;
         if (tool.RequiresConfirmation && !parseResult.ConfirmationAccepted)
@@ -333,38 +339,31 @@ internal sealed class CliRunner
             return UsageErrorExitCode;
         }
 
-        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        var originalConsoleOut = Console.Out;
-        var originalConsoleError = Console.Error;
         try
         {
-            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", resolution.Path);
-            Console.SetOut(TextWriter.Null);
-            Console.SetError(TextWriter.Null);
-
             var builder = DatabaseHostBuilderFactory.CreateBaseBuilder(
                 [],
                 silentLogs: true,
                 cliToolMode: true,
                 currentDatabaseStateFilePath: _currentDatabaseStateFilePath,
-                enableMonitorConfig: _enableMonitorConfig);
+                enableMonitorConfig: _enableMonitorConfig,
+                configPath: resolution.Path);
             using var host = builder.Build();
             var toolInstance = host.Services.GetRequiredService(tool.ToolType);
-            var payload = await CliToolInvoker.InvokeAsync(tool, toolInstance, arguments);
+            var payload = await CliToolInvoker.InvokeAsync(tool, toolInstance, arguments, cancellationToken);
 
             await stdout.WriteAsync(payload);
             return CliToolInvoker.IsToolFailure(payload) ? ToolFailureExitCode : SuccessExitCode;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await stderr.WriteLineAsync("操作已取消。");
+            return 130;
         }
         catch (Exception ex)
         {
             await stderr.WriteLineAsync(CliToolInvoker.Unwrap(ex).Message);
             return UsageErrorExitCode;
-        }
-        finally
-        {
-            Console.SetOut(originalConsoleOut);
-            Console.SetError(originalConsoleError);
-            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
         }
     }
 

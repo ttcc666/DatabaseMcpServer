@@ -113,6 +113,7 @@ jobs:
           dotnet pack `
               'src/DatabaseMcpServer/DatabaseMcpServer.csproj' `
               '--configuration' 'Release' `
+              '-p:TargetFrameworks=net10.0' `
               '--no-restore' `
               '--output' 'artifacts/release'
 
@@ -129,6 +130,9 @@ jobs:
           }
 
           $package = (Resolve-Path -LiteralPath $package).Path
+          if ((Get-Item -LiteralPath $package).Length -gt 250000000) {
+              throw 'Package exceeds the NuGet.org size limit.'
+          }
           $sha256 = (Get-FileHash -LiteralPath $package -Algorithm 'SHA256').Hash
 
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "path=$package"

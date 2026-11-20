@@ -15,11 +15,6 @@ public interface IDatabaseHelperService
     DbType ParseDbType(string dbType);
 
     /// <summary>
-    /// 解析 JSON 格式的参数字符串为 SqlSugar 参数数组
-    /// </summary>
-    SugarParameter[]? ParseParameters(string? parametersJson);
-
-    /// <summary>
     /// 检测 SQL 语句中是否包含危险操作
     /// </summary>
     bool DetectDangerousOperation(string sql);

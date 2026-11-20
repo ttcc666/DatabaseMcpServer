@@ -10,14 +10,14 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 
 ## ✨ Core Features
 
-- 🗄️ **Multi-Database Support** - Covers 17 commonly used databases (MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase + DM/Kingbase/GaussDB/PolarDB/Vastbase/HighGo/Oscar/GoldenDB)
+- 🗄️ **Database providers** - Product verification is separate from driver availability. MySQL, PostgreSQL, SQL Server and SQLite have regression coverage; other products need deployment-specific validation. See [ORM configuration](Doc/orm-configuration.md). HG/GBase/TDengine/DuckDB extensions and managed drivers are bundled; GBase and TDengine additionally require native clients on the deployment host. See [driver requirements](Doc/provider-drivers.md). MongoDB provides six native collection tools with Extended JSON v2; see the [collection contract](Doc/mongodb-collections.md).
 - 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
-- ⚡ **High Performance** - SqlSugarScope connection pool reuse + database-specific optimizations + automatic performance tuning
+- ⚡ **Execution Isolation** - Exclusive SqlSugarClient leases + driver connection pooling + database-specific optimizations
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
-- 💾 **Complete Functionality** - 50+ MCP tools (about 55 currently), covering queries, operations, schema management, health checks, etc.
+- 💾 **Complete Functionality** - 62 MCP tools including typed queries, MongoDB collections, table paging and capability diagnostics. Prefer .NET 10 LTS for new deployments; see the [database MCP workflow](Doc/database-mcp-workflow.md).
 - 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
-- 📦 **.NET Global Tool** - Simple installation, one-click deployment
+- 📦 **.NET Global Tool** - Published packages require .NET 10; source builds and tests retain .NET 9/10 targets
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
 
 ## 🗄️ Supported Database Types
@@ -53,6 +53,8 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 ## 🚀 Quick Start
 
 ### Step 1: Install .NET Global Tool
+
+The published tool requires the .NET 10 SDK, including the .NET and ASP.NET Core runtimes. Source builds and tests retain .NET 9/10 targets. See [driver requirements](Doc/provider-drivers.md).
 
 ```bash
 # Install latest version
@@ -554,9 +556,11 @@ For more connection strings and optimization configurations, please refer to the
 
 ---
 
-## 📋 Complete Feature List (about 55 tools)
+## 📋 Complete Feature List (62 tools)
 
 See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples, and `--yes` requirements.
+
+MongoDB: `mongo_list_collections`, `mongo_find`, `mongo_count`, `mongo_insert_one`, `mongo_update`, `mongo_delete`. Inputs are JSON objects / Extended JSON v2; output documents preserve BSON types using Canonical EJSON. Writes default to one document; many requires dangerous-operation permission, and empty filters additionally require allowAll. Cancellation does not roll back committed writes. See the [collection contract](Doc/mongodb-collections.md).
 
 ### 🔌 1. Connection and Configuration Management
 
@@ -601,13 +605,13 @@ See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples,
 
 **Basic Queries:**
 
-- **sql_query** - Execute SQL query and return strongly typed entity collection (supports parameterized queries; optional `commandTimeoutSeconds`)
+- **query_database** - Typed parameters, IN arrays, explicit targets and bounded structured results
+- **query_table_page** - Primary-key ordered paging without an implicit COUNT
 - **sql_query_single** - Execute SQL query and return single record (optional timeout)
 
 **Advanced Queries:**
 
 - **get_data_set_all** - Get multiple result sets, supports executing multiple queries at once (optional timeout)
-- **sql_query_with_in_parameter** - Handle IN parameter queries, supports array parameters (optional timeout)
 - **batch_sql_query** - Sequentially execute 1-5 read-only SQL queries and return success or error per query (optional timeout applies to every item)
 
 **Scalar Value Queries:**
@@ -618,8 +622,7 @@ See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples,
 
 - **execute_command** - Execute SQL commands (INSERT, UPDATE, DELETE; optional `commandTimeoutSeconds`)
 - **batch_execute_commands** - Batch execute SQL commands (performance optimized; optional timeout applies to every item)
-- **call_stored_procedure** - Call stored procedure (simple usage; optional timeout)
-- **call_stored_procedure_with_output** - Call stored procedure with output parameters (optional timeout)
+- **call_stored_procedure** - Typed Input/Output/InputOutput/ReturnValue parameters with optional timeout
 - **execute_command_with_go** - Execute SQL Server script containing GO statements (optional timeout)
 
 ### 🛠️ 6. Database Schema Operations (High Risk)
@@ -793,7 +796,7 @@ All queries support parameterized queries, automatically preventing SQL injectio
 ```json
 {
   "sql": "SELECT * FROM users WHERE age > @age AND city = @city",
-  "parameters": "{\"age\":18,\"city\":\"Beijing\"}"
+  "parameters": [{"name": "age", "value": 18}, {"name": "city", "value": "Beijing"}]
 }
 ```
 
@@ -809,7 +812,7 @@ Query and data-operation tools accept optional `commandTimeoutSeconds` (CLI: `--
 ```json
 {
   "sql": "SELECT * FROM large_report WHERE day = @day",
-  "parameters": "{\"day\":\"2026-08-01\"}",
+  "parameters": [{"name": "day", "value": "2026-08-01"}],
   "commandTimeoutSeconds": 900
 }
 ```
@@ -817,7 +820,7 @@ Query and data-operation tools accept optional `commandTimeoutSeconds` (CLI: `--
 ```bash
 DatabaseMcpServer tool execute_command \
   --sql 'update large_table set status=@status where id=@id' \
-  --parameters '{"status":"done","id":1}' \
+  --parameters '[{"name":"status","value":"done"},{"name":"id","value":1}]' \
   --command-timeout-seconds 900 \
   --yes
 ```
@@ -852,7 +855,7 @@ dotnet build 'DatabaseMcpServer.slnx'
 dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # Package and publish
-dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0'
 ```
 
 Recommended stable verification flow:
@@ -878,6 +881,11 @@ CLI highlights:
 - `-web` resolves config files with the same order as CLI tool mode and falls back to `%USERPROFILE%/.database-mcp/databases.json` as the writable target when no existing config is found.
 
 ## 🆕 Release Notes
+
+- **Unreleased: dependency and reliability updates**
+  - Upgrade MCP to 2.4.0, SqlSugarCore to 5.1.4.221 and compatible dependencies; pin SDK 10.0.404
+  - Reject mutating PRAGMAs in read-only tools, preserve tiny numeric parameters and report MCP tool errors correctly; use the current tool schema; see Doc/compatibility-cleanup.md
+  - See the [upgrade notes](Doc/dependency-upgrade.md) for versions, numeric boundaries, protocol cancellation and database validation
 
 - **3.7.0**
   - Add optional configuration monitoring so persistent MCP stdio / `-web` processes follow file default changes; precedence is `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`, disabled by default
@@ -965,43 +973,40 @@ CLI highlights:
    using System.ComponentModel;
    using ModelContextProtocol.Server;
    using DatabaseMcpServer.Interfaces;
+   using DatabaseMcpServer.Models;
+   using DatabaseMcpServer.Services;
+   using Microsoft.Extensions.Logging;
 
    namespace DatabaseMcpServer.Tools;
 
    [McpServerToolType]
-   internal class YourNewTools
+   internal class YourNewTools(
+       IDatabaseConfigService databases,
+       IDatabaseHelperService helper,
+       IJsonResultSerializer serializer,
+       ILogger<YourNewTools> logger,
+       DatabaseExecutionOptions options,
+       DatabaseMetadataCache metadataCache)
+       : McpToolBase(databases, helper, serializer, logger, options, metadataCache)
    {
-       private readonly IDatabaseConfigService _databaseConfig;
-       private readonly IDatabaseHelperService _databaseHelper;
-
-       public YourNewTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper)
-       {
-           _databaseConfig = databaseConfig;
-           _databaseHelper = databaseHelper;
-       }
-
-       [McpServerTool]
-       [Description("Your tool description")]
-       public string YourMethod([Description("Parameter description")] string parameter)
-       {
-           var db = _databaseConfig.CreateClient();
-           // Implement your functionality
-           return _databaseHelper.SerializeResult(new { success = true, data = "result" });
-       }
+       [McpServerTool(ReadOnly = true)]
+       [Description("Return the connected database type.")]
+       public string YourMethod([Description("Database connection name.")] string? databaseName = null)
+           => WithClient(db => new { success = true, databaseType = db.CurrentConnectionConfig.DbType.ToString() }, databaseName);
    }
    ```
 
 3. **Register Tool**
-   In `Program.cs`:
+   Add an entry to `Registrations` in `Extensions/DatabaseMcpToolCatalog.cs`:
 
    ```csharp
-   builder.Services
-       .AddMcpServer()
-       .WithStdioServerTransport()
-       .WithTools<ConnectionTools>()
-       .WithTools<SchemaTools>()
-       .WithTools<QueryTools>()
-       .WithTools<CommandTools>();
+   new(typeof(YourNewTools), static builder => builder.WithTools<YourNewTools>())
+   ```
+
+   The shared extension handles registration:
+
+   ```csharp
+   builder.Services.AddDatabaseMcpServer();
    ```
 
 ### Project Architecture

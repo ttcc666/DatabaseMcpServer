@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DatabaseMcpServer.Models;
 
 namespace DatabaseMcpServer.Helpers;
 
@@ -9,7 +10,7 @@ internal static class JsonElementValueConverter
         return element.ValueKind switch
         {
             JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
+            JsonValueKind.Number => ConvertNumber(element),
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             JsonValueKind.Null => null,
@@ -17,6 +18,32 @@ internal static class JsonElementValueConverter
             JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object?>>(element.GetRawText()),
             _ => element.GetRawText()
         };
+    }
+
+    private static object ConvertNumber(JsonElement element)
+    {
+        // Return separately to avoid promotion from Int64/Decimal to Double before boxing.
+        if (element.TryGetInt64(out var integer))
+        {
+            return integer;
+        }
+
+        // TryGetDecimal can succeed after rounding or underflowing to zero.
+        if (element.TryGetDecimal(out var number) &&
+            JsonElement.DeepEquals(element, JsonSerializer.SerializeToElement(number)))
+        {
+            return number;
+        }
+
+        var floatingPoint = element.GetDouble();
+        if (double.IsFinite(floatingPoint) &&
+            JsonElement.DeepEquals(element, JsonSerializer.SerializeToElement(floatingPoint)))
+        {
+            return floatingPoint;
+        }
+
+        throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters,
+            "数值参数超出可往返表示的精度或范围；请使用字符串并在 SQL 中显式转换为目标数据库类型。");
     }
 
     public static string? GetString(IReadOnlyDictionary<string, JsonElement> values, string key)

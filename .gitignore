@@ -364,5 +364,7 @@ FodyWeavers.xsd
 /mcp.json.local
 
 databases.json
+databases.json.lock
+local-databases.json.lock
 .ace-tool/
 website/*.tsbuildinfo

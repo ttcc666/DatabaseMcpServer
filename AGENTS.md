@@ -11,7 +11,7 @@
 - `dotnet build 'DatabaseMcpServer.slnx'` — compile the full solution and validate package references.
 - `dotnet test 'DatabaseMcpServer.slnx'` — run all xUnit tests discovered under `tests/`.
 - `DB_CONNECTION_STRING=... DB_TYPE=MySql dotnet run --project 'src/DatabaseMcpServer/DatabaseMcpServer.csproj'` — launch the stdio MCP server for a local smoke test.
-- `dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c Release` — create the NuGet/global-tool package.
+- `dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0'` — create the .NET 10 NuGet/global-tool package; source builds/tests retain both frameworks.
 - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` — run repository verification scripts when preparing releases.
 
 ## Coding Style & Naming Conventions

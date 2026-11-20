@@ -3,9 +3,11 @@ using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
+using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace DatabaseMcpServer.Tests;
@@ -54,6 +56,48 @@ public class CliWebApiServiceTests
         monitor.HandleMonitoredFileChangedForTests();
 
         Assert.Equal("analytics", fixture.Service.GetCurrentDatabaseName());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReportsTimeSpentWaitingForAnotherTool()
+    {
+        using var fixture = new ConfigFixture();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        using var mongo = new MongoClientRegistry();
+        using var provider = new ServiceCollection().AddTransient(_ =>
+        {
+            if (entered.TrySetResult() && !release.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException();
+            }
+            return new ConnectionTools(fixture.Service, new DatabaseHelper(NullLogger<DatabaseHelper>.Instance),
+                new JsonResultSerializer(), NullLogger<ConnectionTools>.Instance, new DatabaseExecutionOptions(),
+                new DatabaseMetadataCache(new DatabaseExecutionOptions()), new DatabaseConnectionProbe(mongo, new DatabaseExecutionOptions()));
+        }).BuildServiceProvider();
+        var tools = new CliWebToolService(new CliToolCatalog(), provider);
+        var request = new CliWebToolInvocationRequest(null, null);
+        var first = Task.Run(() => tools.InvokeAsync("list_databases", request, CancellationToken.None));
+        Task<object> queued;
+        long minimumWaitMs;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            queued = tools.InvokeAsync("list_databases", request, CancellationToken.None);
+            var waiting = Stopwatch.StartNew();
+            await Task.Delay(30);
+            minimumWaitMs = waiting.ElapsedMilliseconds;
+            Assert.False(queued.IsCompleted);
+        }
+        finally
+        {
+            release.Set();
+            await first;
+        }
+
+        var response = JsonSerializer.SerializeToElement(await queued);
+        Assert.True(response.GetProperty("toolSuccess").GetBoolean());
+        Assert.True(response.GetProperty("queueMs").GetInt64() >= minimumWaitMs);
     }
 
     private sealed class ConfigFixture : IDisposable
@@ -107,8 +151,9 @@ public class CliWebApiServiceTests
 
     private sealed class NoopClientFactory : ISqlSugarClientFactory
     {
-        public SqlSugar.ISqlSugarClient CreateClient(DatabaseConnection connection) => throw new NotSupportedException();
-        public void ResetClientPool()
+        public DatabaseMcpServer.Models.DatabaseClientLease AcquireClient(DatabaseMcpServer.Models.DatabaseConnection connection) => throw new NotSupportedException();
+        public DatabaseMcpServer.Models.DatabaseClientReservation ReserveClient(DatabaseMcpServer.Models.DatabaseConnection connection) => throw new NotSupportedException();
+        public void UpdateConnections(IReadOnlyDictionary<string, DatabaseMcpServer.Models.DatabaseConnection> connections, string? previousName = null, string? newName = null)
         {
         }
     }

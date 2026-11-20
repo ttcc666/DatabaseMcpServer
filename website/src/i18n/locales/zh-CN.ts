@@ -42,6 +42,8 @@ export default {
     requestFailed: "请求失败。",
   },
   configHero: {
+    pendingChanges: "配置有尚未生效的更改",
+    pendingChangesHint: "当前连接显示正在运行的数据库。请修复配置并重载，或启用配置监听以应用更改。",
     localConsole: "Local Console",
     title: "DatabaseMcpServer 配置台",
     descriptionPrefix: "在一个本地工作台里统一管理",
@@ -53,7 +55,7 @@ export default {
     defaultConnection: "默认连接",
     defaultHint: "写入 {file}",
     currentConnection: "当前连接",
-    currentHint: "写入 {file}",
+    currentHint: "当前进程实际使用的数据库连接。",
     totalConnections: "连接总数",
     totalHint: "已注册数据库连接项",
     targetPathTitle: "当前目标路径",
@@ -64,7 +66,7 @@ export default {
     forceReset: "强制重置",
     semanticsTitle: "语义提示",
     semanticsDefault: "默认连接：持久写回配置文件，供 CLI / MCP 默认回退使用。",
-    semanticsCurrent: "当前连接：按配置文件路径隔离保存，适合临时切换执行上下文。",
+    semanticsCurrent: "当前连接：服务实际执行目标；切换结果按配置文件路径保存。",
   },
   connectionTable: {
     title: "连接工作区",

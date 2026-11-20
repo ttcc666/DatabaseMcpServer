@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import AppHeader from "@/components/app/AppHeader.vue"
 import ConfigWorkbench from "@/components/ConfigWorkbench.vue"
-import ToolPlayground from "@/components/playground/ToolPlayground.vue"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { WorkspaceMode } from "@/types"
 import { ConfigProvider } from "reka-ui"
-import { nextTick, ref, useTemplateRef, watch } from "vue"
+import { defineAsyncComponent, nextTick, ref, useTemplateRef, watch } from "vue"
+
+const ToolPlayground = defineAsyncComponent(() => import("@/components/playground/ToolPlayground.vue"))
 
 const workspace = ref<WorkspaceMode>("connections")
 const playgroundVisited = ref(false)

@@ -1,6 +1,6 @@
 # TDengine 数据库配置指南
 
-SqlSugar 对 TDengine 支持成熟（原生高性能、微秒/纳秒、自动子表/Tag），推荐搭配 `SqlSugar.TDengineCore 4.18.6+` 与 `SqlSugarCore 5.1.4.187+`。
+已包含 `SqlSugar.TDengineCore 4.18.46`、`TDengine.Ado.Data 3.1.7` 和 `TDengine.Connector 3.1.6`，服务统一注册扩展。当前 SqlSugar ADO 路径使用原生连接，部署主机仍需匹配版本的 TDengine 客户端 SDK，见[驱动清单](../Doc/provider-drivers.md)。下文实体、Tag 和 BulkCopy 示例是 SqlSugar API 用法，不代表 MCP 已提供对应专用工具。
 
 ---
 

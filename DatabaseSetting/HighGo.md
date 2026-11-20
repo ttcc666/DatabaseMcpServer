@@ -13,7 +13,7 @@ HighGo 基于 PostgreSQL，默认表/列名转小写。**建议连接字符串�
   "databases": [
     {
       "name": "highgo-main",
-      "connectionString": "Server=27.151.1.54;Port=5866;UId=design;Password=000;Database=design;searchpath=design;Pooling=false;",
+      "connectionString": "Server=localhost;Port=5866;UId=design;Password=000;Database=design;searchpath=design;Pooling=false;",
       "dbType": "HG",
       "description": "瀚高数据库",
       "isDefault": false,
@@ -52,8 +52,8 @@ HighGo 基于 PostgreSQL，默认表/列名转小写。**建议连接字符串�
 
 ## 📦 依赖要求
 
-- NuGet: `SqlSugarCore`（已默认）
-- 驱动：使用 PostgreSQL 协议。
+- 已包含 `SqlSugarCore 5.1.4.221`、`SqlSugar.HGCore 5.1.4.211`，传递依赖 `SqlSugar.Nhgdb 5.1.4.159`（`Nhgdb.dll`），由服务统一注册扩展。
+- `HG` 使用瀚高专用驱动，不等同于直接选择 PostgreSQL。实际服务器版本、认证及 searchpath 需要在部署环境验证，见[驱动清单](../Doc/provider-drivers.md)。
 
 ---
 

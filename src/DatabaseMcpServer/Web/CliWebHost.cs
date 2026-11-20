@@ -4,6 +4,7 @@ using System.Net;
 using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Extensions;
 using DatabaseMcpServer.Hosting;
+using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -73,8 +74,6 @@ internal sealed class CliWebHost : ICliWebHost
     internal async Task<CliWebHostHandle> StartAsync(CliWebCommandOptions options, CancellationToken cancellationToken = default)
     {
         var configContext = CliWebConfigContextResolver.Resolve(options.ConfigPath);
-        var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-        Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configContext.ConfigPath);
 
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
         {
@@ -91,11 +90,14 @@ internal sealed class CliWebHost : ICliWebHost
         builder.Services.AddDatabaseMcpApplicationServices(
             cliToolMode: true,
             currentDatabaseStateFilePath: _currentDatabaseStateFilePath,
-            enableMonitorConfig: options.EnableMonitorConfig);
+            enableMonitorConfig: options.EnableMonitorConfig,
+            configPath: configContext.ConfigPath);
         builder.Services.AddDatabaseMcpToolServices();
         builder.Services.AddSingleton(configContext);
         builder.Services.AddSingleton<CliConfigFileService>();
-        builder.Services.AddSingleton<CliConfigCommandHandler>();
+        builder.Services.AddSingleton(services => new CliConfigCommandHandler(
+            services.GetRequiredService<IJsonResultSerializer>(), services.GetRequiredService<CliConfigFileService>(),
+            services.GetRequiredService<ISqlSugarClientFactory>(), services.GetRequiredService<DatabaseConnectionProbe>()));
         builder.Services.AddSingleton<CliWebApiService>();
         builder.WebHost.ConfigureKestrel(optionsBuilder =>
         {
@@ -118,19 +120,36 @@ internal sealed class CliWebHost : ICliWebHost
         }
         catch
         {
-            Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+            await app.DisposeAsync();
             throw;
         }
 
         return new CliWebHostHandle(
             app,
             ResolveBaseAddress(app),
-            configContext,
-            originalConfigPath);
+            configContext);
     }
 
     private static void ConfigureApplication(WebApplication app)
     {
+        app.Use(async (context, next) =>
+        {
+            var request = context.Request;
+            if (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+                && (HttpMethods.IsPost(request.Method) || HttpMethods.IsPut(request.Method)
+                    || HttpMethods.IsPatch(request.Method) || HttpMethods.IsDelete(request.Method)))
+            {
+                var error = LocalWebRequestGuard.Validate(request);
+                if (error != null)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new { success = false, message = error });
+                    return;
+                }
+            }
+            await next(context);
+        });
+
         // Prefer resource-name based lookup over ManifestEmbeddedFileProvider.
         // The embedded-files manifest splits TargetPath with the build OS separator, so a
         // hierarchical "website/dist" scope is not reliable across Windows and Linux CI.
@@ -150,8 +169,8 @@ internal sealed class CliWebHost : ICliWebHost
             JsonPayload(service.Initialize(request.Force)));
         app.MapPost("/api/config/validate", (CliWebApiService service) =>
             JsonPayload(service.Validate()));
-        app.MapPost("/api/config/doctor", async (CliWebApiService service, CliWebDoctorRequest request) =>
-            JsonPayload(await service.DoctorAsync(request)));
+        app.MapPost("/api/config/doctor", async (CliWebApiService service, CliWebDoctorRequest request, CancellationToken cancellationToken) =>
+            JsonPayload(await service.DoctorAsync(request, cancellationToken)));
         app.MapGet("/api/config/export", (CliWebApiService service) =>
         {
             var export = service.Export();
@@ -189,10 +208,10 @@ internal sealed class CliWebHost : ICliWebHost
             JsonPayload(service.RemoveDatabase(name)));
         app.MapPost("/api/databases/{name}/set-default", (CliWebApiService service, string name) =>
             JsonPayload(service.SetDefaultDatabase(name)));
-        app.MapPost("/api/databases/{name}/test", async (CliWebApiService service, string name) =>
-            JsonPayload(await service.TestConnectionAsync(name)));
-        app.MapPost("/api/databases/health-check", (CliWebApiService service) =>
-            JsonPayload(service.HealthCheck()));
+        app.MapPost("/api/databases/{name}/test", async (CliWebApiService service, string name, CancellationToken cancellationToken) =>
+            JsonPayload(await service.TestConnectionAsync(name, cancellationToken)));
+        app.MapPost("/api/databases/health-check", async (CliWebApiService service, CancellationToken cancellationToken) =>
+            JsonPayload(await service.HealthCheckAsync(cancellationToken)));
         app.MapPost("/api/current-database/switch", (CliWebApiService service, CliWebSwitchCurrentDatabaseRequest request) =>
             JsonPayload(service.SwitchCurrentDatabase(request.DatabaseName)));
         app.MapPost("/api/tools/{toolName}/invoke", async (HttpRequest request, CliWebToolService service, string toolName, CancellationToken cancellationToken) =>
@@ -279,31 +298,6 @@ internal sealed class CliWebHost : ICliWebHost
             return Results.Json(new { success = false, message = "Tool 请求必须使用 application/json。" }, statusCode: StatusCodes.Status415UnsupportedMediaType);
         }
 
-        if (!request.Headers.TryGetValue("X-DatabaseMcp-Web", out var marker) || marker != "1")
-        {
-            return Results.Json(new { success = false, message = "缺少本地 Web 请求标记。" }, statusCode: StatusCodes.Status403Forbidden);
-        }
-
-        if (request.Headers.TryGetValue("Origin", out var originValues) && originValues.Count > 0)
-        {
-            if (originValues.Count != 1 || !Uri.TryCreate(originValues[0], UriKind.Absolute, out var origin))
-            {
-                return Results.Json(new { success = false, message = "Tool 请求 Origin 无效。" }, statusCode: StatusCodes.Status403Forbidden);
-            }
-
-            var requestPort = request.Host.Port ?? (request.IsHttps ? 443 : 80);
-            var originPort = origin.IsDefaultPort
-                ? string.Equals(origin.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ? 443 : 80
-                : origin.Port;
-            var isSameHost = string.Equals(origin.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase) &&
-                             string.Equals(origin.Host, request.Host.Host, StringComparison.OrdinalIgnoreCase) &&
-                             originPort == requestPort;
-            if (!isSameHost)
-            {
-                return Results.Json(new { success = false, message = "拒绝跨来源 Tool 请求。" }, statusCode: StatusCodes.Status403Forbidden);
-            }
-        }
-
         return null;
     }
 
@@ -356,18 +350,15 @@ internal sealed class CliWebHost : ICliWebHost
     internal sealed class CliWebHostHandle : IAsyncDisposable
     {
         private readonly WebApplication _application;
-        private readonly string? _originalConfigPath;
 
         public CliWebHostHandle(
             WebApplication application,
             Uri baseAddress,
-            CliWebConfigContext configContext,
-            string? originalConfigPath)
+            CliWebConfigContext configContext)
         {
             _application = application;
             BaseAddress = baseAddress;
             ConfigContext = configContext;
-            _originalConfigPath = originalConfigPath;
         }
 
         public Uri BaseAddress { get; }
@@ -388,7 +379,6 @@ internal sealed class CliWebHost : ICliWebHost
             finally
             {
                 await _application.DisposeAsync();
-                Environment.SetEnvironmentVariable("DB_CONFIG_PATH", _originalConfigPath);
             }
         }
     }

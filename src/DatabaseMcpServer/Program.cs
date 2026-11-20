@@ -26,5 +26,9 @@ static async Task<int> MainAsync(string[] args)
     }
 
     var cliRunner = new CliRunner(enableMonitorConfig: startup.EnableMonitorConfig);
-    return await cliRunner.RunAsync(startup.RemainingArgs, Console.Out, Console.Error);
+    using var cancellation = new CancellationTokenSource();
+    ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+    Console.CancelKeyPress += cancel;
+    try { return await cliRunner.RunAsync(startup.RemainingArgs, Console.Out, Console.Error, cancellation.Token); }
+    finally { Console.CancelKeyPress -= cancel; }
 }

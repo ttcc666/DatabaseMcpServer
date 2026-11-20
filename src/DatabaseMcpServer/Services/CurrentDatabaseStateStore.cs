@@ -15,7 +15,6 @@ internal sealed class CurrentDatabaseStateStore : ICurrentDatabaseStateStore
     private readonly ILogger<CurrentDatabaseStateStore> _logger;
     private readonly bool _enabled;
     private readonly string? _stateFilePath;
-    private readonly object _stateLock = new();
 
     public CurrentDatabaseStateStore(
         ILogger<CurrentDatabaseStateStore> logger,
@@ -36,19 +35,34 @@ internal sealed class CurrentDatabaseStateStore : ICurrentDatabaseStateStore
 
         var normalizedConfigPath = NormalizePath(configPath);
 
-        lock (_stateLock)
+        try
         {
-            var state = LoadStateUnsafe();
-            var entry = state.Entries.FirstOrDefault(item =>
-                string.Equals(item.ConfigPath, normalizedConfigPath, StringComparison.OrdinalIgnoreCase));
+            var entry = LoadState(_stateFilePath).FindEntry(normalizedConfigPath);
 
             return string.IsNullOrWhiteSpace(entry?.CurrentDatabase)
                 ? null
                 : entry.CurrentDatabase;
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            _logger.LogWarning(ex, "读取 CLI 当前数据库状态文件失败: {Path}", _stateFilePath);
+            return null;
+        }
     }
 
     public void SaveCurrentDatabaseName(string configPath, string databaseName)
+    {
+        try
+        {
+            SaveRequiredCurrentDatabaseName(configPath, databaseName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "保存 CLI 当前数据库状态失败，保留原状态文件: {Path}", _stateFilePath);
+        }
+    }
+
+    public void SaveRequiredCurrentDatabaseName(string configPath, string databaseName)
     {
         if (!_enabled || string.IsNullOrWhiteSpace(_stateFilePath))
         {
@@ -57,16 +71,16 @@ internal sealed class CurrentDatabaseStateStore : ICurrentDatabaseStateStore
 
         if (string.IsNullOrWhiteSpace(databaseName))
         {
-            return;
+            throw new InvalidOperationException("无法保存空的当前数据库名称。");
         }
 
         var normalizedConfigPath = NormalizePath(configPath);
 
-        lock (_stateLock)
+        try
         {
-            var state = LoadStateUnsafe();
-            var entry = state.Entries.FirstOrDefault(item =>
-                string.Equals(item.ConfigPath, normalizedConfigPath, StringComparison.OrdinalIgnoreCase));
+            using var write = new AtomicJsonFileWrite(_stateFilePath);
+            var state = LoadState(_stateFilePath);
+            var entry = state.FindEntry(normalizedConfigPath);
 
             if (entry == null)
             {
@@ -83,56 +97,48 @@ internal sealed class CurrentDatabaseStateStore : ICurrentDatabaseStateStore
                 entry.UpdatedAtUtc = DateTimeOffset.UtcNow;
             }
 
-            SaveStateUnsafe(state);
+            write.Save(state);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            throw new InvalidOperationException($"无法保存当前数据库选择到 '{_stateFilePath}'。{ex.Message}", ex);
         }
     }
 
-    private CurrentDatabaseStateDocument LoadStateUnsafe()
+    public bool RenameCurrentDatabase(string configPath, string oldName, string newName)
     {
-        if (string.IsNullOrWhiteSpace(_stateFilePath) || !File.Exists(_stateFilePath))
-        {
-            return new CurrentDatabaseStateDocument();
-        }
-
-        try
-        {
-            var json = File.ReadAllText(_stateFilePath);
-            var document = JsonSerializer.Deserialize<CurrentDatabaseStateDocument>(json, ReadOptions);
-            return document ?? new CurrentDatabaseStateDocument();
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogWarning(ex, "CLI 当前数据库状态文件 JSON 格式错误，将重建状态文件: {Path}", _stateFilePath);
-            return new CurrentDatabaseStateDocument();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "读取 CLI 当前数据库状态文件失败，忽略旧状态: {Path}", _stateFilePath);
-            return new CurrentDatabaseStateDocument();
-        }
+        if (!_enabled || _stateFilePath == null || !File.Exists(_stateFilePath)) return true;
+        using var write = new AtomicJsonFileWrite(_stateFilePath);
+        var state = LoadState(_stateFilePath);
+        var entry = state.FindEntry(NormalizePath(configPath));
+        if (entry == null) return true;
+        if (entry.CurrentDatabase != oldName)
+            return entry?.CurrentDatabase == newName;
+        entry.CurrentDatabase = newName;
+        entry.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        write.Save(state);
+        return true;
     }
 
-    private void SaveStateUnsafe(CurrentDatabaseStateDocument state)
+    private static CurrentDatabaseStateDocument LoadState(string path)
     {
-        if (string.IsNullOrWhiteSpace(_stateFilePath))
-        {
-            return;
-        }
-
         try
         {
-            var directory = Path.GetDirectoryName(_stateFilePath);
-            if (!string.IsNullOrWhiteSpace(directory))
+            var state = JsonSerializer.Deserialize<CurrentDatabaseStateDocument>(ConfigFileReader.ReadAllText(path), ReadOptions);
+            if (state?.Entries == null || state.Entries.Any(entry => entry == null))
             {
-                Directory.CreateDirectory(directory);
+                throw new JsonException("CLI 状态缺少有效的 entries 列表。");
             }
 
-            var json = JsonSerializer.Serialize(state, JsonSerializationDefaults.IndentedCamelCase);
-            File.WriteAllText(_stateFilePath, json);
+            return state;
         }
-        catch (Exception ex)
+        catch (FileNotFoundException)
         {
-            _logger.LogWarning(ex, "保存 CLI 当前数据库状态文件失败: {Path}", _stateFilePath);
+            return new CurrentDatabaseStateDocument();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new CurrentDatabaseStateDocument();
         }
     }
 
@@ -159,7 +165,13 @@ internal sealed class CurrentDatabaseStateStore : ICurrentDatabaseStateStore
 
     private sealed class CurrentDatabaseStateDocument
     {
+        [System.Text.Json.Serialization.JsonRequired]
         public List<CurrentDatabaseStateEntry> Entries { get; set; } = [];
+
+        public CurrentDatabaseStateEntry? FindEntry(string configPath) => Entries.FirstOrDefault(entry =>
+            string.Equals(entry.ConfigPath, configPath, OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal));
     }
 
     private sealed class CurrentDatabaseStateEntry

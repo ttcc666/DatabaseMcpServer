@@ -7,4 +7,12 @@ namespace DatabaseMcpServer.Models;
 /// </summary>
 public sealed record DatabaseClientContext(
     ISqlSugarClient Client,
-    bool EnableDangerousOperations);
+    bool EnableDangerousOperations,
+    string ConnectionIdentity)
+{
+    public string DatabaseName { get; init; } = string.Empty;
+    public string DatabaseType { get; init; } = string.Empty;
+    public long ConfigurationVersion { get; init; }
+    public string? AccessMode { get; init; }
+    public IReadOnlyDictionary<string, string>? OptimizationSettings { get; init; }
+}

@@ -406,20 +406,33 @@ INSERT INTO index_target (index_col, value_col) VALUES
         @{ Tool = 'drop_proc'; Args = @('--procedure-name', 'sp_demo', '--yes') },
         @{ Tool = 'get_trigger_names'; Args = @('--table-name', 'users') },
         @{ Tool = 'get_table_schema'; Args = @('--table-name', 'users') },
-        @{ Tool = 'sql_query'; Args = @('--sql', 'select * from "users"') },
+        @{ Tool = 'query_database'; Args = @('--sql', 'select @v as value', '--parameters', '[{"name":"v","dbType":"Int64","value":"9007199254740993"}]') },
+        @{ Tool = 'query_table_page'; Args = @('--table-name', 'users', '--page', '1', '--page-size', '2') },
+        @{ Tool = 'get_database_capabilities'; Args = @() },
         @{ Tool = 'sql_query_single'; Args = @('--sql', 'select * from "users" order by "id" limit 1') },
         @{ Tool = 'get_data_set_all'; Args = @('--sql', 'select * from "users"; select * from "orders"') },
         @{ Tool = 'get_scalar'; Args = @('--sql', 'select count(*) from "users"') },
-        @{ Tool = 'sql_query_with_in_parameter'; Args = @('--sql', 'select * from "users" where "id" in (@ids)', '--in-parameter-name', 'ids', '--in-values', '[1,2]') },
         @{ Tool = 'batch_sql_query'; Args = @('--queries', '["select count(*) from users","select count(*) from orders"]'); Assert = { param($invocation, $environment) Assert-BatchSqlQueryResult -Invocation $invocation } },
         @{ Tool = 'execute_command'; Args = @('--sql', 'insert into "users" ("name","email","age","status") values (''cli-user'',''cli@example.com'',28,''active'')', '--yes') },
         @{ Tool = 'call_stored_procedure'; Args = @('--procedure-name', 'sp_demo', '--yes') },
-        @{ Tool = 'call_stored_procedure_with_output'; Args = @('--procedure-name', 'sp_demo', '--output-parameters', '["out_value"]', '--yes') },
         @{ Tool = 'execute_command_with_go'; Args = @('--sql', "UPDATE ""users"" SET ""age"" = 31 WHERE ""id"" = 1`nGO", '--yes') },
-        @{ Tool = 'batch_execute_commands'; Args = @('--commands', '["update users set age = 29 where id = 1","update missing_table set value_text = ''failed''","update users set status = ''active'' where id = 2"]', '--yes'); Assert = { param($invocation, $environment) Assert-BatchCommandPartialSuccess -Invocation $invocation -Environment $environment } }
+        @{ Tool = 'batch_execute_commands'; Args = @('--commands', '[{"sql":"update users set age = @age where id = 1","parameters":[{"name":"age","value":29}]},{"sql":"update missing_table set value_text = ''failed''"},{"sql":"update users set status = ''active'' where id = 2"}]', '--yes'); Assert = { param($invocation, $environment) Assert-BatchCommandPartialSuccess -Invocation $invocation -Environment $environment } }
     )
 
-    $expectedToolCount = 56
+    $mongoUnsupported = {
+        param($invocation, $environment)
+        $payload = $invocation.Stdout | ConvertFrom-Json
+        if ($invocation.ExitCode -eq 0 -or $payload.errorCode -ne 1012) { throw 'Mongo tools must reject the SQLite connection with 1012.' }
+    }
+    $cases += @(
+        @{ Tool = 'mongo_list_collections'; Args = @(); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_find'; Args = @('--collection', 'docs', '--filter', '{}'); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_count'; Args = @('--collection', 'docs'); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_insert_one'; Args = @('--collection', 'docs', '--document', '{"x":1}', '--yes'); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_update'; Args = @('--collection', 'docs', '--filter', '{"x":1}', '--update', '{"$set":{"x":2}}', '--yes'); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_delete'; Args = @('--collection', 'docs', '--filter', '{"x":1}', '--yes'); Assert = $mongoUnsupported }
+    )
+    $expectedToolCount = 62
     $catalogInvocation = Invoke-DatabaseTool -ConfigPath $null -ToolArgs @('list')
     if ($catalogInvocation.ExitCode -ne 0) {
         throw "tool list failed with exit code $($catalogInvocation.ExitCode). stderr: $($catalogInvocation.Stderr)"

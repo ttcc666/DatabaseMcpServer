@@ -44,6 +44,9 @@ internal class DatabaseHelper : IDatabaseHelperService
     /// 将字符串类型转换为 SqlSugar 的 DbType 枚举。
     /// </summary>
     public DbType ParseDbType(string dbType)
+        => ParseSupportedDbType(dbType);
+
+    internal static DbType ParseSupportedDbType(string dbType)
     {
         return dbType.ToLowerInvariant() switch
         {
@@ -75,27 +78,6 @@ internal class DatabaseHelper : IDatabaseHelperService
             "gaussdbnative" => DbType.GaussDBNative,
             _ => throw new ArgumentException($"不支持的数据库类型: {dbType}。支持的数据库类型包括：mysql, postgresql, sqlserver, oracle, mongodb, sqlite, clickhouse, tidb, oceanbase, oceanbasefororacle, questdb, tdengine, duckdb, doris, dm, kdbndp, kingbase, oscar, hg, vastbase, goldendb, gbase, polardb, gaussdb, opengauss, gaussdbnative")
         };
-    }
-
-    /// <summary>
-    /// 解析 JSON 格式的参数字符串为 SqlSugar 参数数组。
-    /// </summary>
-    public SugarParameter[]? ParseParameters(string? parametersJson)
-    {
-        if (string.IsNullOrWhiteSpace(parametersJson))
-        {
-            return null;
-        }
-
-        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parametersJson);
-        if (paramsDict == null)
-        {
-            return null;
-        }
-
-        return paramsDict
-            .Select(kvp => new SugarParameter(kvp.Key, JsonElementValueConverter.ConvertToValue(kvp.Value)))
-            .ToArray();
     }
 
     /// <summary>

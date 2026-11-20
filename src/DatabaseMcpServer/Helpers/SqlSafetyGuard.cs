@@ -22,8 +22,33 @@ internal static class SqlSafetyGuard
     private static readonly Regex LeadingTokenRegex = new(@"^[A-Za-z]+", RegexOptions.Compiled);
 
     private static readonly Regex ForbiddenWriteKeywordRegex = new(
-        @"\b(INSERT|UPDATE|DELETE|MERGE|REPLACE|UPSERT|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|CALL)\b",
+        @"\b(INSERT|UPDATE|DELETE|MERGE|REPLACE|UPSERT|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|CALL|INTO)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly HashSet<string> ReadOnlyPragmas = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application_id", "auto_vacuum", "automatic_index", "busy_timeout", "cache_size",
+        "collation_list", "compile_options", "data_version", "database_list", "encoding",
+        "foreign_keys", "freelist_count", "function_list", "journal_mode", "journal_size_limit",
+        "locking_mode", "max_page_count", "mmap_size", "module_list", "page_count", "page_size",
+        "pragma_list", "query_only", "read_uncommitted", "recursive_triggers", "schema_version",
+        "secure_delete", "synchronous", "temp_store", "threads", "trusted_schema", "user_version"
+    };
+
+    private static readonly HashSet<string> ReadOnlyParameterizedPragmas = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "table_info", "table_xinfo", "table_list", "index_info", "index_xinfo", "index_list",
+        "foreign_key_list", "foreign_key_check", "integrity_check", "quick_check"
+    };
+
+    private const string PragmaIdentifier = """(?:[A-Za-z_][A-Za-z0-9_]*|"(?:""|[^"])*"|'(?:''|[^'])*'|`(?:``|[^`])*`|\[[^\]]+\])""";
+    private const string PragmaArgument = "(?:" + PragmaIdentifier + @"|[+-]?\d+)";
+    private static readonly Regex ReadOnlyPragmaRegex = new(
+        @"^PRAGMA\s+(?:" + PragmaIdentifier + @"\s*\.\s*)?(?<name>" + PragmaIdentifier +
+        @")\s*(?<argument>=\s*" + PragmaArgument + @"|\(\s*" + PragmaArgument + @"\s*\))?\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ExecutableCommentRegex = new(@"/\*(?:!|M!)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex UnsafeWhereClauseRegex = new(
         @"(--|/\*|\*/|;|\b(INSERT|UPDATE|DELETE|MERGE|REPLACE|UPSERT|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|CALL)\b)",
@@ -38,7 +63,7 @@ internal static class SqlSafetyGuard
             throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "SQL 不能为空");
         }
 
-        if (databaseHelper.DetectDangerousOperation(sql))
+        if (ExecutableCommentRegex.IsMatch(sql) || databaseHelper.DetectDangerousOperation(sql))
         {
             throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "检测到潜在危险操作，只允许只读 SQL。");
         }
@@ -83,6 +108,18 @@ internal static class SqlSafetyGuard
         }
     }
 
+    // Restricted raw command mode deliberately accepts only standalone DML.
+    // Procedures and scripts can change schema indirectly and require schema-admin.
+    public static void EnsureDataModificationSql(string sql)
+    {
+        var statements = SplitStatements(sql).Select(NormalizeSql).Where(s => s.Length > 0).ToArray();
+        if (statements.Length == 0 || ExecutableCommentRegex.IsMatch(sql) || statements.Any(statement =>
+            !Regex.IsMatch(statement, @"^(INSERT|UPDATE|DELETE|MERGE|REPLACE|UPSERT)\b", RegexOptions.IgnoreCase) ||
+            Regex.IsMatch(StripStringLiterals(statement), @"\b(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|EXEC|EXECUTE|CALL|PRAGMA|ATTACH|DETACH|COPY|GO)\b", RegexOptions.IgnoreCase)))
+            throw new DatabaseMcpException(DatabaseErrorCode.AccessDenied,
+                "read-write 模式仅允许独立 DML；架构、脚本和存储过程需要 schema-admin。");
+    }
+
     public static void EnsureSafeTableName(string tableName)
     {
         if (string.IsNullOrWhiteSpace(tableName))
@@ -112,8 +149,25 @@ internal static class SqlSafetyGuard
             throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "只读工具仅支持 SELECT/WITH/SHOW/DESC/EXPLAIN/PRAGMA。");
         }
 
+        if (firstToken.Equals("PRAGMA", StringComparison.OrdinalIgnoreCase))
+        {
+            var pragma = ReadOnlyPragmaRegex.Match(statement);
+            var name = pragma.Groups["name"].Value.Trim('\'', '"', '`', '[', ']');
+            if (!pragma.Success ||
+                !(ReadOnlyParameterizedPragmas.Contains(name) ||
+                  (ReadOnlyPragmas.Contains(name) && !pragma.Groups["argument"].Success)))
+            {
+                throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation,
+                    "只读工具仅允许读取已知 PRAGMA；赋值和具有副作用的 PRAGMA 已拒绝执行。");
+            }
+
+            return;
+        }
+
         var sqlWithoutStringLiterals = StripStringLiterals(statement);
-        if (ForbiddenWriteKeywordRegex.IsMatch(sqlWithoutStringLiterals))
+        // Some SQLite PRAGMAs execute during preparation, even when prefixed with EXPLAIN.
+        if (ForbiddenWriteKeywordRegex.IsMatch(sqlWithoutStringLiterals) ||
+            Regex.IsMatch(sqlWithoutStringLiterals, @"\bPRAGMA\b", RegexOptions.IgnoreCase))
         {
             throw new DatabaseMcpException(DatabaseErrorCode.DangerousOperation, "只读工具检测到写操作关键字，已拒绝执行。");
         }
@@ -145,27 +199,57 @@ internal static class SqlSafetyGuard
     {
         var statements = new List<string>();
         var builder = new StringBuilder();
-        var inString = false;
+        var quote = '\0';
 
         for (var i = 0; i < sql.Length; i++)
         {
             var c = sql[i];
-            if (c == '\'')
+            if (quote == '\0' && i + 1 < sql.Length)
             {
-                builder.Append(c);
-
-                if (inString && i + 1 < sql.Length && sql[i + 1] == '\'')
+                if (c == '-' && sql[i + 1] == '-')
                 {
-                    builder.Append(sql[i + 1]);
-                    i++;
+                    while (i < sql.Length && sql[i] != '\n')
+                    {
+                        i++;
+                    }
+
+                    builder.Append(' ');
                     continue;
                 }
 
-                inString = !inString;
+                if (c == '/' && sql[i + 1] == '*')
+                {
+                    var end = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = end < 0 ? sql.Length : end + 1;
+                    builder.Append(' ');
+                    continue;
+                }
+            }
+
+            if (quote != '\0')
+            {
+                builder.Append(c);
+                if (c == quote)
+                {
+                    if (i + 1 < sql.Length && sql[i + 1] == quote)
+                    {
+                        builder.Append(sql[++i]);
+                    }
+                    else
+                    {
+                        quote = '\0';
+                    }
+                }
+
                 continue;
             }
 
-            if (c == ';' && !inString)
+            if (c is '\'' or '"' or '`' or '[')
+            {
+                quote = c == '[' ? ']' : c;
+            }
+
+            if (c == ';')
             {
                 statements.Add(builder.ToString());
                 builder.Clear();
@@ -231,27 +315,36 @@ internal static class SqlSafetyGuard
     private static string StripStringLiterals(string sql)
     {
         var builder = new StringBuilder(sql.Length);
-        var inString = false;
+        var quote = '\0';
 
         for (var i = 0; i < sql.Length; i++)
         {
             var c = sql[i];
-            if (c == '\'')
+            if (quote != '\0')
             {
-                if (inString && i + 1 < sql.Length && sql[i + 1] == '\'')
+                if (c == quote)
                 {
-                    i++;
-                    continue;
+                    if (i + 1 < sql.Length && sql[i + 1] == quote)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        quote = '\0';
+                    }
                 }
 
-                inString = !inString;
                 continue;
             }
 
-            if (!inString)
+            if (c is '\'' or '"' or '`' or '[')
             {
-                builder.Append(c);
+                quote = c == '[' ? ']' : c;
+                builder.Append(' ');
+                continue;
             }
+
+            builder.Append(c);
         }
 
         return builder.ToString();

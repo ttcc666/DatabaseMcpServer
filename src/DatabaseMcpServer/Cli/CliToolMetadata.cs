@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
 using DatabaseMcpServer.Extensions;
 using ModelContextProtocol.Server;
 
@@ -19,7 +18,7 @@ internal sealed record CliToolParameterMetadata(
 
     public bool IsBoolean => EffectiveType == typeof(bool);
 
-    public bool IsJson => EffectiveType == typeof(JsonElement);
+    public bool IsJson => EffectiveType.IsArray || EffectiveType == typeof(Dictionary<string, System.Text.Json.JsonElement>);
 
     public string DisplayTypeName => EffectiveType == typeof(string)
         ? "string"
@@ -27,7 +26,7 @@ internal sealed record CliToolParameterMetadata(
             ? "int"
             : EffectiveType == typeof(bool)
                 ? "bool"
-                : EffectiveType == typeof(JsonElement)
+                : IsJson
                     ? "json"
                     : EffectiveType.Name;
 }
@@ -81,6 +80,7 @@ internal sealed class CliToolCatalog
                 var toolName = ToSnakeCase(method.Name);
                 var parameters = method
                     .GetParameters()
+                    .Where(parameter => parameter.ParameterType != typeof(CancellationToken))
                     .Select(parameter => new CliToolParameterMetadata(
                         parameter.Name ?? string.Empty,
                         ToKebabCase(parameter.Name ?? string.Empty),

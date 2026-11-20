@@ -291,11 +291,12 @@ public class CliCommandParserTests
             batchTool,
             new Dictionary<string, string?>
             {
-                ["commands"] = "[\"SELECT 1\"]"
+                ["commands"] = """[{"sql":"SELECT @value", "parameters":[{"name":"value","value":7}]}]"""
             });
 
-        Assert.IsType<JsonElement>(batchArguments[0]);
-        Assert.Equal(JsonValueKind.Array, ((JsonElement)batchArguments[0]).ValueKind);
+        var command = Assert.Single(Assert.IsType<DatabaseMcpServer.Models.DatabaseCommand[]>(batchArguments[0]));
+        Assert.Equal("SELECT @value", command.Sql);
+        Assert.Equal(7, Assert.Single(command.Parameters!).Value.GetInt32());
         Assert.Null(batchArguments[1]);
 
         var batchQueryTool = GetTool("batch_sql_query");
@@ -306,11 +307,10 @@ public class CliCommandParserTests
                 ["queries"] = "[\"SELECT 1\",\"SELECT 2\"]"
             });
 
-        Assert.IsType<JsonElement>(batchQueryArguments[0]);
-        Assert.Equal(JsonValueKind.Array, ((JsonElement)batchQueryArguments[0]).ValueKind);
+        Assert.Equal(new[] { "SELECT 1", "SELECT 2" }, Assert.IsType<string[]>(batchQueryArguments[0]));
         Assert.False(batchQueryTool.RequiresConfirmation);
 
-        var sqlQueryTool = GetTool("sql_query");
+        var sqlQueryTool = GetTool("query_database");
         var sqlQueryArguments = CliRunner.BindArguments(
             sqlQueryTool,
             new Dictionary<string, string?>
@@ -331,6 +331,21 @@ public class CliCommandParserTests
             CliRunner.BindArguments(tool, new Dictionary<string, string?>()));
 
         Assert.Contains("--database-name", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("batch_execute_commands", "commands", "\"select 1\"")]
+    [InlineData("batch_execute_commands", "commands", "[\"select 1\"]")]
+    [InlineData("batch_execute_commands", "commands", "\"[{\\\"sql\\\":\\\"select 1\\\"}]\"")]
+    [InlineData("execute_command", "parameters", "{\"value\":1}")]
+    [InlineData("execute_command", "typed-parameters", "[]")]
+    [InlineData("call_stored_procedure", "output-parameters", "[\"value\"]")]
+    public void BindArguments_RejectsObsoleteShapes(string name, string option, string value)
+    {
+        var options = new Dictionary<string, string?> { [option] = value };
+        if (name == "execute_command") options["sql"] = "select 1";
+        if (name == "call_stored_procedure") options["procedure-name"] = "unused";
+        Assert.Throws<InvalidOperationException>(() => CliRunner.BindArguments(GetTool(name), options));
     }
 
     private CliToolMetadata GetTool(string toolName)

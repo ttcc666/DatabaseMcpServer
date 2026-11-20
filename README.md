@@ -6,21 +6,23 @@
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
 
- 一个功能强大的数据库操作 MCP (Model Context Protocol) 服务器，聚焦 **19 种常用数据库类型**（主流 + 特定场景 + 国产化/信创），支持 **单实例多数据库动态切换**，让 AI 助手能够安全、便捷地执行数据库操作。
+ 基于 SqlSugar 的数据库操作 MCP (Model Context Protocol) 服务器，支持 **单实例多数据库动态切换**。实际工具能力、驱动依赖和实库验证范围见 [ORM 配置约定](Doc/orm-configuration.md)。
 
 ## ✨ 核心特性
 
-- 🗄️ **多数据库支持** - 覆盖 17 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB + SQLite/ClickHouse/TiDB/OceanBase + 达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）
+- 🗄️ **多数据库接入** - 按产品与实际驱动分别诊断；MySQL、PostgreSQL、SQL Server、SQLite 有回归验证，其他产品需按部署环境验收。
 - 🔄 **单实例多数据库** - 一个 MCP Server 实例可配置和动态切换多个数据库连接
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
-- ⚡ **高性能优化** - SqlSugarScope 连接池复用 + 数据库特定优化 + 自动性能调优
+- ⚡ **执行隔离** - 独占 SqlSugarClient 租约 + 驱动物理连接池 + 数据库特定优化
 - 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
-- 💾 **完整功能** - 50+ MCP 工具（当前约 55 个），涵盖查询、操作、架构管理、健康检查等
+- 💾 **完整功能** - 62 个 MCP 工具，涵盖类型化查询、分页、MongoDB 集合、操作、架构管理和能力诊断；新部署推荐 .NET 10 LTS，见[数据库 MCP 工作流](Doc/database-mcp-workflow.md)
 - 🚀 **生产就绪** - 支持事务、批量操作、存储过程、自动重连
-- 📦 **.NET Global Tool** - 简单安装，一键部署
+- 📦 **.NET Global Tool** - 发布包要求 .NET 10；源码保留 .NET 9/10 构建与测试
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
 
 ## 🗄️ 支持的数据库类型
+
+HG/GBase/TDengine/DuckDB 扩展和 .NET 驱动已随包安装；GBase、TDengine 仍需部署原生客户端，详见[驱动清单](Doc/provider-drivers.md)。MongoDB 提供六个原生集合查询/写入工具，使用 Extended JSON v2，详见[集合契约](Doc/mongodb-collections.md)；通用 SQL 工具不适用。下列名称不代表所有功能均已验收。
 
 ### 🔥 一线最常用
 - **MySQL** (默认)
@@ -50,6 +52,8 @@
 ## 🚀 快速开始
 
 ### 第一步：安装 .NET Global Tool
+
+发布工具要求 .NET 10 SDK（包含 .NET / ASP.NET Core 运行时）。源码仍保留 .NET 9/10 构建与测试；驱动与平台要求见[驱动清单](Doc/provider-drivers.md)。
 
 ```bash
 # 安装最新版本
@@ -552,9 +556,11 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 ---
 
-## 📋 完整功能清单（约 55 个工具）
+## 📋 完整功能清单（62 个工具）
 
 逐工具参数、返回行为、CLI 示例和 `--yes` 要求见 [TOOLS.md](TOOLS.md)。
+
+MongoDB：`mongo_list_collections`、`mongo_find`、`mongo_count`、`mongo_insert_one`、`mongo_update`、`mongo_delete`。默认 one 写入、有限查询、类型保真和危险操作保护见[集合契约](Doc/mongodb-collections.md)。
 
 ### 🔌 一、连接与配置管理
 
@@ -598,12 +604,12 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 ### 📊 四、数据查询工具
 
 **基础查询：**
-- **sql_query** - 执行 SQL 查询并返回强类型实体集合（支持参数化查询，可选 `commandTimeoutSeconds`）
+- **query_database** - 类型化参数、IN 数组、命名目标和有界结构化结果
+- **query_table_page** - 按主键排序分页，不自动 COUNT
 - **sql_query_single** - 执行 SQL 查询并返回单条记录（可选超时）
 
 **高级查询：**
 - **get_data_set_all** - 获取多个结果集，支持一次执行多个查询（可选超时）
-- **sql_query_with_in_parameter** - 处理 IN 参数查询，支持数组参数（可选超时）
 - **batch_sql_query** - 顺序执行 1-5 条只读 SQL，并逐条返回成功结果或错误（可选超时作用于批内每条）
 
 **标量值查询：**
@@ -613,8 +619,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 - **execute_command** - 执行 SQL 命令（INSERT、UPDATE、DELETE；可选 `commandTimeoutSeconds`）
 - **batch_execute_commands** - 批量执行 SQL 命令（性能优化；可选超时作用于批内每条）
-- **call_stored_procedure** - 调用存储过程（简单用法；可选超时）
-- **call_stored_procedure_with_output** - 调用带有输出参数的存储过程（可选超时）
+- **call_stored_procedure** - 通过类型化参数调用存储过程，支持输入/输出/InputOutput/ReturnValue（可选超时）
 - **execute_command_with_go** - 执行包含 GO 语句的 SQL Server 脚本（可选超时）
 
 ### 🛠️ 六、数据库架构操作（高风险）
@@ -764,7 +769,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 ```json
 {
   "sql": "SELECT * FROM users WHERE age > @age AND city = @city",
-  "parameters": "{\"age\":18,\"city\":\"北京\"}"
+  "parameters": [{"name": "age", "value": 18}, {"name": "city", "value": "北京"}]
 }
 ```
 
@@ -779,7 +784,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 ```json
 {
   "sql": "SELECT * FROM large_report WHERE day = @day",
-  "parameters": "{\"day\":\"2026-08-01\"}",
+  "parameters": [{"name": "day", "value": "2026-08-01"}],
   "commandTimeoutSeconds": 900
 }
 ```
@@ -787,7 +792,7 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 ```bash
 DatabaseMcpServer tool execute_command \
   --sql 'update large_table set status=@status where id=@id' \
-  --parameters '{"status":"done","id":1}' \
+  --parameters '[{"name":"status","value":"done"},{"name":"id","value":1}]' \
   --command-timeout-seconds 900 \
   --yes
 ```
@@ -821,7 +826,7 @@ dotnet build 'DatabaseMcpServer.slnx'
 dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # 打包发布
-dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0'
 ```
 
 推荐的稳定验证方式：
@@ -831,6 +836,11 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
 ```
 
 ## 🆕 版本发布
+
+- **未发布：依赖升级与可靠性修复**
+  - 升级 MCP 2.4.0、SqlSugarCore 5.1.4.221 及兼容依赖，SDK 固定为 10.0.404
+  - 修复只读 PRAGMA 写入漏洞、极小数归零和 MCP 错误标志；保留工具名及 CLI/Web JSON 格式
+  - 版本矩阵、数值边界、协议取消及数据库回归见 [升级说明](Doc/dependency-upgrade.md)
 
 - **3.7.0**
   - 新增可选配置文件监听，长驻 MCP stdio / `-web` 可在默认库变化时自动切换当前连接；优先级为启动参数 `--enable-monitor-config` > 环境变量 `ENABLE_MONITOR_CONFIG` > 配置字段 `enableMonitorConfig`，默认关闭
@@ -916,42 +926,37 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release
    using System.ComponentModel;
    using ModelContextProtocol.Server;
    using DatabaseMcpServer.Interfaces;
+   using DatabaseMcpServer.Models;
+   using DatabaseMcpServer.Services;
+   using Microsoft.Extensions.Logging;
 
    namespace DatabaseMcpServer.Tools;
 
    [McpServerToolType]
-   internal class YourNewTools
+   internal class YourNewTools(
+       IDatabaseConfigService databases,
+       IDatabaseHelperService helper,
+       IJsonResultSerializer serializer,
+       ILogger<YourNewTools> logger,
+       DatabaseExecutionOptions options,
+       DatabaseMetadataCache metadataCache)
+       : McpToolBase(databases, helper, serializer, logger, options, metadataCache)
    {
-       private readonly IDatabaseConfigService _databaseConfig;
-       private readonly IDatabaseHelperService _databaseHelper;
-
-       public YourNewTools(IDatabaseConfigService databaseConfig, IDatabaseHelperService databaseHelper)
-       {
-           _databaseConfig = databaseConfig;
-           _databaseHelper = databaseHelper;
-       }
-
-       [McpServerTool]
-       [Description("你的工具描述")]
-       public string YourMethod([Description("参数描述")] string parameter)
-       {
-           var db = _databaseConfig.CreateClient();
-           // 实现你的功能
-           return _databaseHelper.SerializeResult(new { success = true, data = "result" });
-       }
+       [McpServerTool(ReadOnly = true)]
+       [Description("Return the connected database type.")]
+       public string YourMethod([Description("Database connection name.")] string? databaseName = null)
+           => WithClient(db => new { success = true, databaseType = db.CurrentConnectionConfig.DbType.ToString() }, databaseName);
    }
    ```
 
 3. **注册工具**
-   在 `Program.cs` 中：
+   在 `Extensions/DatabaseMcpToolCatalog.cs` 的 `Registrations` 中添加一项：
    ```csharp
-   builder.Services
-       .AddMcpServer()
-       .WithStdioServerTransport()
-       .WithTools<ConnectionTools>()
-       .WithTools<SchemaTools>()
-       .WithTools<QueryTools>()
-       .WithTools<CommandTools>();
+   new(typeof(YourNewTools), static builder => builder.WithTools<YourNewTools>())
+   ```
+   注册由统一扩展完成：
+   ```csharp
+   builder.Services.AddDatabaseMcpServer();
    ```
 
 ### 项目架构

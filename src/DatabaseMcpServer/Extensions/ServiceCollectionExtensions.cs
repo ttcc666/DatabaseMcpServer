@@ -22,10 +22,20 @@ internal static class ServiceCollectionExtensions
         this IServiceCollection services,
         bool cliToolMode = false,
         string? currentDatabaseStateFilePath = null,
-        bool? enableMonitorConfig = null)
+        bool? enableMonitorConfig = null,
+        string? configPath = null)
     {
-        services.AddSingleton(new DatabaseRuntimeOptions(enableMonitorConfig));
+        var resolvedPath = CliConfigurationPathResolver.ResolveWritablePath(
+            configPath ?? Environment.GetEnvironmentVariable("DB_CONFIG_PATH"),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        services.AddSingleton(new DatabaseRuntimeOptions(enableMonitorConfig, resolvedPath.Path));
         services.AddSingleton<IJsonResultSerializer, JsonResultSerializer>();
+        services.AddSingleton(DatabaseExecutionOptions.FromEnvironment());
+        services.AddTransient<DatabaseQueryService>();
+        services.AddSingleton<MongoClientRegistry>();
+        services.AddTransient<MongoCollectionService>();
+        services.AddSingleton<DatabaseConnectionProbe>();
+        services.AddSingleton<DatabaseMetadataCache>();
         services.AddSingleton<IDatabaseHelperService, DatabaseHelper>();
         services.AddSingleton<IDatabaseOptimizationStrategyFactory, DatabaseOptimizationStrategyFactory>();
         services.AddSingleton<ISqlSugarClientFactory, SqlSugarClientFactory>();
@@ -56,6 +66,9 @@ internal static class ServiceCollectionExtensions
     public static IMcpServerBuilder AddDatabaseMcpServer(this IServiceCollection services)
     {
         services.AddDatabaseMcpToolServices();
+        var toolMetadata = new CliToolCatalog().Tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        var argumentNames = toolMetadata.Values.ToDictionary(tool => tool.Name,
+            tool => tool.Parameters.Select(parameter => parameter.ParameterName).ToHashSet(StringComparer.Ordinal));
 
         var builder = services
             .AddMcpServer(options =>
@@ -70,7 +83,60 @@ internal static class ServiceCollectionExtensions
                     WebsiteUrl = "https://github.com/ttcc666/DatabaseMcpServer"
                 };
             })
-            .WithStdioServerTransport();
+            .WithStdioServerTransport()
+            .WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, cancellationToken) =>
+            {
+                if (context.Params is { } request && argumentNames.TryGetValue(request.Name, out var allowed))
+                {
+                    var arguments = request.Arguments ?? new Dictionary<string, System.Text.Json.JsonElement>();
+                    var unknown = arguments.Keys.FirstOrDefault(name => !allowed.Contains(name));
+                    if (unknown != null)
+                    {
+                        if (request.Name.StartsWith("mongo_", StringComparison.Ordinal))
+                            return MongoCollectionService.ToToolResult(new() { Success = false, ErrorCode = 1004,
+                                ErrorMessage = "包含未知参数，请按当前 tools/list schema 调用。",
+                                WriteOutcome = CliWriteProtection.RequiresConfirmation(request.Name) ? "not-executed" : null });
+                        return new CallToolResult { IsError = true, Content = [new TextContentBlock
+                        {
+                            Text = System.Text.Json.JsonSerializer.Serialize(new { success = false, errorCode = 1004,
+                                errorMessage = $"未知参数 '{unknown}'，请按当前 tools/list schema 调用。" })
+                        }] };
+                    }
+                    if (request.Name.StartsWith("mongo_", StringComparison.Ordinal))
+                    {
+                        try
+                        {
+                            foreach (var parameter in toolMetadata[request.Name].Parameters)
+                            {
+                                if (!arguments.TryGetValue(parameter.ParameterName, out var value))
+                                {
+                                    if (parameter.IsRequired) throw MongoDocumentContract.Invalid("缺少必填 Mongo 工具参数。");
+                                    continue;
+                                }
+                                if (parameter.IsJson) MongoDocumentContract.ValidateObject(value);
+                                else if (value.ValueKind == System.Text.Json.JsonValueKind.Null && !parameter.IsRequired &&
+                                    (!parameter.ParameterType.IsValueType || Nullable.GetUnderlyingType(parameter.ParameterType) != null)) continue;
+                                else if (parameter.EffectiveType == typeof(string) && value.ValueKind == System.Text.Json.JsonValueKind.String) continue;
+                                else if (parameter.EffectiveType == typeof(bool) && value.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False) continue;
+                                else if (parameter.EffectiveType == typeof(int) && value.ValueKind == System.Text.Json.JsonValueKind.Number && value.TryGetInt32(out _)) continue;
+                                else throw MongoDocumentContract.Invalid("Mongo 工具参数类型不符合当前 tools/list schema。");
+                            }
+                        }
+                        catch (DatabaseMcpException ex)
+                        {
+                            return MongoCollectionService.ToToolResult(new() { Success = false, ErrorCode = (int)ex.ErrorCode,
+                                ErrorMessage = ex.Message, WriteOutcome = CliWriteProtection.RequiresConfirmation(request.Name) ? "not-executed" : null });
+                        }
+                    }
+                }
+                var result = await next(context, cancellationToken);
+                if (result.Content is [TextContentBlock text] && ToolResultStatus.IsFailure(text.Text))
+                {
+                    result.IsError = true;
+                }
+
+                return result;
+            }));
 
         // Prefer explicit WithTools<T>() registration (AOT-friendly) over assembly scanning.
         foreach (var registration in DatabaseMcpToolCatalog.Registrations)

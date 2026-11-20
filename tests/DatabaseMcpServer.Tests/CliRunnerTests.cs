@@ -6,6 +6,45 @@ namespace DatabaseMcpServer.Tests;
 
 public class CliRunnerTests
 {
+    [Theory]
+    [InlineData("corrupt")]
+    [InlineData("locked")]
+    [InlineData("unwritable")]
+    public async Task SwitchDatabase_ReturnsFailureWhenSelectionCannotBeSaved(string failure)
+    {
+        using var directory = new TemporaryUserProfile();
+        var config = Path.Combine(directory.DirectoryPath, "databases.json");
+        var state = Path.Combine(directory.DirectoryPath, "cli-state.json");
+        File.WriteAllText(config, """{"databases":[{"name":"primary","dbType":"Sqlite","connectionString":"Data Source=:memory:","isDefault":true},{"name":"analytics","dbType":"Sqlite","connectionString":"Data Source=:memory:"}]}""");
+        var runner = new CliRunner(new CliToolCatalog(), new CliConfigCommandHandler(), new TestCliWebHost(), state);
+        var original = failure == "corrupt" ? "{" : "{\"entries\":[]}";
+        if (failure == "unwritable")
+        {
+            Directory.CreateDirectory(state);
+        }
+        else
+        {
+            File.WriteAllText(state, original);
+        }
+        using var heldLock = failure == "locked" ? File.Open(state + ".lock", FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None) : null;
+        using var output = new StringWriter();
+
+        var exit = await runner.RunAsync(["tool", "switch_database", "--config", config, "--database-name", "analytics"], output, TextWriter.Null);
+
+        Assert.Equal(1, exit);
+        using var response = JsonDocument.Parse(output.ToString());
+        Assert.False(response.RootElement.GetProperty("success").GetBoolean());
+        Assert.Contains("无法保存当前数据库选择", response.RootElement.GetProperty("errorMessage").GetString());
+        if (failure != "unwritable")
+        {
+            Assert.Equal(original, File.ReadAllText(state));
+        }
+        using var next = new StringWriter();
+        Assert.Equal(0, await runner.RunAsync(["tool", "get_current_database", "--config", config], next, TextWriter.Null));
+        using var selection = JsonDocument.Parse(next.ToString());
+        Assert.Equal("primary", selection.RootElement.GetProperty("currentDatabase").GetString());
+    }
+
     [Fact]
     public async Task RunAsync_ShouldListTools_WithoutConfig()
     {

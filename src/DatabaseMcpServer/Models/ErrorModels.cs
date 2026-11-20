@@ -40,6 +40,12 @@ public enum DatabaseErrorCode
     /// </summary>
     InsufficientMemory = 1008,
 
+    DatabaseBusy = 1009,
+    AccessDenied = 1010,
+    CommandTimeout = 1011,
+    UnsupportedCapability = 1012,
+    ResponseLimitExceeded = 1013,
+
     /// <summary>
     /// 未知错误
     /// </summary>

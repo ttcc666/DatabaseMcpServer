@@ -5,6 +5,12 @@ namespace DatabaseMcpServer.Helpers;
 
 internal static class JsonSerializationDefaults
 {
+    public static JsonSerializerOptions CompactCamelCase { get; } = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public static JsonSerializerOptions IndentedCamelCase { get; } = new()
     {
         WriteIndented = true,

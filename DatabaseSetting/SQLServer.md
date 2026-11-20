@@ -2,6 +2,8 @@
 
 本文档详细说明 Microsoft SQL Server 数据库的配置方法，涵盖新版驱动所需的加密参数、.NET 8 全球化配置、NoLock 规范、禁用 nvarchar 等实战要点。
 
+本服务执行原始 ADO/SqlQueryable SQL，enableNoLock 不会自动为这些查询添加 WITH(NOLOCK)。ORM 选项生效范围见 [统一配置约定](../Doc/orm-configuration.md)；未经本项目测量的性能比例不能视为承诺。
+
 ---
 
 ## 📋 配置方式
@@ -101,8 +103,8 @@ DatabaseMcpServer 自动为 SQL Server 应用以下优化：
 
 | 优化项 | 说明 | 效果 |
 |--------|------|------|
-| **NoLock 查询** | 自动添加 `WITH(NOLOCK)`（可用 `enableNoLock` 关闭） | 并发读取性能提升 **60-70%** |
-| 事务中禁用 NoLock | 默认开启，可用 `disableNoLockWithTran` 调整 | 避免脏读 |
+| **NoLock 查询** | 仅实体 Queryable 的 ORM 选项；不改写 MCP 原始 SQL | 允许脏读，需要业务自行判断 |
+| 事务中禁用 NoLock | 实体 Queryable 设置，不覆盖 SQL 中显式 hints | 不代替事务隔离级别 |
 | 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
 | 可选禁用 nvarchar | 通过 `disableNvarchar` 配置 | 索引性能提升 **20-30%** |
 | 原生连通性验证 | 建议失败时使用 `new SqlConnection(...).Open()` | 快速判定驱动/配置问题 |
@@ -244,7 +246,7 @@ WHERE name = '张三'   -- 索引正常使用
 - ✅ 大连接池（5-200）
 - ✅ 安全证书验证
 - ✅ 应用程序标识
-- ✅ 自动 NoLock 优化
+- ORM NoLock 设置不作用于当前原始 SQL 查询
 - ✅ 禁用 nvarchar 优化索引
 
 ### 开发环境配置
@@ -370,8 +372,8 @@ Only the invariant globalization mode is supported
 
 ### 问题 5: NoLock 规范
 
-- 非事务读查询建议使用 `WITH(NOLOCK)`（默认已开启）。
-- 事务内自动禁用以保证一致性，如需手动禁用：`db.CurrentConnectionConfig.MoreSettings.IsWithNoLockQuery = false;`
+- WITH(NOLOCK) 允许脏读，不是通用优化建议；本服务不自动添加。
+- ORM 的 DisableWithNoLockWithTran 不能移除用户原始 SQL 中的显式 hints，也不保证业务一致性。
 
 ---
 
@@ -379,21 +381,21 @@ Only the invariant globalization mode is supported
 
 ### 1. NoLock 查询优化
 
-**自动启用**: DatabaseMcpServer 自动为非事务查询添加 `WITH(NOLOCK)`
+**适用范围**: IsWithNoLockQuery 只影响实体 Queryable；DatabaseMcpServer 原始查询不自动添加此 hint。
 
-**性能提升**: 并发读取性能提升 **60-70%**
+**性能影响**: 需要结合实际负载测量。
 
 **注意事项**:
 - ✅ 适用于读多写少的场景
-- ✅ 事务中自动禁用，保证一致性
+- 事务一致性取决于隔离级别和实际 SQL
 - ⚠️ 可能读取到未提交的数据（脏读）
 
 **手动控制**:
 ```csharp
-// 单个查询禁用 NoLock
+// 实体 Queryable 显式启用 NoLock（允许脏读）
 db.Queryable<Order>().With(SqlWith.NoLock).ToList();
 
-// 全局禁用 NoLock（不推荐）
+// 实体 Queryable 全局禁用 NoLock
 MoreSettings = new ConnMoreSettings() { IsWithNoLockQuery = false }
 ```
 

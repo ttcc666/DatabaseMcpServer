@@ -346,12 +346,10 @@ public class DatabaseConfigFileMonitorServiceTests
 
     private sealed class NoopSqlSugarClientFactory : ISqlSugarClientFactory
     {
-        public SqlSugar.ISqlSugarClient CreateClient(DatabaseMcpServer.Models.DatabaseConnection connection)
-        {
-            throw new NotSupportedException();
-        }
+        public DatabaseMcpServer.Models.DatabaseClientLease AcquireClient(DatabaseMcpServer.Models.DatabaseConnection connection) => throw new NotSupportedException();
+        public DatabaseMcpServer.Models.DatabaseClientReservation ReserveClient(DatabaseMcpServer.Models.DatabaseConnection connection) => throw new NotSupportedException();
 
-        public void ResetClientPool()
+        public void UpdateConnections(IReadOnlyDictionary<string, DatabaseMcpServer.Models.DatabaseConnection> connections, string? previousName = null, string? newName = null)
         {
         }
     }

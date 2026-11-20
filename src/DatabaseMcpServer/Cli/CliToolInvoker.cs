@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
+using DatabaseMcpServer.Helpers;
+using ModelContextProtocol.Protocol;
 
 namespace DatabaseMcpServer.Cli;
 
@@ -8,19 +10,15 @@ internal static class CliToolInvoker
 {
     public static object[] BindArguments(
         CliToolMetadata tool,
-        IReadOnlyDictionary<string, string?> optionValues,
-        bool rejectUnknownOptions = false)
+        IReadOnlyDictionary<string, string?> optionValues)
     {
-        if (rejectUnknownOptions)
+        var knownOptions = tool.Parameters
+            .Select(parameter => parameter.OptionName)
+            .ToHashSet(StringComparer.Ordinal);
+        var unknownOption = optionValues.Keys.FirstOrDefault(option => !knownOptions.Contains(option));
+        if (unknownOption != null)
         {
-            var knownOptions = tool.Parameters
-                .Select(parameter => parameter.OptionName)
-                .ToHashSet(StringComparer.Ordinal);
-            var unknownOption = optionValues.Keys.FirstOrDefault(option => !knownOptions.Contains(option));
-            if (unknownOption != null)
-            {
-                throw new InvalidOperationException($"未知选项 '--{unknownOption}'。tool: {tool.Name}");
-            }
+            throw new InvalidOperationException($"未知选项 '--{unknownOption}'。tool: {tool.Name}");
         }
 
         var values = new object[tool.Parameters.Count];
@@ -47,31 +45,36 @@ internal static class CliToolInvoker
     public static async Task<string> InvokeAsync(
         CliToolMetadata tool,
         object toolInstance,
-        object[] arguments)
+        object[] arguments,
+        CancellationToken cancellationToken = default)
     {
-        var result = tool.Method.Invoke(toolInstance, arguments);
+        cancellationToken.ThrowIfCancellationRequested();
+        var argumentIndex = 0;
+        var invocationArguments = tool.Method.GetParameters().Select(parameter =>
+            parameter.ParameterType == typeof(CancellationToken) ? (object)cancellationToken : arguments[argumentIndex++]).ToArray();
+        object? result;
+        try { result = tool.Method.Invoke(toolInstance, invocationArguments); }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
         return result switch
         {
             string text => text,
             Task<string> task => await task,
+            Task<CallToolResult> task => GetPayload(await task),
             _ => throw new InvalidOperationException($"tool '{tool.Name}' 返回类型不受支持。")
         };
     }
 
-    public static bool IsToolFailure(string payload)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(payload);
-            return document.RootElement.ValueKind == JsonValueKind.Object &&
-                   document.RootElement.TryGetProperty("success", out var successElement) &&
-                   successElement.ValueKind == JsonValueKind.False;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
+    private static string GetPayload(CallToolResult result) => result.Content is [TextContentBlock text]
+        ? text.Text : throw new InvalidOperationException("工具未返回单个 JSON 文本结果。");
+
+    public static bool IsToolFailure(string payload) => ToolResultStatus.IsFailure(payload);
+
+    public static bool IsToolFailure(JsonElement result) =>
+        ToolResultStatus.IsFailure(result);
 
     public static Exception Unwrap(Exception exception)
     {
@@ -109,16 +112,26 @@ internal static class CliToolInvoker
             throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 需要 bool 值。");
         }
 
-        if (targetType == typeof(JsonElement))
+        if (targetType == typeof(Dictionary<string, JsonElement>))
         {
             try
             {
-                return JsonDocument.Parse(rawValue ?? "null").RootElement.Clone();
+                using var document = JsonDocument.Parse(rawValue ?? "null");
+                MongoDocumentContract.ValidateObject(document.RootElement);
+                return document.RootElement.Deserialize<Dictionary<string, JsonElement>>()!;
             }
-            catch (JsonException ex)
+            catch (JsonException) { throw new InvalidOperationException("参数需要 JSON / Extended JSON v2 对象。"); }
+            catch (DatabaseMcpServer.Models.DatabaseMcpException ex) { throw new InvalidOperationException(ex.Message); }
+        }
+
+        if (targetType.IsArray)
+        {
+            try
             {
-                throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 需要有效 JSON。{ex.Message}");
+                return JsonSerializer.Deserialize(rawValue ?? "null", targetType,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
             }
+            catch (JsonException ex) { throw new InvalidOperationException("参数需要类型化 JSON 数组。", ex); }
         }
 
         throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 使用了不支持的参数类型 '{targetType.Name}'。");

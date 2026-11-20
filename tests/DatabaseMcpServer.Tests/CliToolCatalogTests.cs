@@ -31,7 +31,7 @@ public class CliToolCatalogTests
         Assert.Equal(typeof(int?), timeoutParameter.ParameterType);
         Assert.Equal("int", timeoutParameter.DisplayTypeName);
 
-        var sqlQuery = Assert.Single(catalog.Tools, tool => tool.Name == "sql_query");
+        var sqlQuery = Assert.Single(catalog.Tools, tool => tool.Name == "query_database");
         Assert.Contains(sqlQuery.Parameters, parameter => parameter.OptionName == "command-timeout-seconds");
     }
 }

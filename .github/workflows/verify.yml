@@ -1,0 +1,108 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net9.0, net10.0]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci --prefix 'website'
+      - run: dotnet restore 'DatabaseMcpServer.slnx' '-warnaserror:NU1901,NU1902,NU1903,NU1904'
+      - run: dotnet test 'tests/DatabaseMcpServer.Tests/DatabaseMcpServer.Tests.csproj' -c 'Release' -f '${{ matrix.framework }}' --filter 'Category!=Integration&Category!=MongoIntegration'
+      - uses: actions/setup-python@v5
+        if: matrix.framework == 'net10.0'
+        with:
+          python-version: '3.x'
+      - name: Pack, install and exercise CLI and stdio
+        if: matrix.framework == 'net10.0'
+        shell: pwsh
+        run: ./scripts/test-package.ps1
+  providers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci --prefix 'website'
+      - name: Test MySQL, PostgreSQL and SQL Server
+        shell: pwsh
+        run: ./scripts/test-integration.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provider-test-results
+          path: TestResults/integration/**/*.trx
+          if-no-files-found: ignore
+  mongodb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci --prefix 'website'
+      - name: Test MongoDB collection contracts
+        shell: pwsh
+        run: ./scripts/test-mongodb-integration.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mongodb-test-results
+          path: TestResults/mongodb/**/*.trx
+          if-no-files-found: ignore
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

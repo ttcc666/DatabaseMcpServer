@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
@@ -48,6 +49,10 @@ internal sealed class CliWebApiService
 
     public object GetDashboard()
     {
+        DatabaseRuntimeStatus? runtime = null;
+        string? runtimeError = null;
+        try { runtime = _serviceProvider.GetService<IDatabaseConfigService>()?.GetRuntimeStatus(); }
+        catch (Exception ex) { runtimeError = ex.Message; }
         if (!_context.ConfigExists)
         {
             return new
@@ -58,7 +63,9 @@ internal sealed class CliWebApiService
                 configExists = false,
                 totalDatabases = 0,
                 currentDefaultDatabase = (string?)null,
-                currentDatabase = (string?)null,
+                currentDatabase = runtime?.CurrentDatabase,
+                runtime,
+                runtimeError,
                 databases = Array.Empty<object>(),
                 message = "配置文件不存在，可以先初始化。"
             };
@@ -68,7 +75,7 @@ internal sealed class CliWebApiService
         {
             var config = _configFileService.Load(_context.ConfigPath);
             var currentDefaultDatabase = CliConfigFileService.GetCurrentDefaultDatabaseName(config);
-            var currentDatabase = ResolveCurrentDatabaseName(config, currentDefaultDatabase);
+            var currentDatabase = runtime?.CurrentDatabase;
 
             return new
             {
@@ -79,6 +86,9 @@ internal sealed class CliWebApiService
                 totalDatabases = config.Databases.Count,
                 currentDefaultDatabase,
                 currentDatabase,
+                runtime,
+                runtimeError,
+                persistedCurrentDatabase = ResolveCurrentDatabaseName(config, currentDefaultDatabase),
                 databases = config.Databases.Select(db => new
                 {
                     name = db.Name,
@@ -102,7 +112,9 @@ internal sealed class CliWebApiService
                 configExists = true,
                 totalDatabases = 0,
                 currentDefaultDatabase = (string?)null,
-                currentDatabase = (string?)null,
+                currentDatabase = runtime?.CurrentDatabase,
+                runtime,
+                runtimeError,
                 databases = Array.Empty<object>(),
                 message = ex.Message
             };
@@ -167,6 +179,8 @@ internal sealed class CliWebApiService
                 {
                     dbType = item.DbType,
                     exampleName = item.ExampleName,
+                    availability = item.Availability,
+                    unavailableReason = item.UnavailableReason,
                     description = item.Description
                 })
                 .ToArray()
@@ -192,6 +206,8 @@ internal sealed class CliWebApiService
             {
                 dbType = preset.DbType,
                 exampleName = preset.ExampleName,
+                availability = preset.Availability,
+                unavailableReason = preset.UnavailableReason,
                 exampleConnectionString = preset.ExampleConnectionString,
                 description = preset.Description
             }
@@ -210,8 +226,7 @@ internal sealed class CliWebApiService
     public string Initialize(bool force)
     {
         var payload = _configCommandHandler.Initialize(_context.ConfigPath, force);
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        return ApplySavedConfiguration(payload, allowEmptyInitialization: true);
     }
 
     public string CreateFromPreset(CliWebCreateFromPresetRequest request)
@@ -236,8 +251,7 @@ internal sealed class CliWebApiService
             request.EnableDangerousOperations,
             request.PrintOnly);
 
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        return request.PrintOnly ? payload : ApplySavedConfiguration(payload);
     }
 
     public string AddDatabase(CliWebAddDatabaseRequest request)
@@ -265,76 +279,57 @@ internal sealed class CliWebApiService
             request.SetDefault,
             request.EnableDangerousOperations);
 
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        return ApplySavedConfiguration(payload);
     }
 
     public string RenameDatabase(string name, CliWebRenameDatabaseRequest request)
     {
-        var currentDatabase = _currentDatabaseStateStore.GetCurrentDatabaseName(_context.ConfigPath);
-        var payload = _configCommandHandler.Rename(_context.ConfigPath, name, request.NewName);
-
-        if (IsSuccess(payload) && string.Equals(currentDatabase, name, StringComparison.Ordinal))
+        try
         {
-            _currentDatabaseStateStore.SaveCurrentDatabaseName(_context.ConfigPath, request.NewName);
+            var result = _serviceProvider.GetRequiredService<IDatabaseConfigService>().RenameDatabase(name, request.NewName);
+            return JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         }
-
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        catch (Exception ex)
+        {
+            return Failure(ex.Message);
+        }
     }
 
     public string UpdateDatabase(string name, CliWebUpdateDatabaseRequest request)
     {
-        string? connectionString;
         try
         {
-            var dbType = request.DbType ?? ResolveDatabaseType(name);
-            connectionString = ResolveConnectionString(dbType, request.ConnectionString, request.ConnectionFields);
+            var result = _serviceProvider.GetRequiredService<IDatabaseConfigService>().UpdateDatabase(name, new DatabaseConnectionUpdate
+            {
+                NewName = request.NewName, DbType = request.DbType, ConnectionString = request.ConnectionString,
+                Description = request.Description, ClearDescription = request.ClearDescription, SetDefault = request.SetDefault,
+                EnableDangerousOperations = request.EnableDangerousOperations, ApplyDbType = request.ApplyDbType,
+                ApplyConnectionString = request.ApplyConnectionString || request.ConnectionFields != null,
+                ApplyDescription = request.ApplyDescription, ApplyClearDescription = request.ApplyClearDescription,
+                ApplySetDefault = request.ApplySetDefault, ApplyEnableDangerousOperations = request.ApplyEnableDangerousOperations,
+                BuildConnectionString = request.ConnectionFields == null ? null : dbType => ResolveConnectionString(dbType, request.ConnectionString, request.ConnectionFields)
+            });
+            return JsonSerializer.Serialize(result, JsonSerializationDefaults.IndentedCamelCase);
         }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-
-        var payload = _configCommandHandler.Update(
-            _context.ConfigPath,
-            name,
-            request.DbType,
-            connectionString,
-            request.Description,
-            request.ClearDescription,
-            request.SetDefault,
-            request.ApplyDbType,
-            request.ApplyConnectionString || request.ConnectionFields != null,
-            request.ApplyDescription,
-            request.ApplyClearDescription,
-            request.ApplySetDefault,
-            request.EnableDangerousOperations,
-            request.ApplyEnableDangerousOperations);
-
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        catch (Exception ex) { return Failure(ex.Message); }
     }
 
     public string CloneDatabase(string name, CliWebCloneDatabaseRequest request)
     {
         var payload = _configCommandHandler.Clone(_context.ConfigPath, name, request.NewName, request.SetDefault);
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        return ApplySavedConfiguration(payload);
     }
 
     public string RemoveDatabase(string name)
     {
         var payload = _configCommandHandler.Remove(_context.ConfigPath, name);
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        return ApplySavedConfiguration(payload);
     }
 
     public string SetDefaultDatabase(string name)
     {
         var payload = _configCommandHandler.SetDefault(_context.ConfigPath, name);
-        TryReloadRuntimeConfiguration(payload);
-        return payload;
+        return ApplySavedConfiguration(payload);
     }
 
     public string SwitchCurrentDatabase(string databaseName)
@@ -355,12 +350,13 @@ internal sealed class CliWebApiService
         }
     }
 
-    public string HealthCheck()
+    public async Task<string> HealthCheckAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            return _serviceProvider.GetRequiredService<ConnectionTools>().HealthCheck();
+            return await _serviceProvider.GetRequiredService<ConnectionTools>().HealthCheck(cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             return Failure(ex.Message);
@@ -372,19 +368,19 @@ internal sealed class CliWebApiService
         return _configCommandHandler.Validate(_context.ConfigPath);
     }
 
-    public Task<string> DoctorAsync(CliWebDoctorRequest request)
+    public Task<string> DoctorAsync(CliWebDoctorRequest request, CancellationToken cancellationToken = default)
     {
         return _configCommandHandler.DoctorAsync(
             _context.ConfigPath,
             request.Name,
             request.TestConnections,
             request.FixSuggestions,
-            request.SummaryOnly);
+            request.SummaryOnly, cancellationToken);
     }
 
-    public Task<string> TestConnectionAsync(string name)
+    public Task<string> TestConnectionAsync(string name, CancellationToken cancellationToken = default)
     {
-        return _configCommandHandler.TestAsync(_context.ConfigPath, name);
+        return _configCommandHandler.TestAsync(_context.ConfigPath, name, cancellationToken);
     }
 
     public async Task<string> ImportAsync(Stream stream, bool force, CancellationToken cancellationToken)
@@ -399,8 +395,7 @@ internal sealed class CliWebApiService
             }
 
             var payload = _configCommandHandler.Import(_context.ConfigPath, tempPath, force);
-            TryReloadRuntimeConfiguration(payload);
-            return payload;
+            return ApplySavedConfiguration(payload);
         }
         finally
         {
@@ -426,7 +421,10 @@ internal sealed class CliWebApiService
 
         var fileName = Path.GetFileNameWithoutExtension(_context.ConfigPath);
         var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
-        return (File.ReadAllBytes(_context.ConfigPath), $"{fileName}-{timestamp}.json");
+        using var stream = ConfigFileReader.Open(_context.ConfigPath);
+        var contents = new byte[checked((int)stream.Length)];
+        stream.ReadExactly(contents);
+        return (contents, $"{fileName}-{timestamp}.json");
     }
 
     private string? ResolveCurrentDatabaseName(DatabasesConfig config, string? currentDefaultDatabase)
@@ -439,18 +437,6 @@ internal sealed class CliWebApiService
         }
 
         return currentDefaultDatabase ?? config.Databases.FirstOrDefault()?.Name;
-    }
-
-    private string ResolveDatabaseType(string name)
-    {
-        if (!_context.ConfigExists)
-        {
-            throw new InvalidOperationException("配置文件不存在，请先初始化。");
-        }
-
-        var config = _configFileService.Load(_context.ConfigPath);
-        var database = config.Databases.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.Ordinal));
-        return database?.DbType ?? throw new InvalidOperationException($"数据库连接 '{name}' 不存在。");
     }
 
     private string? ResolveConnectionString(
@@ -471,29 +457,43 @@ internal sealed class CliWebApiService
         return _connectionStringBuilder.Build(dbType, connectionFields);
     }
 
-    private void TryReloadRuntimeConfiguration(string payload)
+    private string ApplySavedConfiguration(string payload, bool allowEmptyInitialization = false)
     {
         if (!IsSuccess(payload))
         {
-            return;
+            return payload;
         }
 
+        var response = JsonNode.Parse(payload)!.AsObject();
+        response["saved"] = true;
+        response["runtimeApplied"] = false;
         try
         {
-            var databaseConfigService = _serviceProvider.GetService<IDatabaseConfigService>();
-            if (databaseConfigService != null)
+            var config = _configFileService.Load(_context.ConfigPath);
+            if (config.Databases.Count == 0)
             {
-                _ = databaseConfigService.ReloadConfiguration(
-                    followFileDefault: databaseConfigService.IsEnableMonitorConfigEnabled());
+                response["success"] = allowEmptyInitialization;
+                response["message"] = "配置已保存，尚无可用数据库连接。已有运行时将保留最近有效配置。";
+                return response.ToJsonString();
             }
+            var databaseConfigService = _serviceProvider.GetRequiredService<IDatabaseConfigService>();
+            var reload = databaseConfigService.ReloadConfiguration(
+                followFileDefault: databaseConfigService.IsEnableMonitorConfigEnabled());
+            response["runtimeApplied"] = reload.RuntimeApplied || reload.Success;
+            response["selectionPersisted"] = reload.SelectionPersisted;
+            response["success"] = reload.Success;
+            if (!reload.Success) response["message"] = $"配置已保存，但未完成全部更新：{reload.Message}";
             var monitor = _serviceProvider.GetServices<IHostedService>()
                 .OfType<DatabaseConfigFileMonitorService>()
                 .FirstOrDefault();
             monitor?.EnsureMonitorStarted();
         }
-        catch
+        catch (Exception ex)
         {
+            response["success"] = false;
+            response["message"] = $"配置已保存，但未完成运行时更新：{ex.Message}";
         }
+        return response.ToJsonString();
     }
 
     private static bool IsSuccess(string payload)

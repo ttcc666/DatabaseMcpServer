@@ -20,7 +20,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init: RequestInit =
     headers.set("Content-Type", "application/json")
   }
 
-  if (method !== "GET" && method !== "HEAD" && headers.get("Content-Type")?.includes("application/json")) {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
     headers.set("X-DatabaseMcp-Web", "1")
   }
 
@@ -59,7 +59,13 @@ export async function deleteJson<T>(url: string): Promise<T> {
 
 export function throwIfFailure(response: ApiResponse) {
   if (!response.success) {
-    throw new Error(response.message ?? String(i18n.global.t("common.requestFailed")))
+    throw new ConfigOperationError(response)
+  }
+}
+
+export class ConfigOperationError extends Error {
+  constructor(readonly response: ApiResponse) {
+    super(response.message ?? String(i18n.global.t("common.requestFailed")))
   }
 }
 

@@ -259,13 +259,16 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
         try
         {
             var result = config.ReloadConfiguration(followFileDefault: true);
-            if (result.Success)
+            if (result.Success || result.RuntimeApplied)
             {
                 lock (_syncRoot)
                 {
-                    _lastContentHash = hash ?? TryHashFile(configPath);
+                    _lastContentHash = result.ContentHash ?? hash;
                 }
+            }
 
+            if (result.Success)
+            {
                 if (result.PreservedCurrentDatabase)
                 {
                     _logger.LogInformation(
@@ -282,7 +285,7 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
             }
             else
             {
-                _logger.LogWarning("监听到配置文件变化，但重新加载失败，保留现有配置: {Message}", result.Message);
+                _logger.LogWarning("配置更新未全部完成，runtimeApplied={RuntimeApplied}: {Message}", result.RuntimeApplied, result.Message);
             }
         }
         catch (Exception ex)
@@ -362,9 +365,9 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
         }
     }
 
-    private static string? ResolveIntendedConfigPath()
+    private string? ResolveIntendedConfigPath()
     {
-        return CliConfigurationPathResolver.ResolveWritablePath(
+        return _runtimeOptions.ConfigPath ?? CliConfigurationPathResolver.ResolveWritablePath(
             Environment.GetEnvironmentVariable("DB_CONFIG_PATH"),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)).Path;
     }
@@ -387,13 +390,7 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
         {
             try
             {
-                using var stream = new FileStream(
-                    path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete);
-                using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
+                return ConfigFileReader.ReadAllText(path);
             }
             catch (IOException)
             {

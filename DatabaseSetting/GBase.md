@@ -1,6 +1,6 @@
 # GBase 8s（南大通用）数据库配置指南
 
-本文档说明在 DatabaseMcpServer 中配置 GBase 8s。SqlSugar 对 GBase 8s 支持多年，推荐 ODBC 驱动 + SqlSugar.GBaseCore 5.1.4.170+。
+本文档说明在 DatabaseMcpServer 中配置 GBase 8s。已包含 `SqlSugar.GBaseCore 5.1.4.277` 和传递依赖 `GeneralData.GBase8s.DataProvider 1.0.0.10`。服务统一注册扩展；部署主机仍需安装厂商 ClientSDK/ODBC，确认操作系统、进程位数、locale 与服务端匹配，见[驱动清单](../Doc/provider-drivers.md)。
 
 ---
 

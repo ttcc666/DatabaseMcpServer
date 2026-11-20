@@ -127,12 +127,10 @@ public class McpStdioConfigResolutionTests
 
     private sealed class NoopSqlSugarClientFactory : ISqlSugarClientFactory
     {
-        public ISqlSugarClient CreateClient(DatabaseConnection connection)
-        {
-            throw new NotSupportedException("McpStdioConfigResolutionTests 不需要创建数据库客户端。");
-        }
+        public DatabaseMcpServer.Models.DatabaseClientLease AcquireClient(DatabaseMcpServer.Models.DatabaseConnection connection) => throw new NotSupportedException();
+        public DatabaseMcpServer.Models.DatabaseClientReservation ReserveClient(DatabaseMcpServer.Models.DatabaseConnection connection) => throw new NotSupportedException();
 
-        public void ResetClientPool()
+        public void UpdateConnections(IReadOnlyDictionary<string, DatabaseMcpServer.Models.DatabaseConnection> connections, string? previousName = null, string? newName = null)
         {
         }
     }

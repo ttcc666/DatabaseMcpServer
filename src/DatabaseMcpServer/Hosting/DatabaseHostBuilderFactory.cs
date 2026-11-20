@@ -13,7 +13,8 @@ internal static class DatabaseHostBuilderFactory
         bool silentLogs = false,
         bool cliToolMode = false,
         string? currentDatabaseStateFilePath = null,
-        bool? enableMonitorConfig = null)
+        bool? enableMonitorConfig = null,
+        string? configPath = null)
     {
         var builder = Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
@@ -26,7 +27,8 @@ internal static class DatabaseHostBuilderFactory
         builder.Services.AddDatabaseMcpApplicationServices(
             cliToolMode,
             currentDatabaseStateFilePath,
-            enableMonitorConfig);
+            enableMonitorConfig,
+            configPath);
         builder.Services.AddDatabaseMcpToolServices();
 
         return builder;

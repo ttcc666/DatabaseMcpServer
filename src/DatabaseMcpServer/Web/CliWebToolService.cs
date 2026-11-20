@@ -57,32 +57,37 @@ internal sealed class CliWebToolService
         }
 
         var values = ConvertArguments(tool, request.Arguments ?? new Dictionary<string, JsonElement>());
-        var arguments = CliToolInvoker.BindArguments(tool, values, rejectUnknownOptions: true);
+        var arguments = CliToolInvoker.BindArguments(tool, values);
 
-        await _invocationGate.WaitAsync(cancellationToken);
+        var queuedAt = Stopwatch.GetTimestamp();
+        var serialize = tool.RequiresConfirmation || tool.ToolType == typeof(DatabaseMcpServer.Tools.Management.ConnectionTools);
+        if (serialize) await _invocationGate.WaitAsync(cancellationToken);
         try
         {
-            var stopwatch = Stopwatch.StartNew();
+            var startedAt = Stopwatch.GetTimestamp();
             var instance = _serviceProvider.GetRequiredService(tool.ToolType);
-            var payload = await CliToolInvoker.InvokeAsync(tool, instance, arguments);
-            stopwatch.Stop();
+            var payload = await CliToolInvoker.InvokeAsync(tool, instance, arguments, cancellationToken);
+            var finishedAt = Stopwatch.GetTimestamp();
+            var (result, toolSuccess) = ParsePayload(payload);
 
             return new
             {
                 success = true,
                 toolName = tool.Name,
-                durationMs = stopwatch.ElapsedMilliseconds,
-                toolSuccess = !CliToolInvoker.IsToolFailure(payload),
-                result = ParsePayload(payload)
+                durationMs = (long)Stopwatch.GetElapsedTime(startedAt, finishedAt).TotalMilliseconds,
+                queueMs = (long)Stopwatch.GetElapsedTime(queuedAt, startedAt).TotalMilliseconds,
+                toolSuccess,
+                result
             };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             throw new InvalidOperationException(CliToolInvoker.Unwrap(ex).Message, ex);
         }
         finally
         {
-            _invocationGate.Release();
+            if (serialize) _invocationGate.Release();
         }
     }
 
@@ -141,16 +146,16 @@ internal sealed class CliWebToolService
         throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 的 JSON 类型不正确。");
     }
 
-    private static object ParsePayload(string payload)
+    private static (object Result, bool ToolSuccess) ParsePayload(string payload)
     {
         try
         {
             using var document = JsonDocument.Parse(payload);
-            return document.RootElement.Clone();
+            return (document.RootElement.Clone(), !CliToolInvoker.IsToolFailure(document.RootElement));
         }
         catch (JsonException)
         {
-            return payload;
+            return (payload, true);
         }
     }
 
@@ -162,6 +167,7 @@ internal sealed class CliWebToolService
             "ConnectionTools" => "connection",
             "SchemaTools" => "schema",
             "QueryTools" => "query",
+            "DatabaseQueryTools" => "query",
             "CommandTools" => "command",
             _ => "other"
         };

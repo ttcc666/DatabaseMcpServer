@@ -1,6 +1,10 @@
 export interface ApiResponse {
   success: boolean
   message?: string
+  saved?: boolean
+  runtimeApplied?: boolean
+  selectionPersisted?: boolean | null
+  databaseName?: string | null
 }
 
 export interface ConfigContext extends ApiResponse {
@@ -27,6 +31,7 @@ export interface DashboardResponse extends ApiResponse {
   totalDatabases: number
   currentDefaultDatabase?: string | null
   currentDatabase?: string | null
+  runtime?: { currentDatabase: string | null, runtimeVersion: number, savedVersion: number, hasPendingChanges: boolean | null } | null
   databases: DatabaseSummary[]
 }
 

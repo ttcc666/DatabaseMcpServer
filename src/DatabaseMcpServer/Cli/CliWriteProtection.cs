@@ -4,9 +4,11 @@ internal static class CliWriteProtection
 {
     private static readonly HashSet<string> ProtectedToolNames = new(StringComparer.Ordinal)
     {
+        "mongo_insert_one",
+        "mongo_update",
+        "mongo_delete",
         "execute_command",
         "call_stored_procedure",
-        "call_stored_procedure_with_output",
         "execute_command_with_go",
         "batch_execute_commands",
         "create_table",

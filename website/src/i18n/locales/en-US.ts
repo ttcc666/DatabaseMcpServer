@@ -42,6 +42,8 @@ export default {
     requestFailed: "Request failed.",
   },
   configHero: {
+    pendingChanges: "Saved changes are not active",
+    pendingChangesHint: "The current connection reflects the running database. Fix and reload the configuration, or enable monitoring to apply changes.",
     localConsole: "Local Console",
     title: "DatabaseMcpServer Config Console",
     descriptionPrefix: "Manage",
@@ -53,7 +55,7 @@ export default {
     defaultConnection: "Default connection",
     defaultHint: "Written to {file}",
     currentConnection: "Current connection",
-    currentHint: "Written to {file}",
+    currentHint: "The database connection active in this process.",
     totalConnections: "Connections",
     totalHint: "Registered database connections",
     targetPathTitle: "Target path",
@@ -64,7 +66,7 @@ export default {
     forceReset: "Force reset",
     semanticsTitle: "Semantics",
     semanticsDefault: "Default connection: persisted to the config file for CLI / MCP fallback.",
-    semanticsCurrent: "Current connection: stored per config path for temporary execution context switches.",
+    semanticsCurrent: "Current connection: the server's active target; selections are stored per config path.",
   },
   connectionTable: {
     title: "Connections",

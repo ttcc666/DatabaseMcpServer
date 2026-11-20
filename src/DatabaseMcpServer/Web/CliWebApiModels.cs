@@ -49,7 +49,8 @@ internal sealed record CliWebUpdateDatabaseRequest(
     bool ApplyClearDescription,
     bool ApplySetDefault,
     bool EnableDangerousOperations,
-    bool ApplyEnableDangerousOperations);
+    bool ApplyEnableDangerousOperations,
+    string? NewName = null);
 
 internal sealed record CliWebCloneDatabaseRequest(
     string NewName,

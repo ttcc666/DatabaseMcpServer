@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- 多目标：同时支持 .NET 9 / 10 -->
+		<!-- 源码/测试保留 .NET 9 / 10；NuGet 发布使用 -p:TargetFrameworks=net10.0，避免原生库重复打包超限。 -->
 		<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
 		<!-- 当前 SDK 环境下并行 inner build 会导致多目标构建异常失败，强制串行保证稳定性 -->
 		<BuildInParallel>false</BuildInParallel>
@@ -24,7 +24,7 @@
 		<!-- 记得发布新包时改版本号 -->
 		<PackageVersion>3.7.0</PackageVersion>
 		<PackageTags>AI; MCP; server; stdio; database; multi-database</PackageTags>
-		<Description>一个功能强大的数据库操作 MCP 服务器，聚焦 19 种常用数据库（MySQL/PG/SQLServer/Oracle/MongoDB、SQLite/ClickHouse/TiDB/OceanBase/DB2/HANA、达梦/人大金仓/华为 GaussDB/PolarDB/Vastbase/瀚高/神通/GoldenDB）。</Description>
+		<Description>基于 SqlSugar 的数据库 MCP 服务器，支持多连接、受限查询和数据库结构管理。数据库工具能力、驱动依赖和产品验证状态可通过诊断查询，详见 ORM 配置文档。</Description>
 		<RepositoryUrl>https://github.com/ttcc666/DatabaseMcpServer</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageProjectUrl>https://github.com/ttcc666/DatabaseMcpServer</PackageProjectUrl>
@@ -37,18 +37,30 @@
 		<None Include="$(RepositoryRoot)\README_EN.md" Pack="true" PackagePath="/" />
 		<None Include="$(RepositoryRoot)\TOOLS.md" Pack="true" PackagePath="/" />
 		<None Include="$(RepositoryRoot)\Doc\cli.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\execution-optimization.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\dependency-upgrade.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\database-mcp-workflow.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\orm-configuration.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\provider-drivers.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\mongodb-collections.md" Pack="true" PackagePath="/Doc/" />
+		<None Include="$(RepositoryRoot)\Doc\orm-remediation-2026-11-20.md" Pack="true" PackagePath="/Doc/" />
 		<None Include="$(RepositoryRoot)\LICENSE" Pack="true" PackagePath="/" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.10" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
-		<PackageReference Include="ModelContextProtocol" Version="2.0.0" />
-		<PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
+		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.15" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" Condition="'$(TargetFramework)' != 'net10.0'" />
+		<PackageReference Include="ModelContextProtocol" Version="2.4.0" />
+		<PackageReference Include="SqlSugarCore" Version="5.1.4.221" />
 		<PackageReference Include="SqlSugar.OceanBaseForOracleCore" Version="5.1.4.205" />
-		<PackageReference Include="SqlSugar.MongoDbCore" Version="5.1.4.277" />
+		<PackageReference Include="SqlSugar.MongoDbCore" Version="5.1.4.280" />
+		<PackageReference Include="MongoDB.Driver" Version="3.11.1" />
 		<PackageReference Include="SqlSugar.ClickHouseCore" Version="5.1.4.201" />
 		<PackageReference Include="SqlSugar.GaussDBNativeCore" Version="5.1.4.189" />
+		<PackageReference Include="SqlSugar.HGCore" Version="5.1.4.211" />
+		<PackageReference Include="SqlSugar.GBaseCore" Version="5.1.4.277" />
+		<PackageReference Include="SqlSugar.TDengineCore" Version="4.18.46" />
+		<PackageReference Include="SqlSugar.DuckDBCore" Version="5.1.4.216" />
 		<PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
 		<PackageReference Include="Serilog.Sinks.Seq" Version="9.1.0" />
@@ -56,8 +68,10 @@
 
 	<!-- Pin SqlSugarCore transitive packages that NuGet audit flags. -->
 	<ItemGroup>
-		<PackageReference Include="SharpCompress" Version="0.48.0" />
-		<PackageReference Include="Snappier" Version="1.3.1" />
+		<PackageReference Include="MySqlConnector" Version="2.6.2" />
+		<PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.2" />
+		<PackageReference Include="SharpCompress" Version="0.48.1" />
+		<PackageReference Include="Snappier" Version="1.3.2" />
 		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
 	</ItemGroup>
 

@@ -10,6 +10,13 @@ public class ConfigurationReloadResult
     /// </summary>
     public bool Success { get; set; }
 
+    public bool RuntimeApplied { get; set; }
+
+    public bool? SelectionPersisted { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? ContentHash { get; set; }
+
     /// <summary>
     /// 刷新结果消息
     /// </summary>

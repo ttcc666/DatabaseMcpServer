@@ -104,6 +104,8 @@ internal sealed class CliConnectionStringBuilder
             {
                 throw new InvalidOperationException($"连接字段 '{field.Label}' 需要 true 或 false。");
             }
+            if (field.Key.Equals("Port", StringComparison.OrdinalIgnoreCase))
+                _ = ParseOptionalPort(value);
         }
     }
 

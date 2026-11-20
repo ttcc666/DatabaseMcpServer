@@ -1,9 +1,7 @@
-using DatabaseMcpServer.Hosting;
+using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
-using DatabaseMcpServer.Tools.Management;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DatabaseMcpServer.Cli;
 
@@ -11,16 +9,21 @@ internal sealed class CliConfigCommandHandler
 {
     private readonly IJsonResultSerializer _serializer;
     private readonly CliConfigFileService _configFileService;
+    private readonly ISqlSugarClientFactory? _clientFactory;
+    private readonly DatabaseConnectionProbe? _connectionProbe;
 
     public CliConfigCommandHandler()
         : this(new JsonResultSerializer(), new CliConfigFileService())
     {
     }
 
-    internal CliConfigCommandHandler(IJsonResultSerializer serializer, CliConfigFileService configFileService)
+    internal CliConfigCommandHandler(IJsonResultSerializer serializer, CliConfigFileService configFileService, ISqlSugarClientFactory? clientFactory = null,
+        DatabaseConnectionProbe? connectionProbe = null)
     {
         _serializer = serializer;
         _configFileService = configFileService;
+        _clientFactory = clientFactory;
+        _connectionProbe = connectionProbe;
     }
 
     public string Initialize(string? explicitConfigPath, bool force)
@@ -105,6 +108,8 @@ internal sealed class CliConfigCommandHandler
                 {
                     dbType = item.DbType,
                     exampleName = item.ExampleName,
+                    availability = item.Availability,
+                    unavailableReason = item.UnavailableReason,
                     description = item.Description
                 })
                 .ToArray()
@@ -133,6 +138,8 @@ internal sealed class CliConfigCommandHandler
                 {
                     dbType = preset.DbType,
                     exampleName = preset.ExampleName,
+                    availability = preset.Availability,
+                    unavailableReason = preset.UnavailableReason,
                     exampleConnectionString = preset.ExampleConnectionString,
                     description = preset.Description
                 }
@@ -186,6 +193,7 @@ internal sealed class CliConfigCommandHandler
             }
 
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = _configFileService.Load(configPath);
 
             if (config.Databases.Any(db => string.Equals(db.Name, databaseName, StringComparison.Ordinal)))
@@ -207,7 +215,8 @@ internal sealed class CliConfigCommandHandler
 
             config.Databases.Add(database);
 
-            _configFileService.Save(configPath, config);
+            DatabaseConfigurationValidator.ThrowIfInvalid(config);
+            write.Save(config);
 
             return new
             {
@@ -238,6 +247,7 @@ internal sealed class CliConfigCommandHandler
             ValidateRequiredText(connectionString, "connection-string");
 
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = _configFileService.Load(configPath);
             if (config.Databases.Any(db => string.Equals(db.Name, name, StringComparison.Ordinal)))
             {
@@ -265,7 +275,8 @@ internal sealed class CliConfigCommandHandler
                 EnableDangerousOperations = enableDangerousOperations
             });
 
-            _configFileService.Save(configPath, config);
+            DatabaseConfigurationValidator.ThrowIfInvalid(config);
+            write.Save(config);
 
             return new
             {
@@ -279,7 +290,7 @@ internal sealed class CliConfigCommandHandler
         });
     }
 
-    public string Rename(string? explicitConfigPath, string name, string newName)
+    public string Rename(string? explicitConfigPath, string name, string newName, string? currentDatabaseStateFilePath = null)
     {
         return Execute(() =>
         {
@@ -287,43 +298,32 @@ internal sealed class CliConfigCommandHandler
             ValidateRequiredText(newName, "new-name");
 
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
-            var config = _configFileService.Load(configPath);
-            var target = FindConnection(config, name);
-
-            if (string.Equals(name, newName, StringComparison.Ordinal))
+            var result = new DatabaseConfigurationApplicationService(_configFileService).Edit(configPath, name,
+                new DatabaseConnectionUpdate { NewName = newName }, _ =>
             {
-                return new
+                try
                 {
-                    success = true,
-                    message = $"数据库连接名称未变化，仍为 '{name}'。",
-                    configPath,
-                    previousName = name,
-                    currentName = newName
-                };
-            }
-
-            if (config.Databases.Any(db => string.Equals(db.Name, newName, StringComparison.Ordinal)))
-            {
-                return new
+                    var state = new CurrentDatabaseStateStore(
+                        Microsoft.Extensions.Logging.Abstractions.NullLogger<CurrentDatabaseStateStore>.Instance,
+                        enabled: true, currentDatabaseStateFilePath);
+                    var persisted = state.RenameCurrentDatabase(configPath, name, newName);
+                    return new(true, true, false, persisted, $"已将数据库连接 '{name}' 重命名为 '{newName}'。");
+                }
+                catch (Exception ex)
                 {
-                    success = false,
-                    message = $"数据库连接 '{newName}' 已存在。",
-                    configPath,
-                    previousName = name,
-                    attemptedName = newName
-                };
-            }
-
-            target.Name = newName;
-            _configFileService.Save(configPath, config);
+                    return new(false, true, false, false, $"重命名已保存，但当前选择未更新：{ex.Message}");
+                }
+            });
 
             return new
             {
-                success = true,
-                message = $"已将数据库连接 '{name}' 重命名为 '{newName}'。",
+                success = result.Success,
+                message = result.Message,
                 configPath,
                 previousName = name,
-                currentName = newName
+                currentName = newName,
+                saved = result.Saved,
+                selectionPersisted = result.SelectionPersisted
             };
         });
     }
@@ -342,84 +342,18 @@ internal sealed class CliConfigCommandHandler
         bool hasClearDescription,
         bool hasSetDefault,
         bool enableDangerousOperations,
-        bool hasEnableDangerousOperations)
+        bool hasEnableDangerousOperations,
+        Func<string, string?>? buildConnectionString = null)
     {
-        return Execute(() =>
-        {
-            ValidateRequiredText(name, "name");
-
-            var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
-            var config = _configFileService.Load(configPath);
-            var target = FindConnection(config, name);
-
-            if (!hasDbType && !hasConnectionString && !hasDescription && !hasClearDescription && !hasSetDefault && !hasEnableDangerousOperations)
+        return Execute(() => new DatabaseConfigurationApplicationService(_configFileService).Edit(
+            _configFileService.ResolveWritablePath(explicitConfigPath), name, new DatabaseConnectionUpdate
             {
-                return new
-                {
-                    success = false,
-                    message = "至少需要提供一个可更新选项：--db-type / --connection-string / --description / --clear-description / --set-default / --enable-dangerous-operations。",
-                    configPath,
-                    databaseName = name
-                };
-            }
-
-            if (hasDescription && hasClearDescription && clearDescription)
-            {
-                return new
-                {
-                    success = false,
-                    message = "不能同时使用 '--description' 和 '--clear-description true'。",
-                    configPath,
-                    databaseName = name
-                };
-            }
-
-            if (hasDbType)
-            {
-                ValidateRequiredText(dbType!, "db-type");
-                target.DbType = dbType!;
-            }
-
-            if (hasConnectionString)
-            {
-                ValidateRequiredText(connectionString!, "connection-string");
-                target.ConnectionString = connectionString!;
-            }
-
-            if (hasDescription)
-            {
-                target.Description = description;
-            }
-            else if (hasClearDescription && clearDescription)
-            {
-                target.Description = null;
-            }
-
-            if (hasSetDefault && setDefault)
-            {
-                ClearDefaultFlags(config);
-                target.IsDefault = true;
-            }
-            else if (hasSetDefault)
-            {
-                target.IsDefault = false;
-            }
-
-            if (hasEnableDangerousOperations)
-            {
-                target.EnableDangerousOperations = enableDangerousOperations;
-            }
-
-            _configFileService.Save(configPath, config);
-
-            return new
-            {
-                success = true,
-                message = $"已更新数据库连接 '{name}'。",
-                configPath,
-                database = CliConfigFileService.ToMaskedConnection(target)
-            };
-        });
+                DbType = dbType, ConnectionString = connectionString, Description = description,
+                ClearDescription = clearDescription, SetDefault = setDefault, EnableDangerousOperations = enableDangerousOperations,
+                ApplyDbType = hasDbType, ApplyConnectionString = hasConnectionString, ApplyDescription = hasDescription,
+                ApplyClearDescription = hasClearDescription, ApplySetDefault = hasSetDefault,
+                ApplyEnableDangerousOperations = hasEnableDangerousOperations, BuildConnectionString = buildConnectionString
+            }));
     }
 
     public string Clone(string? explicitConfigPath, string name, string newName, bool setDefault)
@@ -430,6 +364,7 @@ internal sealed class CliConfigCommandHandler
             ValidateRequiredText(newName, "new-name");
 
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = _configFileService.Load(configPath);
             var source = FindConnection(config, name);
 
@@ -464,7 +399,8 @@ internal sealed class CliConfigCommandHandler
             };
 
             config.Databases.Add(cloned);
-            _configFileService.Save(configPath, config);
+            DatabaseConfigurationValidator.ThrowIfInvalid(config);
+            write.Save(config);
 
             return new
             {
@@ -483,6 +419,7 @@ internal sealed class CliConfigCommandHandler
         return Execute(() =>
         {
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = _configFileService.Load(configPath);
             var removed = config.Databases.RemoveAll(db => string.Equals(db.Name, name, StringComparison.Ordinal));
             if (removed == 0)
@@ -496,7 +433,8 @@ internal sealed class CliConfigCommandHandler
                 };
             }
 
-            _configFileService.Save(configPath, config);
+            DatabaseConfigurationValidator.ThrowIfInvalid(config);
+            write.Save(config);
 
             return new
             {
@@ -513,12 +451,14 @@ internal sealed class CliConfigCommandHandler
         return Execute(() =>
         {
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = _configFileService.Load(configPath);
             var target = FindConnection(config, name);
 
             ClearDefaultFlags(config);
             target.IsDefault = true;
-            _configFileService.Save(configPath, config);
+            DatabaseConfigurationValidator.ThrowIfInvalid(config);
+            write.Save(config);
 
             return new
             {
@@ -535,12 +475,14 @@ internal sealed class CliConfigCommandHandler
         return Execute(() =>
         {
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
+            using var write = new AtomicJsonFileWrite(configPath);
             var config = _configFileService.Load(configPath);
             var target = FindConnection(config, name);
 
             ClearDefaultFlags(config);
             target.IsDefault = true;
-            _configFileService.Save(configPath, config);
+            DatabaseConfigurationValidator.ThrowIfInvalid(config);
+            write.Save(config);
 
             return new
             {
@@ -558,27 +500,35 @@ internal sealed class CliConfigCommandHandler
         {
             var configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
             var config = _configFileService.Load(configPath);
-            var report = BuildValidationReport(config);
+            var report = DatabaseConfigurationValidator.Validate(config);
 
             return new
             {
                 success = report.Errors.Count == 0,
                 configPath,
-                totalDatabases = config.Databases.Count,
+                totalDatabases = config.Databases?.Count ?? 0,
                 defaultDatabaseCount = report.DefaultDatabaseCount,
-                errors = report.Errors
+                errors = report.Errors,
+                warnings = report.Warnings
             };
         });
     }
 
-    public async Task<string> DoctorAsync(string? explicitConfigPath, string? name, bool testConnections, bool includeFixSuggestions, bool summaryOnly)
+    private static SqlSugarClientFactory CreateDiagnosticFactory() => new(
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<SqlSugarClientFactory>.Instance,
+        new DatabaseHelper(Microsoft.Extensions.Logging.Abstractions.NullLogger<DatabaseHelper>.Instance),
+        new DatabaseMcpServer.Strategies.DBSetting.DatabaseOptimizationStrategyFactory(), DatabaseExecutionOptions.FromEnvironment());
+
+    public async Task<string> DoctorAsync(string? explicitConfigPath, string? name, bool testConnections, bool includeFixSuggestions, bool summaryOnly,
+        CancellationToken cancellationToken = default)
     {
         var configPath = string.Empty;
         try
         {
             configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
             var config = _configFileService.Load(configPath);
-            if (!string.IsNullOrWhiteSpace(name))
+            var report = DatabaseConfigurationValidator.Validate(config, requireConnections: testConnections);
+            if (report.Errors.Count == 0 && !string.IsNullOrWhiteSpace(name))
             {
                 var selected = FindConnection(config, name);
                 config = new DatabasesConfig
@@ -586,7 +536,6 @@ internal sealed class CliConfigCommandHandler
                     Databases = [selected]
                 };
             }
-            var report = BuildValidationReport(config);
             var fixSuggestions = includeFixSuggestions
                 ? BuildFixSuggestions(report.Errors, null)
                 : Array.Empty<string>();
@@ -598,7 +547,7 @@ internal sealed class CliConfigCommandHandler
                     success = report.Errors.Count == 0,
                     configPath,
                     databaseName = name,
-                    totalDatabases = config.Databases.Count,
+                    totalDatabases = config.Databases?.Count ?? 0,
                     defaultDatabaseCount = report.DefaultDatabaseCount,
                     testedConnections = 0,
                     skippedConnectionTests = !testConnections || report.Errors.Count > 0,
@@ -606,53 +555,21 @@ internal sealed class CliConfigCommandHandler
                         ? "已显式关闭连通性测试。"
                         : "配置校验未通过，已跳过连通性测试。",
                     configErrors = summaryOnly ? null : report.Errors,
+                    configWarnings = report.Warnings,
                     fixSuggestions = summaryOnly ? null : fixSuggestions,
                     connectionResults = summaryOnly ? null : Array.Empty<object>()
                 });
             }
 
             var connectionResults = new List<object>();
-            var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-            var originalConsoleOut = Console.Out;
-            var originalConsoleError = Console.Error;
-
-            try
+            using var ownedFactory = _clientFactory == null ? CreateDiagnosticFactory() : null;
+            var factory = _clientFactory ?? ownedFactory!;
+            using var ownedMongo = _connectionProbe == null ? new MongoClientRegistry() : null;
+            var probe = _connectionProbe ?? new DatabaseConnectionProbe(ownedMongo!, DatabaseExecutionOptions.FromEnvironment());
+            foreach (var connection in config.Databases)
             {
-                Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
-                Console.SetOut(TextWriter.Null);
-                Console.SetError(TextWriter.Null);
-
-                var builder = DatabaseHostBuilderFactory.CreateBaseBuilder([], silentLogs: true);
-                using var host = builder.Build();
-                var databaseConfig = host.Services.GetRequiredService<IDatabaseConfigService>();
-
-                foreach (var connection in config.Databases)
-                {
-                    try
-                    {
-                        var db = databaseConfig.CreateClient(connection.Name);
-                        db.Ado.CheckConnection();
-                        connectionResults.Add(new DoctorConnectionResult(
-                            connection.Name,
-                            connection.DbType,
-                            true,
-                            "连接成功"));
-                    }
-                    catch (Exception ex)
-                    {
-                        connectionResults.Add(new DoctorConnectionResult(
-                            connection.Name,
-                            connection.DbType,
-                            false,
-                            ex.Message));
-                    }
-                }
-            }
-            finally
-            {
-                Console.SetOut(originalConsoleOut);
-                Console.SetError(originalConsoleError);
-                Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
+                var result = await DatabaseConnectionDiagnostics.CheckAsync(factory, connection, probe, cancellationToken);
+                connectionResults.Add(new DoctorConnectionResult(connection.Name, connection.DbType, result.Connected, result.Message));
             }
 
             var failedConnections = connectionResults.Count(item =>
@@ -673,10 +590,12 @@ internal sealed class CliConfigCommandHandler
                 skippedConnectionTests = false,
                 skippedReason = string.Empty,
                 configErrors = summaryOnly ? null : report.Errors,
+                configWarnings = report.Warnings,
                 fixSuggestions = summaryOnly ? null : fixSuggestions,
                 connectionResults = summaryOnly ? null : connectionResults
             });
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             return _serializer.Serialize(new
@@ -688,36 +607,23 @@ internal sealed class CliConfigCommandHandler
         }
     }
 
-    public async Task<string> TestAsync(string? explicitConfigPath, string name)
+    public async Task<string> TestAsync(string? explicitConfigPath, string name, CancellationToken cancellationToken = default)
     {
         var configPath = string.Empty;
         try
         {
             configPath = _configFileService.ResolveWritablePath(explicitConfigPath);
-            _ = FindConnection(_configFileService.Load(configPath), name);
-
-            var originalConfigPath = Environment.GetEnvironmentVariable("DB_CONFIG_PATH");
-            var originalConsoleOut = Console.Out;
-            var originalConsoleError = Console.Error;
-
-            try
+            var connection = FindConnection(_configFileService.Load(configPath), name);
+            using var ownedFactory = _clientFactory == null ? CreateDiagnosticFactory() : null;
+            using var ownedMongo = _connectionProbe == null ? new MongoClientRegistry() : null;
+            var probe = _connectionProbe ?? new DatabaseConnectionProbe(ownedMongo!, DatabaseExecutionOptions.FromEnvironment());
+            var result = await DatabaseConnectionDiagnostics.CheckAsync(_clientFactory ?? ownedFactory!, connection, probe, cancellationToken);
+            return _serializer.Serialize(new
             {
-                Environment.SetEnvironmentVariable("DB_CONFIG_PATH", configPath);
-                Console.SetOut(TextWriter.Null);
-                Console.SetError(TextWriter.Null);
-
-                var builder = DatabaseHostBuilderFactory.CreateBaseBuilder([], silentLogs: true);
-                using var host = builder.Build();
-                var tool = host.Services.GetRequiredService<ConnectionTools>();
-                return await Task.FromResult(tool.TestConnectionByName(name));
-            }
-            finally
-            {
-                Console.SetOut(originalConsoleOut);
-                Console.SetError(originalConsoleError);
-                Environment.SetEnvironmentVariable("DB_CONFIG_PATH", originalConfigPath);
-            }
+                success = result.Connected, message = result.Message, connected = result.Connected, databaseName = name
+            });
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             return _serializer.Serialize(new
@@ -738,9 +644,10 @@ internal sealed class CliConfigCommandHandler
 
             var sourceConfigPath = _configFileService.ResolveWritablePath(explicitConfigPath);
             var targetOutputPath = Path.GetFullPath(outputPath);
+            using var write = new AtomicJsonFileWrite(targetOutputPath);
             var config = _configFileService.Load(sourceConfigPath);
 
-            if (File.Exists(targetOutputPath) && !force)
+            if (write.Exists && !force)
             {
                 return new
                 {
@@ -751,7 +658,7 @@ internal sealed class CliConfigCommandHandler
                 };
             }
 
-            _configFileService.Save(targetOutputPath, config);
+            write.Save(config);
 
             return new
             {
@@ -782,7 +689,8 @@ internal sealed class CliConfigCommandHandler
                 throw new InvalidOperationException("导入源文件与目标配置文件相同，无需导入。");
             }
 
-            if (File.Exists(targetConfigPath) && !force)
+            using var write = new AtomicJsonFileWrite(targetConfigPath);
+            if (write.Exists && !force)
             {
                 return new
                 {
@@ -794,7 +702,8 @@ internal sealed class CliConfigCommandHandler
             }
 
             var importedConfig = _configFileService.Load(sourceInputPath);
-            _configFileService.Save(targetConfigPath, importedConfig);
+            DatabaseConfigurationValidator.ThrowIfInvalid(importedConfig);
+            write.Save(importedConfig);
 
             return new
             {
@@ -850,50 +759,6 @@ internal sealed class CliConfigCommandHandler
         }
     }
 
-    private static ValidationReport BuildValidationReport(DatabasesConfig config)
-    {
-        var errors = new List<string>();
-        var duplicateNames = config.Databases
-            .Where(db => !string.IsNullOrWhiteSpace(db.Name))
-            .GroupBy(db => db.Name, StringComparer.Ordinal)
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key)
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        if (duplicateNames.Length > 0)
-        {
-            errors.Add($"存在重复的数据库连接名称: {string.Join(", ", duplicateNames)}");
-        }
-
-        var defaultCount = config.Databases.Count(db => db.IsDefault);
-        if (defaultCount > 1)
-        {
-            errors.Add($"默认数据库连接数量超过 1 个，当前为 {defaultCount} 个。");
-        }
-
-        for (var i = 0; i < config.Databases.Count; i++)
-        {
-            var item = config.Databases[i];
-            if (string.IsNullOrWhiteSpace(item.Name))
-            {
-                errors.Add($"第 {i + 1} 个数据库连接缺少 name。");
-            }
-
-            if (string.IsNullOrWhiteSpace(item.DbType))
-            {
-                errors.Add($"数据库连接 '{item.Name}' 缺少 dbType。");
-            }
-
-            if (string.IsNullOrWhiteSpace(item.ConnectionString))
-            {
-                errors.Add($"数据库连接 '{item.Name}' 缺少 connectionString。");
-            }
-        }
-
-        return new ValidationReport(defaultCount, errors);
-    }
-
     private static string[] BuildFixSuggestions(IReadOnlyCollection<string> configErrors, IReadOnlyCollection<DoctorConnectionResult>? connectionResults)
     {
         var suggestions = new List<string>();
@@ -936,7 +801,6 @@ internal sealed class CliConfigCommandHandler
         return suggestions.Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    private sealed record ValidationReport(int DefaultDatabaseCount, List<string> Errors);
 
     private sealed record DoctorConnectionResult(
         string DatabaseName,

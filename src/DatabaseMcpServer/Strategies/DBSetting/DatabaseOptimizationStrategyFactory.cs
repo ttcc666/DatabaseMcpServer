@@ -68,8 +68,8 @@ public class DatabaseOptimizationStrategyFactory : IDatabaseOptimizationStrategy
             [DbType.Doris] = () => new DorisOptimizationStrategy(_logger),
 
             // 特定版本和变体
-            [DbType.OpenGauss] = () => new GaussDbOptimizationStrategy(_logger),
-            [DbType.GaussDB] = () => new GaussDbOptimizationStrategy(_logger),
+            [DbType.OpenGauss] = () => new GaussDbOptimizationStrategy(_logger, DbType.OpenGauss),
+            [DbType.GaussDB] = () => new GaussDbOptimizationStrategy(_logger, DbType.GaussDB),
             [DbType.GaussDBNative] = () => new GaussDbOptimizationStrategy(_logger)
         };
     }

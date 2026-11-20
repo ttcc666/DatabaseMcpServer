@@ -2,6 +2,8 @@
 
 本文档说明如何为 DatabaseMcpServer 添加新的数据库类型优化策略。
 
+新增项必须同时维护 `DatabaseProviderCatalog` 的依赖/驱动分类和 `DatabaseOptimizationOptions` 的已应用键、值校验及诊断范围。工厂只把真实映射项传给策略；连接池/TLS 等建议项保留在配置中，不传入策略伪装成功。下方历史示例的 NoLock 只适用于实体 Queryable，不作用于 MCP 原始 SQL。当前契约见 [ORM 配置约定](orm-configuration.md)。
+
 ---
 
 ## 🏗️ 架构设计
