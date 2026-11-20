@@ -22,7 +22,7 @@ DuckDB 使用文件连接，路径相对于 MCP 工作目录解析。MCP 每次�
 Full 包包含多个平台的原生库。实测双框架工具包约 299.3 MiB，超过 [NuGet.org 约 250 MB 上限](https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package#package-size-limits)。因此发布工作流及安装验证仅打包 .NET 10，包大小约 149.1 MiB，保留全部平台原生资产；源码仍以 net9.0/net10.0 构建和测试。安装发布工具需要 .NET 10 SDK 及对应运行时（包含 ASP.NET Core shared framework）。
 
 ```powershell
-dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:TargetFrameworks=net10.0'
+dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
 请使用此发布命令；省略 TargetFrameworks 会生成含重复原生资产的双框架大包。发布及包测试在超过 250,000,000 字节时失败，包测试同时断言仅有 net10 工具和完整 DuckDB 原生资产。

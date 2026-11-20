@@ -7,9 +7,9 @@
 ```mermaid
 flowchart LR
   A["MCP / CLI / Web"] --> B["DatabaseConfigService 捕获目标与权限"]
-  B --> C["SqlSugarClientFactory 有界排队"]
+  B --> C["DatabaseExecutionCoordinator 有界排队"]
   C --> D["独占 DatabaseClientLease"]
-  D --> E["QueryReader / CommandTools 等待驱动结束"]
+  D --> E["QueryReader / SqlCommandOperations 等待驱动结束"]
   E --> F["BoundedQueryExecutor / JsonResultSerializer"]
   F --> G["释放独立 SqlSugarClient，归还准入名额"]
 ```

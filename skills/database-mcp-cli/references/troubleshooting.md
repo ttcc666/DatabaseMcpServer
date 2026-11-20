@@ -1,405 +1,108 @@
-# DatabaseMcpServer CLI Troubleshooting
+# CLI 故障排查
 
-Use this file as a symptom-to-diagnosis matrix when CLI behavior is unclear.
+先确认可执行文件来源、config 路径和目标数据库，使用实际 tool help；完整示例见 [commands.md](commands.md)。
 
-## Quick Navigation
+## 退出码与输出
 
-- `--yes` and destructive confirmation
-- option parsing and unknown command failures
-- invalid `-web --port` usage
-- config resolution failures
-- stdout/stderr and JSON parsing issues
-- SQL Server quoting and encryption issues
-- `success: false` vs CLI usage failure
-- current connection vs default connection confusion
-- `reload_database_config` preserving current connection
-- batch item failures and maximum query count
-- source tree vs installed global-tool mismatches
-- broad verification guidance
+| 现象 | 定位与处理 |
+| --- | --- |
+| exit 2，提示需要 --yes | CLI 确认未通过，尚未执行工具；确认用户授权后补 --yes |
+| exit 2，未知参数、JSON 类型错误 | 按帮助修正参数名及类型，不先修改数据库权限 |
+| exit 2，找不到配置或启动异常 | 查看 stderr 和显式 --config，不能一概归为 SQL 错误 |
+| exit 1，success=false | 检查 errorCode、errorMessage 和部分保存/写入状态 |
+| exit 0，批量包含失败项 | 逐条检查 results，顶层成功不保证子项成功 |
+| exit 130 | 已取消；写入结果需要核实，不能直接重放 |
+| stdout 空，stderr 有帮助 | 帮助与目录的正常输出方式 |
+| 查询 JSON 混入日志 | 分开捕获 stdout/stderr，记录最小复现，排查驱动输出 |
+| get_database_config 没有 success | 使用退出码及 configured 等实际字段判断 |
 
-## Quick Triage
+## 旧工具或参数不能绑定
 
-| Symptom | Meaning | Next action |
-| --- | --- | --- |
-| exit code `0` + parseable JSON | invocation succeeded | inspect payload semantics |
-| exit code `1` | tool returned structured failure | treat as backend/tool failure first |
-| exit code `2` | CLI usage failure | inspect parameters, config resolution, help output |
-| help text on `stderr` | often expected for help/list commands | do not misclassify as failure |
-| command result on `stdout` | normal | parse JSON before judging |
+普通 SQL 查询用 query_database，IN 查询通过参数数组绑定；按表分页用 query_table_page。当前契约不提供旧 sql_query、sql_query_with_in、get_table_data 和导出工具的兼容入口。先用实际 tool list/help 确认安装版本的能力。
 
-## 1. Missing `--yes`
-
-Symptom:
-
-```text
-tool 'execute_command' 需要显式确认。请追加 '--yes'。
-```
-
-Or for config removal:
-
-```text
-命令 'remove' 需要显式确认。请追加 '--yes'。
-```
-
-Meaning:
-
-- CLI usage error
-- not a database connection failure
-- exit code should be `2`
-
-Fix:
-
-- add `--yes`
-- keep diagnosis in the CLI layer, not the database layer
-
-Related: SKILL.md "Use `--yes` Correctly" lists every command that requires it.
-
-## 2. Missing or invalid options
-
-Typical symptoms:
-
-```text
-缺少必填选项 '--table-name'
-未知选项: '--table'
-选项 '--config' 缺少值。
-无法识别的参数: 'users'
-选项 '--max-retries' 需要 int 值。
-选项 '--test-connections' 需要 bool 值。
-```
-
-Meaning:
-
-- parameter binding or parsing failure inside CLI
-- exit code should be `2`
-
-Fix:
-
-- run `DatabaseMcpServer tool help <tool_name>` or `DatabaseMcpServer config help <subcommand>`
-- use kebab-case option names such as `--table-name`, not ad-hoc variants
-- keep JSON, bool, and integer arguments in the expected format
-
-## 3. Unknown command or tool name
-
-Typical symptoms:
-
-```text
-未知命令: 'tools'。可用顶层命令: tool, init, config
-未知 tool: 'get-table-schema'。
-未知 config 命令: 'lists'。
-```
-
-Meaning:
-
-- wrong command family or wrong naming form
-- tool names are `snake_case`
-- option names are `kebab-case`
-
-Fix:
-
-- switch to `tool`, `init`, or `config`
-- use `DatabaseMcpServer tool list`
-- use `DatabaseMcpServer tool help <tool_name>`
-- if the CLI prints “最接近的命令”, prefer one of those suggestions
-
-## 3.1 Invalid `-web --port`
-
-Typical symptom:
-
-```text
-选项 '--port' 必须在 0-65535 之间。命令: -web
-```
-
-Meaning:
-
-- CLI usage failure
-- exit code should be `2`
-- the Web host did not start yet
-
-Fix:
-
-- use an integer between `0` and `65535`
-- omit `--port` entirely if you want the server to auto-pick a free localhost port
-
-## 4. Config file not found
-
-Typical symptom:
-
-```text
-未找到数据库配置文件。CLI 查找顺序: --config -> ./databases.json -> ./local-databases.json -> DB_CONFIG_PATH -> %USERPROFILE%/.database-mcp/databases.json
-```
-
-Or:
-
-```text
-配置文件不存在: D:\path\to\databases.json
-```
-
-Meaning:
-
-- the CLI could not resolve a usable config file
-- exit code should be `2`
-
-Fix:
-
-- prefer explicit `--config 'D:\config\databases.json'`
-- or place a config in `./databases.json` or `./local-databases.json`
-- or set `DB_CONFIG_PATH`
-- remember `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json`
-- remember `-web` behaves differently from `tool`: if no config exists yet, it still starts and treats `%USERPROFILE%/.database-mcp/databases.json` as the writable target so the user can initialize it from the page
-
-## 5. `stdout` is not pure JSON
-
-Normal behavior:
-
-- successful `tool`, `config`, and `init` invocations write JSON payloads to `stdout`
-
-If extra text appears:
-
-- suspect a library or driver writing directly to `Console.Out`
-- do not assume the CLI contract is broken until you capture exact `stdout` and `stderr`
-
-Fix:
-
-- record the full command, `stdout`, and `stderr`
-- separate help output on `stderr` from stray runtime output
-- if JSON is mixed with other text, note that as a CLI-contract regression
-
-## 6. JSON argument parsing failures
-
-Typical symptom:
-
-```text
-选项 '--parameters' 需要有效 JSON。
-```
-
-Common triggers:
-
-- `--parameters`
-- `--input-parameters`
-- `--output-parameters`
-- `--commands`
-- `--parameters-array`
-- `--queries`
-- `--in-values`
-- `--column-info`
-
-Fix:
-
-- wrap the whole JSON payload in single quotes
-- pass one JSON object or array as one argument
-
-Examples:
+- SQL parameters 必须是对象数组，不是 name:value 字典。
+- batch_execute_commands 的 commands 必须是命令对象数组，每项嵌入 parameters；没有 --parameters-array。
+- 存储过程通过 parameters 的 direction 表达输入输出，没有 --input-parameters / --output-parameters。
+- SQL NULL 必须带 dbType；输出字符串/二进制必须带正数 size。未知字段和不能精确转换的数值应修正，不通过字符串插值绕过参数绑定。
+- IN 数组不能声明 dbType；使用 `[{"name":"ids","value":[1,2,3]}]` 绑定 `IN (@ids)`。
+- Mongo filter/document/update 是对象，不是字符串值、数组或显式 null。CLI 把整个 JSON 文本作为一个 argv 传入。
 
 ```powershell
---parameters '{"age":18}'
---in-values '[1,2,3]'
---queries '["select count(*) from users","select count(*) from roles"]'
+DatabaseMcpServer tool help query_database
+DatabaseMcpServer tool help batch_execute_commands
+DatabaseMcpServer tool help call_stored_procedure
+DatabaseMcpServer tool help mongo_update
 ```
 
-## 6.1 Invalid command timeout
-
-Typical symptom:
-
-```text
-commandTimeoutSeconds 必须在 0-86400 之间（0 表示无限等待）
-```
-
-or CLI usage:
-
-```text
-选项 '--command-timeout-seconds' 需要 int 值。
-```
-
-Fix:
-
-- pass an integer number of seconds, not a duration string
-- omit the option to keep the provider default (typically 300)
-- use `0` only when infinite wait is intentional
-- valid range is `0–86400`
+## 文档有工具，当前命令却找不到
 
 ```powershell
---command-timeout-seconds 900
+Get-Command 'DatabaseMcpServer' -All | Select-Object Source
+dotnet tool list --global
+DatabaseMcpServer tool list
+DatabaseMcpServer tool help query_database
 ```
 
-## 7. SQL Server `add_default_value` string literal confusion
+先确认 PATH 实际命中的可执行文件和安装版本。单独工具目录安装用 `dotnet tool list --tool-path '<安装目录>'` 查询该目录，并通过其中的可执行文件检查帮助。确认版本差异后按用户要求升级工具；不要把另一版本的工具名称或参数直接套用到当前命令。程序 --version 无效。
 
-Wrong:
+## 连接、配置和默认库
 
-```powershell
---default-value 'active'
-```
+- tool/-web 默认会先看当前目录，再看 DB_CONFIG_PATH；确定性脚本传 --config。
+- init/config 默认用户目录；不能假定它们跟随 tool 的查找顺序。
+- switch_database 改 CLI 状态，config use 改文件默认。单次操作用 --database-name 可以避免影响其他调用。
+- 当前名称仍存在时 reload_database_config 保留选择；需要切换时执行 switch_database，不删除整个 cli-state.json 影响其他配置。
+- 配置操作 success=false 时查看 saved/runtimeApplied/selectionPersisted 和 databaseName。先读取实际文件和运行状态，避免重复已成功的保存。
+- config doctor 默认在线。离线诊断需 --test-connections false；get_database_capabilities 不做连通性测试。
+- Mongo URI 必须包含业务库路径；authSource 仅是认证库，不能替代目标库。
 
-Correct:
+## 权限和 provider
 
-```powershell
---default-value '''active'''
-```
+| errorCode | 检查重点 |
+| --- | --- |
+| 1001 | 连接、认证、网络；避免把原始连接串贴进报告 |
+| 1002 | SQL/数据库执行错误；检查目标、schema 和参数 |
+| 1003 | 危险操作保护及连接 enableDangerousOperations |
+| 1004 | 输入类型、范围、预算或不支持的参数形状 |
+| 1009 | 准入队满/等待超时，或 Mongo 原生客户端容量 |
+| 1010 | DB_TOOL_ACCESS 与 accessMode；--yes 不覆盖权限 |
+| 1011 | 超时；确认服务端及驱动限制 |
+| 1012 | provider 不支持该操作或所需驱动不可用 |
+| 1013 | 响应超预算；写操作可能已经执行 |
 
-Meaning:
+先看 get_database_capabilities 的实际 provider、驱动可用性和操作能力。DB2/Hana 当前不可用，不是补一个任意驱动包就能打开的工具能力。其他 provider 随包带驱动也可能有原生 SDK / 平台 / 产品验证限制。不要把 SQLite 不支持存储过程误诊为需要重新安装工具。
 
-- the command expects a SQL literal, not plain text
-- SQL Server needs `'active'`, while PowerShell single-quote escaping requires `'''active'''`
+## 超时与截断
 
-## 8. SQL Server `Encrypt=True` failure
+query_database、Mongo 默认 30 秒；其他 SQL 工具未开启默认预算时通常使用驱动的 300 秒。所有请求都受服务端限制；0 秒要求允许无限等待，Mongo URI 超时仍可能更短。
 
-Typical symptom:
+SQL 批量的超时作用于每条命令，行数/字节预算在批量查询中共享。Mongo 的操作截止时间覆盖排队和读取流程。truncated=null 表示未探测尾部，不能当作 false；空数据加截断标志也不能解释为没有匹配记录。
 
-```text
-您试图连接的 SQL Server 实例要求加密，但是此计算机不支持
-```
+## 批量写与 Mongo 写结果
 
-Meaning:
+批量写不是事务。根据每项结果及数据库实际状态决定后续操作，不重放已成功的项目。
 
-- driver or TLS capability problem
-- not a tool-name or CLI-parameter issue
+Mongo writeOutcome：
 
-Fix, ordered safest first:
+- acknowledged：已确认；matchedCount/modifiedCount=0 也可能是正常成功。
+- not-executed：尚未调用写入，修正错误后才考虑执行。
+- unknown：写入已被调用但没有成功确认，可能提交或部分生效；先按 _id 查询确认。
 
-1. Enable/update TLS 1.2 support and install the server CA chain on the client.
-2. On a trusted network, keep encryption but skip identity validation only with explicit consent: `Encrypt=True;TrustServerCertificate=True`.
-3. Use `Encrypt=False` only as a temporary diagnostic fallback with explicit consent.
+取消可能不返回 writeOutcome；同样不能推断回滚。若 upsert 已确认后结果 ID 超出响应预算，可能同时出现 errorCode=1013 和 writeOutcome=acknowledged。保留这种信息，不自动再次写入。
 
-Never silently edit the user's real config. Use a temp config for diagnostic downgrades and state exactly what security property changes.
+many=true 要求 enableDangerousOperations=true；空 filter 还要求 allowAll=true，包括 one 操作。many 与 upsert 互斥。Mongo 不支持任意 runCommand、JavaScript filter 或替换/管道更新。
 
-## 9. `success: false` vs CLI failure
+## PowerShell 与本地 Web
 
-If the payload is valid JSON and includes:
+- default-value 接受 SQL 字面值：字符串 active 在 PowerShell 中写作 `--default-value '''active'''`。
+- GO 使用 here-string 和真实换行；JSON 用单引号，避免 $set/$oid 被变量展开。
+- -web 端口只接受 0–65535；页面仅供本机。
+- Web 写入 403 先检查 X-DatabaseMcp-Web 和同源 Origin；不要关闭这些保护。
+- Web 的数字和布尔参数用 JSON 数字/布尔值，不能传 "2"/"true"。
 
-```json
-{ "success": false }
-```
+## SQL Server TLS
 
-Meaning:
+保留实际错误证据，先检查客户端 TLS 支持、驱动及服务器证书链。不要静默修改现有 TLS 策略。只有用户已授权诊断性降低校验时才使用临时配置，并说明 TrustServerCertificate 跳过身份验证、Encrypt=False 降低传输保护；连接成功不代表安全配置等价。
 
-- the command reached the tool layer
-- exit code should usually be `1`
-- classify this as tool/backend/database failure unless proven otherwise
+## 验证范围
 
-Examples:
-
-- object does not exist
-- backend capability not supported
-- permission denied
-- database-specific limitation
-
-## 10. Current connection vs default connection
-
-Typical symptom:
-
-```text
-# user ran:
-DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'
-
-# then they opened databases.json, see isDefault still on the old connection, and ask:
-#   "switch_database didn't work? my default connection didn't change."
-```
-
-Meaning:
-
-- `tool switch_database` writes the current connection to `%USERPROFILE%/.database-mcp/cli-state.json` (keyed by the resolved config path). It does **not** rewrite `databases.json`.
-- `config use --name X` is the command that changes `isDefault` inside the config file.
-- Both are working as designed — they target different state layers.
-
-Fix:
-
-- If the user wants the CLI to remember a connection across `tool` calls without editing the config file, `switch_database` already did the right thing. Prove it with `tool get_current_database`.
-- If the user wants `databases.json` to show the change, use `config use --name X`.
-- To reset CLI-only state, delete `%USERPROFILE%/.database-mcp/cli-state.json` or run `switch_database` back to the intended connection name.
-
-Sanity check pattern:
-
-```powershell
-DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'
-DatabaseMcpServer tool list_databases --config 'D:\config\databases.json'
-DatabaseMcpServer config show --name '<expected-name>' --config 'D:\config\databases.json'
-```
-
-Related: SKILL.md "Mental Model" explains the two-layer state design; `references/cli.md` §3.6 has the full specification.
-
-## 11. `reload_database_config` seems to ignore a connection change
-
-Typical symptom:
-
-```text
-# user edited databases.json, removed or renamed the current connection, ran:
-DatabaseMcpServer tool reload_database_config --config 'D:\config\databases.json'
-# then expects the CLI to fall back to the new isDefault, but it doesn't until the saved name becomes invalid.
-```
-
-Meaning:
-
-- `reload_database_config` intentionally preserves the current connection when the saved name still exists in the reloaded file.
-- It only falls back to `isDefault` if the saved name was removed.
-
-Fix:
-
-- If the user wants the reload to also drop the CLI-only current connection, follow up with `tool switch_database --database-name '<new-target>'`, or delete `cli-state.json`.
-
-Related: SKILL.md "Mental Model" explains why the current connection is preserved across reloads.
-
-## 12. Batch result contains item failures
-
-Typical payload:
-
-```json
-{
-  "success": true,
-  "totalQueries": 3,
-  "successfulQueries": 2,
-  "failedQueries": 1,
-  "results": [
-    { "success": true, "queryIndex": 0 },
-    { "success": false, "queryIndex": 1, "error": "检测到危险操作" }
-  ]
-}
-```
-
-Meaning:
-
-- The batch invocation itself succeeded, but one item failed.
-- `batch_sql_query` accepts 1-5 read-only SQL strings and does not require `--yes`.
-- `batch_execute_commands` requires `--yes`, is not transactional, and can persist earlier successful writes when a later item fails.
-
-Fix:
-
-- inspect every `results[]` item instead of trusting only top-level `success`
-- for `batch_sql_query`, reduce input to at most five items and keep every SQL read-only
-- if atomic writes are required, do not claim `batch_execute_commands` provides rollback
-
-## 13. New source tool is missing from the global CLI
-
-Typical symptom:
-
-```text
-未知 tool: 'batch_sql_query'
-```
-
-Meaning:
-
-- The repository source may contain the tool while the installed global package is older.
-- This is not evidence that source registration is broken.
-
-Diagnosis:
-
-```powershell
-dotnet tool list --global | Select-String databasemcpserver
-dotnet run --project 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -f 'net9.0' -- tool help batch_sql_query
-DatabaseMcpServer tool help batch_sql_query
-```
-
-Report which executable produced each result. Pack and install a newly versioned local package, or update the global tool, before retesting.
-
-## 14. Large CLI verification runs
-
-When testing many tools:
-
-- start with read-only commands
-- create isolated temporary objects for write and DDL coverage
-- record command, exit code, stdout, stderr, and parsed success for each invocation
-- keep cleanup status explicit
-
-Recommended object prefix:
-
-```text
-cli_<yyyyMMdd_HHmmss>_<shortid>
-```
+验证 CLI 调用时，区分实际执行成功、能力不支持和执行失败。SQLite 不支持某项操作不能证明其他数据库也不支持；Mongo CRUD 成功需要对应实例的实际结果。仅能列出工具不代表连接或读写成功，报告应说明实际验证过的连接和操作。

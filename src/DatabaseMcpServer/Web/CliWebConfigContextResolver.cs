@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Configuration;
 using DatabaseMcpServer.Cli;
 
 namespace DatabaseMcpServer.Web;
@@ -11,13 +12,13 @@ internal static class CliWebConfigContextResolver
             return new CliWebConfigContext(Path.GetFullPath(explicitConfigPath), "--config");
         }
 
-        var existingResolution = CliConfigurationPathResolver.Resolve(null);
+        var existingResolution = ConfigurationPathResolver.Resolve(null);
         if (existingResolution.Success)
         {
             return new CliWebConfigContext(existingResolution.Path!, existingResolution.Source!);
         }
 
-        var writableResolution = CliConfigurationPathResolver.ResolveWritablePath(null);
+        var writableResolution = ConfigurationPathResolver.ResolveWritablePath(null);
         if (!writableResolution.Success)
         {
             throw new InvalidOperationException(writableResolution.ErrorMessage);

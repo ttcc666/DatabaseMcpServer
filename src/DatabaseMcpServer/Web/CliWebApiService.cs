@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Configuration;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DatabaseMcpServer.Cli;
@@ -5,7 +6,7 @@ using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
-using DatabaseMcpServer.Tools.Management;
+using DatabaseMcpServer.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -14,18 +15,18 @@ namespace DatabaseMcpServer.Web;
 internal sealed class CliWebApiService
 {
     private readonly CliWebConfigContext _context;
-    private readonly CliConfigFileService _configFileService;
-    private readonly CliConfigCommandHandler _configCommandHandler;
+    private readonly ConfigurationFileStore _configFileService;
+    private readonly ConfigurationCommands _configCommandHandler;
     private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
-    private readonly CliConnectionStringBuilder _connectionStringBuilder;
+    private readonly ConnectionStringBuilder _connectionStringBuilder;
     private readonly IServiceProvider _serviceProvider;
 
     public CliWebApiService(
         CliWebConfigContext context,
-        CliConfigFileService configFileService,
-        CliConfigCommandHandler configCommandHandler,
+        ConfigurationFileStore configFileService,
+        ConfigurationCommands configCommandHandler,
         ICurrentDatabaseStateStore currentDatabaseStateStore,
-        CliConnectionStringBuilder connectionStringBuilder,
+        ConnectionStringBuilder connectionStringBuilder,
         IServiceProvider serviceProvider)
     {
         _context = context;
@@ -74,7 +75,7 @@ internal sealed class CliWebApiService
         try
         {
             var config = _configFileService.Load(_context.ConfigPath);
-            var currentDefaultDatabase = CliConfigFileService.GetCurrentDefaultDatabaseName(config);
+            var currentDefaultDatabase = ConfigurationFileStore.GetCurrentDefaultDatabaseName(config);
             var currentDatabase = runtime?.CurrentDatabase;
 
             return new
@@ -152,7 +153,7 @@ internal sealed class CliWebApiService
             {
                 success = true,
                 configPath = _context.ConfigPath,
-                database = CliConfigFileService.ToMaskedConnection(database)
+                database = ConfigurationFileStore.ToMaskedConnection(database)
             };
         }
         catch (Exception ex)
@@ -172,8 +173,8 @@ internal sealed class CliWebApiService
         return new
         {
             success = true,
-            totalPresets = CliConfigPresetCatalog.Presets.Count,
-            presets = CliConfigPresetCatalog.Presets
+            totalPresets = DatabasePresetCatalog.Presets.Count,
+            presets = DatabasePresetCatalog.Presets
                 .OrderBy(item => item.DbType, StringComparer.OrdinalIgnoreCase)
                 .Select(item => new
                 {
@@ -189,7 +190,7 @@ internal sealed class CliWebApiService
 
     public object GetPreset(string dbType)
     {
-        if (!CliConfigPresetCatalog.TryGet(dbType, out var preset))
+        if (!DatabasePresetCatalog.TryGet(dbType, out var preset))
         {
             return new
             {
@@ -219,7 +220,7 @@ internal sealed class CliWebApiService
         return new
         {
             success = true,
-            profile = CliConnectionStringProfileCatalog.Get(dbType)
+            profile = ConnectionStringProfileCatalog.Get(dbType)
         };
     }
 
@@ -251,7 +252,7 @@ internal sealed class CliWebApiService
             request.EnableDangerousOperations,
             request.PrintOnly);
 
-        return request.PrintOnly ? payload : ApplySavedConfiguration(payload);
+        return request.PrintOnly ? Encode(payload) : ApplySavedConfiguration(payload);
     }
 
     public string AddDatabase(CliWebAddDatabaseRequest request)
@@ -336,8 +337,8 @@ internal sealed class CliWebApiService
     {
         try
         {
-            var tool = _serviceProvider.GetRequiredService<ConnectionTools>();
-            return tool.SwitchDatabase(databaseName);
+            var tool = _serviceProvider.GetRequiredService<ConnectionOperations>();
+            return Encode(tool.SwitchDatabase(databaseName));
         }
         catch (Exception ex)
         {
@@ -354,7 +355,7 @@ internal sealed class CliWebApiService
     {
         try
         {
-            return await _serviceProvider.GetRequiredService<ConnectionTools>().HealthCheck(cancellationToken);
+            return Encode(await _serviceProvider.GetRequiredService<ConnectionOperations>().HealthCheck(cancellationToken));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
@@ -365,22 +366,22 @@ internal sealed class CliWebApiService
 
     public string Validate()
     {
-        return _configCommandHandler.Validate(_context.ConfigPath);
+        return Encode(_configCommandHandler.Validate(_context.ConfigPath));
     }
 
-    public Task<string> DoctorAsync(CliWebDoctorRequest request, CancellationToken cancellationToken = default)
+    public async Task<string> DoctorAsync(CliWebDoctorRequest request, CancellationToken cancellationToken = default)
     {
-        return _configCommandHandler.DoctorAsync(
+        return Encode(await _configCommandHandler.DoctorAsync(
             _context.ConfigPath,
             request.Name,
             request.TestConnections,
             request.FixSuggestions,
-            request.SummaryOnly, cancellationToken);
+            request.SummaryOnly, cancellationToken));
     }
 
-    public Task<string> TestConnectionAsync(string name, CancellationToken cancellationToken = default)
+    public async Task<string> TestConnectionAsync(string name, CancellationToken cancellationToken = default)
     {
-        return _configCommandHandler.TestAsync(_context.ConfigPath, name, cancellationToken);
+        return Encode(await _configCommandHandler.TestAsync(_context.ConfigPath, name, cancellationToken));
     }
 
     public async Task<string> ImportAsync(Stream stream, bool force, CancellationToken cancellationToken)
@@ -457,66 +458,12 @@ internal sealed class CliWebApiService
         return _connectionStringBuilder.Build(dbType, connectionFields);
     }
 
-    private string ApplySavedConfiguration(string payload, bool allowEmptyInitialization = false)
-    {
-        if (!IsSuccess(payload))
-        {
-            return payload;
-        }
+    private string ApplySavedConfiguration(ConfigurationCommandResult result, bool allowEmptyInitialization = false)
+        => Encode(_serviceProvider.GetRequiredService<ConfigurationRuntimeApplier>()
+            .Apply(_context.ConfigPath, result, allowEmptyInitialization));
 
-        var response = JsonNode.Parse(payload)!.AsObject();
-        response["saved"] = true;
-        response["runtimeApplied"] = false;
-        try
-        {
-            var config = _configFileService.Load(_context.ConfigPath);
-            if (config.Databases.Count == 0)
-            {
-                response["success"] = allowEmptyInitialization;
-                response["message"] = "配置已保存，尚无可用数据库连接。已有运行时将保留最近有效配置。";
-                return response.ToJsonString();
-            }
-            var databaseConfigService = _serviceProvider.GetRequiredService<IDatabaseConfigService>();
-            var reload = databaseConfigService.ReloadConfiguration(
-                followFileDefault: databaseConfigService.IsEnableMonitorConfigEnabled());
-            response["runtimeApplied"] = reload.RuntimeApplied || reload.Success;
-            response["selectionPersisted"] = reload.SelectionPersisted;
-            response["success"] = reload.Success;
-            if (!reload.Success) response["message"] = $"配置已保存，但未完成全部更新：{reload.Message}";
-            var monitor = _serviceProvider.GetServices<IHostedService>()
-                .OfType<DatabaseConfigFileMonitorService>()
-                .FirstOrDefault();
-            monitor?.EnsureMonitorStarted();
-        }
-        catch (Exception ex)
-        {
-            response["success"] = false;
-            response["message"] = $"配置已保存，但未完成运行时更新：{ex.Message}";
-        }
-        return response.ToJsonString();
-    }
+    private static string Encode(object result)
+        => JsonSerializer.Serialize(result, JsonSerializationDefaults.CompactCamelCase);
 
-    private static bool IsSuccess(string payload)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(payload);
-            return document.RootElement.ValueKind == JsonValueKind.Object &&
-                   document.RootElement.TryGetProperty("success", out var successElement) &&
-                   successElement.ValueKind == JsonValueKind.True;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
-    private static string Failure(string message)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            success = false,
-            message
-        });
-    }
+    private static string Failure(string message) => Encode(new ConfigurationCommandResult { Success = false, Message = message });
 }

@@ -1,7 +1,7 @@
 # DatabaseMCP 数据库操作服务器
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.7.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-4.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -16,7 +16,7 @@
 - ⚡ **执行隔离** - 独占 SqlSugarClient 租约 + 驱动物理连接池 + 数据库特定优化
 - 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
 - 💾 **完整功能** - 62 个 MCP 工具，涵盖类型化查询、分页、MongoDB 集合、操作、架构管理和能力诊断；新部署推荐 .NET 10 LTS，见[数据库 MCP 工作流](Doc/database-mcp-workflow.md)
-- 🚀 **生产就绪** - 支持事务、批量操作、存储过程、自动重连
+- 🚀 **执行控制** - 支持批量操作、存储过程、权限与超时限制；批量写入不提供事务回滚
 - 📦 **.NET Global Tool** - 发布包要求 .NET 10；源码保留 .NET 9/10 构建与测试
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
 
@@ -808,6 +808,8 @@ DatabaseMcpServer tool execute_command \
 
 ### 本地开发
 
+后端采用 Host / Core / Infrastructure 三个程序集，详见[架构与开发边界](Doc/backend-architecture.md)。普通后端构建不运行 npm；更新前端或打包时使用 `-p:BuildWebsite=true`。
+
 ```bash
 # 克隆项目
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
@@ -826,7 +828,7 @@ dotnet build 'DatabaseMcpServer.slnx'
 dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # 打包发布
-dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0'
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
 推荐的稳定验证方式：
@@ -837,10 +839,12 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:Targ
 
 ## 🆕 版本发布
 
-- **未发布：依赖升级与可靠性修复**
-  - 升级 MCP 2.4.0、SqlSugarCore 5.1.4.221 及兼容依赖，SDK 固定为 10.0.404
-  - 修复只读 PRAGMA 写入漏洞、极小数归零和 MCP 错误标志；保留工具名及 CLI/Web JSON 格式
-  - 版本矩阵、数值边界、协议取消及数据库回归见 [升级说明](Doc/dependency-upgrade.md)
+- **4.0.0**
+  - 升级工具契约：使用 `query_database`、类型化参数、命名连接、查询预算、分页和离线能力诊断；移除旧查询与输出参数入口，升级后须刷新工具清单
+  - 新增六个 MongoDB 原生集合工具，明确 Extended JSON、写入确认、批量及空过滤保护
+  - 拆分 Host / Core / Infrastructure 并按功能组织模块；统一执行准入、配置保存与运行时状态，更新 CLI 使用技能
+  - 升级 MCP 2.4.0、SqlSugarCore 5.1.4.221，补齐数据库驱动；修复只读保护、数值精度和 MCP 错误标志
+  - 发布包仅支持 .NET 10，源码与测试保留双框架；迁移步骤和限制见 [4.0.0 发布说明](Doc/release-4.0.0.md)
 
 - **3.7.0**
   - 新增可选配置文件监听，长驻 MCP stdio / `-web` 可在默认库变化时自动切换当前连接；优先级为启动参数 `--enable-monitor-config` > 环境变量 `ENABLE_MONITOR_CONFIG` > 配置字段 `enableMonitorConfig`，默认关闭

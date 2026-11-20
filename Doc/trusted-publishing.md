@@ -199,7 +199,8 @@ powershell -ExecutionPolicy 'Bypass' -File 'scripts\verify.ps1'
 dotnet pack `
   'src\DatabaseMcpServer\DatabaseMcpServer.csproj' `
   '--configuration' 'Release' `
-  '-p:TargetFrameworks=net10.0' `
+  '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' `
+  '--artifacts-path' 'artifacts/package-build' `
   '--output' 'artifacts\release'
 ```
 

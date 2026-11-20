@@ -1,146 +1,65 @@
 ---
 name: database-mcp-cli
-description: "Run, configure, script, validate, or troubleshoot DatabaseMcpServer in CLI mode / 命令行模式 (not MCP stdio client setup). Use for `DatabaseMcpServer tool|config|init|-web`, config discovery and `DB_CONFIG_PATH`, `databases.json` vs `cli-state.json`, `switch_database` vs `config use`, `--config` / `--yes`, exit-code and stdout/stderr triage, PowerShell SQL/JSON quoting, source-vs-global-tool version mismatches, `batch_sql_query`, `batch_execute_commands`, browser config management, or reproducible CLI smoke tests. Chinese triggers include CLI 测试、切换数据库、当前连接没变、重载配置、PowerShell 转义、批量查询、批量执行、打开配置网页、退出码排查。"
+description: "使用 DatabaseMcpServer CLI（tool、config、init、-web）管理连接、执行 SQL 或 MongoDB 查询与写入、编写调用脚本及排查错误。适用于通过命令行操作数据库，不用于开发服务器源码或配置 MCP stdio 客户端。"
 ---
 
 # DatabaseMcpServer CLI
 
-Operate DatabaseMcpServer from the shell safely, deterministically, and with evidence.
+帮助调用者选择工具、构造参数、执行数据库操作并判断结果。依据实际可执行文件的帮助，保留用户指定的连接、权限和操作范围。
 
-## Scope Gate
+## 入口与版本
 
-- Use this skill for direct CLI invocations: `tool`, `config`, `init`, or `-web`.
-- Do not use CLI instructions to answer “how do I connect Claude/Cursor/Cline over MCP stdio?” Treat that as client integration.
-- Identify which executable is under test:
-  - Installed global tool: `DatabaseMcpServer`
-  - Current repository source: `dotnet run --project 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -f 'net9.0' -- ...`
-- Never assume the installed tool contains a source-tree change. If a new tool exists in source but global CLI says “unknown tool”, compare source help with `dotnet tool list --global`.
+- 命令入口：`DatabaseMcpServer`；用 `dotnet tool list --global` 查看安装版本，`--tool-path` 安装则查询对应目录。程序没有 `--version`，该参数会退出 2。
+- 工具名称和参数以实际运行的 `tool list` / `tool help <name>` 为准。不同安装版本可能提供不同工具，不根据文档中的固定数量判断能力。
 
-## Core Workflow
+## 调用流程
 
-1. Discover exact syntax before guessing:
+1. 用 `tool list`、`tool help <name>`、`config help <subcommand>` 确认当前名称和参数。
+2. 确定可执行文件与配置文件。脚本优先显式 `--config`；执行工具时优先使用支持的 `--database-name`，它不改变当前选择。
+3. 查询 `list_databases` / `get_current_database`；离线能力用 `get_database_capabilities`。只有需要连通性证据时才执行 `test_connection_by_name` 或 `config test`。
+4. SQL 的表结构未知时先用 `get_table_schema`，普通查询用 `query_database`，按表分页用 `query_table_page`；Mongo 用 `mongo_list_collections` / `mongo_find`，不发送 SQL。已有可靠的目标和结构信息时直接复用。
+5. 已获用户授权的写入按帮助附加 `--yes`，同时遵守服务端及连接权限。
+6. 同时检查退出码、JSON、逐项结果、截断标志和写入确认状态。报告实际执行结果；日志中的连接串、密码和敏感参数需脱敏。
 
-   ```powershell
-   DatabaseMcpServer tool list
-   DatabaseMcpServer tool help <tool_name>
-   DatabaseMcpServer config help <subcommand>
-   ```
+## 当前契约
 
-2. Resolve the executable version and config path.
-3. Establish the current connection with `get_current_database`; do not infer it from `isDefault`.
-4. Run read-only checks before SQL or writes:
-   `validate_configuration → test_connection → get_database_config → list_databases`.
-5. Inspect schema before composing SQL:
-   `is_any_table → get_table_schema/get_column_infos_by_table_name`.
-6. Execute writes only within the user-authorized scope and with `--yes`.
-7. Capture argv, exit code, stdout, stderr, classification, and cleanup.
+- SQL 参数统一为 `[{name,value,dbType?,direction?,size?,precision?,scale?}]`。NULL 必须指定 dbType；IN 数组通过 value 传递且不能声明 dbType；输出方向只用于存储过程，字符串/二进制输出需要 size。
+- `batch_sql_query` 接受 1–5 条只读 SQL 字符串；`batch_execute_commands` 接受 `[{sql,parameters?}]`。批量写不是事务，失败或取消不会回滚已完成的写入。
+- 批量工具的 `commandTimeoutSeconds` 应用于每条数据库命令，不是整批总截止时间。逐项检查 `results[]`，顶层成功和退出 0 不代表全部成功。
+- 使用当前工具说明：旧 `sql_query`、`sql_query_with_in`、`get_table_data` 已移除；没有字典式 SQL 参数、`--parameters-array` 或分离的存储过程输入/输出参数入口。
+- `query_database` 默认 1000 行、1 MiB、30 秒，字节预算至少 1024；`query_table_page` 默认 100 行。服务端上限仍生效。`limitReached=true,truncated=null` 表示触及行数限制，不能证明有下一页或已经读完。
+- `DB_TOOL_ACCESS` 与连接 `accessMode` 取更严格权限。read-only 禁止写；read-write 禁止 DDL、schema 变更和存储过程执行。CLI 的 `--yes` 不覆盖权限或 `enableDangerousOperations`。
+- Mongo 仅使用六个 `mongo_*` 集合工具，文档输入为 JSON / Extended JSON v2 对象。写入 `writeOutcome=unknown` 或取消后先核实实际状态，不自动重放。
 
-## Version and Source Truth
+## 配置与状态
 
-- Check an installed version with:
-
-  ```powershell
-  dotnet tool list --global | Select-String databasemcpserver
-  ```
-
-- `DatabaseMcpServer --version` is unsupported and exits `2`; do not recommend it as a working check.
-- When validating a repository change, prefer `dotnet run ... -- tool help <name>` or the freshly packed local tool. State explicitly whether evidence came from source or the installed global tool.
-- If the global tool is stale, upgrade or install a newly versioned local package before diagnosing the feature as missing.
-
-## Two State Layers
-
-| State | Stored in | Changed by | Meaning |
-| --- | --- | --- | --- |
-| Default connection | `databases.json` `isDefault` | `config use` / `config set-default` | File-level default |
-| CLI current connection | `%USERPROFILE%/.database-mcp/cli-state.json` | `tool switch_database` | Runtime selection, keyed by resolved config path |
-
-Consequences:
-
-- `switch_database` does not rewrite `databases.json`.
-- Tool calls prefer cli-state and fall back to `isDefault` only when saved state is absent or invalid.
-- `reload_database_config` preserves the current connection when that name still exists.
-- Diagnose identity with `get_current_database` plus `list_databases`; use `config show` to inspect the file default.
-
-## Config Resolution
-
-- Prefer explicit `--config '<path>'` for deterministic scripts.
-- `tool` and `-web` search:
-  `./databases.json → ./local-databases.json → DB_CONFIG_PATH → %USERPROFILE%/.database-mcp/databases.json`.
-- `init` and `config` default to `%USERPROFILE%/.database-mcp/databases.json`.
-- `-web` is localhost-only. With no existing config, it uses the user-level path as the writable target.
-- For an ad-hoc connection string, create a one-entry config under `%TEMP%`; never modify the real user config unless asked. Delete temp credentials and database files after testing.
-
-## Safety and Side Effects
-
-- Start read-only. Do not test writes or DDL against business objects without explicit authorization.
-- Use uniquely prefixed throwaway objects such as `cli_<yyyyMMdd_HHmmss>_<shortid>`.
-- All DML, stored-procedure, batch-command, and schema mutation tools require `--yes`. Missing `--yes` is exit `2`; the database was not contacted.
-- Never weaken TLS or certificate validation silently. Read `references/troubleshooting.md` §8 and present ranked options before changing a connection string.
-
-### Batch Tools
-
-| Tool | Contract | Confirmation |
-| --- | --- | --- |
-| `batch_sql_query` | 1–5 independent read-only SQL strings; sequential; one shared connection; per-item success/error; no per-query parameters; optional `--command-timeout-seconds` applies to the whole batch | No `--yes` |
-| `batch_execute_commands` | Write commands with optional per-command parameters; sequential; per-item success/error; **not transactional**, so partial success persists; optional `--command-timeout-seconds` applies to the whole batch | Requires `--yes` |
-
-For both tools, inspect every `results[]` item. Top-level `success: true` does not imply every item succeeded.
-
-### SQL Command Timeout
-
-Query and data-operation tools accept optional `commandTimeoutSeconds` / `--command-timeout-seconds`:
-
-- Omitted: provider default (typically 300 seconds)
-- `0`: wait indefinitely
-- Valid range: `0–86400`
-
-Prefer this for long-running reports, bulk updates, and stored procedures instead of assuming the 5-minute default.
-
-## CLI Result Contract
-
-| Evidence | Classification | Next action |
-| --- | --- | --- |
-| Exit `0` + parseable JSON | Invocation succeeded | Inspect payload and per-item results |
-| Exit `1` + structured `success:false` | Tool/backend/database failure | Diagnose object, permission, capability, or connection |
-| Exit `2` + usage text | CLI-layer failure | Fix argv, JSON, config resolution, or `--yes` |
-| Help/list text on stderr | Expected | Do not misclassify as failure |
-
-`get_database_config` may return valid JSON without top-level `success`; exit `0` plus parseable JSON is authoritative.
-
-## PowerShell Guardrails
-
-- Wrap SQL and JSON values in single quotes.
-- Keep each JSON object/array as one argv item.
-- Escape a literal single quote inside a PowerShell single-quoted string as `''`.
-- SQL Server `add_default_value` expects a SQL literal: `--default-value '''active'''`.
-- Pass `execute_command_with_go` a single argument containing real newlines and standalone `GO` lines; prefer a PowerShell here-string.
-- For long-running SQL, pass `--command-timeout-seconds <int>`; omit it to keep the ~300s default.
-- In automation, prefer `ProcessStartInfo.ArgumentList` over composing a shell command string.
-
-Read `references/commands.md` for exact quoting and batch examples.
-
-## Reference Routing
-
-| Need | Read |
+| 对象 | 行为 |
 | --- | --- |
-| End-to-end CLI lifecycle, config commands, exact tool catalog | `references/cli.md` |
-| PowerShell quoting, GO scripts, JSON arrays, batch examples | `references/commands.md` |
-| Exit codes, missing tool/version mismatch, config/state, TLS, batch partial failures | `references/troubleshooting.md` |
+| `config use` / `config set-default` | 修改配置文件 isDefault |
+| `tool switch_database` | 按配置路径持久化 CLI 当前选择到用户目录的 cli-state.json |
+| 工具的 `--database-name` | 只指定本次请求目标；错误名称不会回退到当前库 |
+| `reload_database_config` | 当前名字仍存在时保留选择 |
+| 编辑响应 | 分别检查 saved、runtimeApplied、selectionPersisted，不能把保存成功当成全部成功 |
 
-The repository's `Doc/cli.md` is canonical for `references/cli.md`. When changing CLI behavior, update both and verify removed tools do not remain in the skill reference.
+`tool` / `-web` 查找顺序：`--config → ./databases.json → ./local-databases.json → DB_CONFIG_PATH → 用户目录/.database-mcp/databases.json`。`init` / `config` 默认写用户目录，需用 `--config` 指定其他路径。测试使用临时配置和临时对象。
 
-## Reproducible Report
+## 输出与取消
 
-Report every CLI run with:
+| 退出码 / 输出 | 处理 |
+| --- | --- |
+| 0 | 调用成功；仍检查批量子项和结果边界 |
+| 1 | 工具或配置操作返回失败；检查 errorCode、部分保存或写入状态 |
+| 2 | 用法、参数绑定、配置路径或启动失败；先读 stderr |
+| 130 | 操作取消；不代表写入已回滚 |
 
-```text
-Executable: <global tool | dotnet run from source>, version/commit: <value>
-Config: <absolute path>, source: <--config | cwd | env | user default>
-Current connection: <get_current_database result>
-Command: <exact argv>
-Exit code: <0|1|2>
-Stdout: <JSON or empty>
-Stderr: <text or empty>
-Classification: <success | CLI usage | tool/backend>
-Cleanup: <objects/files removed or none>
-```
+帮助和目录输出到 stderr；执行结果输出到 stdout。`get_database_config` 没有顶层 success，不能据此判失败。
+
+## 按需阅读
+
+| 任务 | 参考 |
+| --- | --- |
+| 配置定位、选库、监听、状态与权限 | [CLI 工作流](references/cli.md) |
+| SQL 参数、批量写、GO、Mongo 和 PowerShell 示例 | [命令示例](references/commands.md) |
+| 退出码、旧参数、超时、部分成功、驱动与 TLS | [故障排查](references/troubleshooting.md) |
+
+这些参考随技能独立分发，无需项目源码即可使用；完整工具目录以实际 `tool list/help` 为准。

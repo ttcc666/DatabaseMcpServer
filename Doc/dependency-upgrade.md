@@ -69,7 +69,7 @@ dotnet test 'DatabaseMcpServer.slnx' -c 'Release' --filter 'Category!=Integratio
 pwsh -NoProfile -File 'scripts/test-integration.ps1'
 dotnet list 'DatabaseMcpServer.slnx' package --vulnerable --include-transitive --no-restore --format 'json'
 dotnet build 'DatabaseMcpServer.slnx' -c 'Release' --no-restore
-dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' --no-build
+dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
 保留 net9.0/net10.0 双目标兼容；.NET 9 已于 2026-11-10 结束支持，新部署推荐 .NET 10 LTS。MongoDB 和其他附加 provider 本轮完成依赖/编译检查，未宣称完成真实库 CRUD 回归。

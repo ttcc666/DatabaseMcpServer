@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Configuration;
 using System.Reflection;
 using System.Text.Json;
 using System.Net;
@@ -94,10 +95,11 @@ internal sealed class CliWebHost : ICliWebHost
             configPath: configContext.ConfigPath);
         builder.Services.AddDatabaseMcpToolServices();
         builder.Services.AddSingleton(configContext);
-        builder.Services.AddSingleton<CliConfigFileService>();
-        builder.Services.AddSingleton(services => new CliConfigCommandHandler(
-            services.GetRequiredService<IJsonResultSerializer>(), services.GetRequiredService<CliConfigFileService>(),
-            services.GetRequiredService<ISqlSugarClientFactory>(), services.GetRequiredService<DatabaseConnectionProbe>()));
+        builder.Services.AddSingleton<ConfigurationFileStore>();
+        builder.Services.AddSingleton(services => new ConfigurationCommands(
+            services.GetRequiredService<ConfigurationFileStore>(),
+            services.GetRequiredService<ISqlSugarClientFactory>(), services.GetRequiredService<DatabaseConnectionProbe>(),
+            services.GetRequiredService<DatabaseExecutionCoordinator>()));
         builder.Services.AddSingleton<CliWebApiService>();
         builder.WebHost.ConfigureKestrel(optionsBuilder =>
         {

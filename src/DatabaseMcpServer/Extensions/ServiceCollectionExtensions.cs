@@ -1,3 +1,5 @@
+using DatabaseMcpServer.Tools;
+using DatabaseMcpServer.Configuration;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Models;
@@ -25,12 +27,19 @@ internal static class ServiceCollectionExtensions
         bool? enableMonitorConfig = null,
         string? configPath = null)
     {
-        var resolvedPath = CliConfigurationPathResolver.ResolveWritablePath(
+        var resolvedPath = ConfigurationPathResolver.ResolveWritablePath(
             configPath ?? Environment.GetEnvironmentVariable("DB_CONFIG_PATH"),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         services.AddSingleton(new DatabaseRuntimeOptions(enableMonitorConfig, resolvedPath.Path));
         services.AddSingleton<IJsonResultSerializer, JsonResultSerializer>();
         services.AddSingleton(DatabaseExecutionOptions.FromEnvironment());
+        services.AddSingleton<DatabaseExecutionCoordinator>();
+        services.AddTransient<SqlDatabaseSessions>();
+        services.AddSingleton<SqlSugarConnectionSettings>();
+        services.AddTransient<DatabaseMcpServer.Operations.SqlQueryOperations>();
+        services.AddTransient<DatabaseMcpServer.Operations.SqlCommandOperations>();
+        services.AddTransient<DatabaseMcpServer.Operations.SchemaOperations>();
+        services.AddTransient<DatabaseMcpServer.Operations.ConnectionOperations>();
         services.AddTransient<DatabaseQueryService>();
         services.AddSingleton<MongoClientRegistry>();
         services.AddTransient<MongoCollectionService>();
@@ -45,14 +54,20 @@ internal static class ServiceCollectionExtensions
                 cliToolMode,
                 currentDatabaseStateFilePath));
         services.AddSingleton<IDatabaseConfigService, DatabaseConfigService>();
-        services.AddHostedService<DatabaseConfigFileMonitorService>();
+        services.AddSingleton<ConfigurationFileStore>();
+        services.AddSingleton<DatabaseConfigurationApplicationService>();
+        services.AddSingleton<DatabaseConfigFileMonitorService>();
+        services.AddHostedService(sp => sp.GetRequiredService<DatabaseConfigFileMonitorService>());
+        services.AddTransient(sp => new ConfigurationRuntimeApplier(sp.GetRequiredService<ConfigurationFileStore>(),
+            () => sp.GetRequiredService<IDatabaseConfigService>(),
+            () => sp.GetRequiredService<DatabaseConfigFileMonitorService>().EnsureMonitorStarted()));
         return services;
     }
 
     public static IServiceCollection AddDatabaseMcpToolServices(this IServiceCollection services)
     {
-        services.TryAddSingleton<CliToolCatalog>();
-        services.TryAddSingleton<CliConnectionStringBuilder>();
+        services.TryAddSingleton<ToolCatalog>();
+        services.TryAddSingleton<ConnectionStringBuilder>();
         services.TryAddSingleton<CliWebToolService>();
 
         foreach (var toolType in DatabaseMcpToolCatalog.ToolTypes)
@@ -66,9 +81,7 @@ internal static class ServiceCollectionExtensions
     public static IMcpServerBuilder AddDatabaseMcpServer(this IServiceCollection services)
     {
         services.AddDatabaseMcpToolServices();
-        var toolMetadata = new CliToolCatalog().Tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
-        var argumentNames = toolMetadata.Values.ToDictionary(tool => tool.Name,
-            tool => tool.Parameters.Select(parameter => parameter.ParameterName).ToHashSet(StringComparer.Ordinal));
+        var validation = new DatabaseMcpServer.Filters.ToolRequestValidationFilter();
 
         var builder = services
             .AddMcpServer(options =>
@@ -84,59 +97,9 @@ internal static class ServiceCollectionExtensions
                 };
             })
             .WithStdioServerTransport()
-            .WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, cancellationToken) =>
-            {
-                if (context.Params is { } request && argumentNames.TryGetValue(request.Name, out var allowed))
-                {
-                    var arguments = request.Arguments ?? new Dictionary<string, System.Text.Json.JsonElement>();
-                    var unknown = arguments.Keys.FirstOrDefault(name => !allowed.Contains(name));
-                    if (unknown != null)
-                    {
-                        if (request.Name.StartsWith("mongo_", StringComparison.Ordinal))
-                            return MongoCollectionService.ToToolResult(new() { Success = false, ErrorCode = 1004,
-                                ErrorMessage = "包含未知参数，请按当前 tools/list schema 调用。",
-                                WriteOutcome = CliWriteProtection.RequiresConfirmation(request.Name) ? "not-executed" : null });
-                        return new CallToolResult { IsError = true, Content = [new TextContentBlock
-                        {
-                            Text = System.Text.Json.JsonSerializer.Serialize(new { success = false, errorCode = 1004,
-                                errorMessage = $"未知参数 '{unknown}'，请按当前 tools/list schema 调用。" })
-                        }] };
-                    }
-                    if (request.Name.StartsWith("mongo_", StringComparison.Ordinal))
-                    {
-                        try
-                        {
-                            foreach (var parameter in toolMetadata[request.Name].Parameters)
-                            {
-                                if (!arguments.TryGetValue(parameter.ParameterName, out var value))
-                                {
-                                    if (parameter.IsRequired) throw MongoDocumentContract.Invalid("缺少必填 Mongo 工具参数。");
-                                    continue;
-                                }
-                                if (parameter.IsJson) MongoDocumentContract.ValidateObject(value);
-                                else if (value.ValueKind == System.Text.Json.JsonValueKind.Null && !parameter.IsRequired &&
-                                    (!parameter.ParameterType.IsValueType || Nullable.GetUnderlyingType(parameter.ParameterType) != null)) continue;
-                                else if (parameter.EffectiveType == typeof(string) && value.ValueKind == System.Text.Json.JsonValueKind.String) continue;
-                                else if (parameter.EffectiveType == typeof(bool) && value.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False) continue;
-                                else if (parameter.EffectiveType == typeof(int) && value.ValueKind == System.Text.Json.JsonValueKind.Number && value.TryGetInt32(out _)) continue;
-                                else throw MongoDocumentContract.Invalid("Mongo 工具参数类型不符合当前 tools/list schema。");
-                            }
-                        }
-                        catch (DatabaseMcpException ex)
-                        {
-                            return MongoCollectionService.ToToolResult(new() { Success = false, ErrorCode = (int)ex.ErrorCode,
-                                ErrorMessage = ex.Message, WriteOutcome = CliWriteProtection.RequiresConfirmation(request.Name) ? "not-executed" : null });
-                        }
-                    }
-                }
-                var result = await next(context, cancellationToken);
-                if (result.Content is [TextContentBlock text] && ToolResultStatus.IsFailure(text.Text))
-                {
-                    result.IsError = true;
-                }
-
-                return result;
-            }));
+            .WithRequestFilters(filters => filters.AddCallToolFilter(next =>
+                (context, cancellationToken) => validation.InvokeAsync(context, cancellationToken,
+                    (request, token) => next(request, token))));
 
         // Prefer explicit WithTools<T>() registration (AOT-friendly) over assembly scanning.
         foreach (var registration in DatabaseMcpToolCatalog.Registrations)

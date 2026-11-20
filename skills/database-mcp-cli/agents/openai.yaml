@@ -1,4 +1,4 @@
 interface:
   display_name: "DatabaseMcpServer CLI"
-  short_description: "Safely run and troubleshoot DatabaseMcpServer CLI"
-  default_prompt: "Use $database-mcp-cli to run or troubleshoot a DatabaseMcpServer CLI workflow safely and reproducibly."
+  short_description: "DatabaseMcpServer CLI：SQL、Mongo、配置与故障排查"
+  default_prompt: "使用 $database-mcp-cli 根据我的数据库操作需求选择 CLI 工具、构造参数、执行调用并检查结果。"

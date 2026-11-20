@@ -589,6 +589,7 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `list_databases` | 列出所有连接 | `DatabaseMcpServer tool list_databases --config 'D:\config\databases.json'` |
 | `switch_database` | 切换并持久化当前连接（按 config 路径隔离） | `DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'` |
 | `get_current_database` | 查看当前连接（优先读取 CLI 持久化状态） | `DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'` |
+| `get_database_capabilities` | 离线查看指定连接的 provider、驱动和操作能力 | `DatabaseMcpServer tool get_database_capabilities --database-name 'reporting' --config 'D:\config\databases.json'` |
 | `health_check` | 健康检查 | `DatabaseMcpServer tool health_check --config 'D:\config\databases.json'` |
 | `test_connection_with_retry` | 带重试测试连接 | `DatabaseMcpServer tool test_connection_with_retry --max-retries 3 --initial-delay-ms 1000 --config 'D:\config\databases.json'` |
 
@@ -622,19 +623,29 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
 | `query_database` | 执行只读查询（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool query_database --sql 'select top 10 * from users' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
+| `query_table_page` | 按主键稳定分页，默认 100 行，不隐式 COUNT | `DatabaseMcpServer tool query_table_page --table-name 'users' --config 'D:\config\databases.json'` |
 | `sql_query_single` | 查询单条记录 | `DatabaseMcpServer tool sql_query_single --sql 'select top 1 * from users order by id desc' --config 'D:\config\databases.json'` |
 | `get_data_set_all` | 多结果集查询 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles' --config 'D:\config\databases.json'` |
 | `get_scalar` | 查询标量值 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'` |
-| `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果（可选超时作用于整批） | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
+| `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果（超时作用于每条命令，行数/字节预算整批共享） | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
 
 ## 8.5 数据写入
 
 | CLI 命令 | 说明 | 示例 |
 | --- | --- | --- |
 | `execute_command` | 执行 DML（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
-| `batch_execute_commands` | 非事务批量执行 DML，逐条返回结果（可选超时作用于整批） | `DatabaseMcpServer tool batch_execute_commands --commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
+| `batch_execute_commands` | 非事务批量执行命令对象，每项可带类型化 parameters；超时作用于每条命令 | `DatabaseMcpServer tool batch_execute_commands --commands '[{"sql":"update users set status=@status where id=@id","parameters":[{"name":"status","value":"active"},{"name":"id","value":1}]},{"sql":"update users set status=@status where id=@id","parameters":[{"name":"status","value":"inactive"},{"name":"id","value":2}]}]' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
 | `call_stored_procedure` | 调用存储过程 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '[{"name":"year","value":2025},{"name":"month","value":11}]' --yes --config 'D:\config\databases.json'` |
-| `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | `DatabaseMcpServer tool execute_command_with_go --sql \"UPDATE users SET status='active' WHERE id=1`nGO`nUPDATE users SET status='inactive' WHERE id=2\" --yes --config 'D:\config\databases.json'` |
+| `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | 使用下方 here-string 示例，保留实际换行 |
+
+```powershell
+$sql = @'
+UPDATE users SET status='active' WHERE id=1
+GO
+UPDATE users SET status='inactive' WHERE id=2
+'@
+DatabaseMcpServer tool execute_command_with_go --sql $sql --yes --config 'D:\config\databases.json'
+```
 
 ## 8.6 架构变更
 
@@ -660,6 +671,21 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 | `drop_view` | 删除视图 | `DatabaseMcpServer tool drop_view --view-name 'v_active_users' --yes --config 'D:\config\databases.json'` |
 | `drop_func` | 删除函数 | `DatabaseMcpServer tool drop_func --function-name 'fn_calc_score' --yes --config 'D:\config\databases.json'` |
 | `drop_proc` | 删除存储过程 | `DatabaseMcpServer tool drop_proc --procedure-name 'sp_cleanup_logs' --yes --config 'D:\config\databases.json'` |
+
+## 8.7 Mongo 集合
+
+Mongo 使用原生集合工具；SQL/DDL 工具不适用。URI 必须包含业务数据库，`authSource` 不能替代目标库。对象参数支持 JSON / Extended JSON v2，输出使用 Canonical Extended JSON v2。
+
+| CLI 命令 | 说明 | 示例 |
+| --- | --- | --- |
+| `mongo_list_collections` | 列出集合 | `DatabaseMcpServer tool mongo_list_collections --database-name 'mongo-main' --config 'D:\config\databases.json'` |
+| `mongo_find` | 有预算限制的集合查询 | `DatabaseMcpServer tool mongo_find --collection 'orders' --filter '{"status":"paid"}' --max-rows 20 --database-name 'mongo-main' --config 'D:\config\databases.json'` |
+| `mongo_count` | 统计匹配文档 | `DatabaseMcpServer tool mongo_count --collection 'orders' --filter '{"status":"paid"}' --database-name 'mongo-main' --config 'D:\config\databases.json'` |
+| `mongo_insert_one` | 插入单个文档 | `DatabaseMcpServer tool mongo_insert_one --collection 'orders' --document '{"_id":"order-42","total":{"$numberDecimal":"12.50"}}' --database-name 'mongo-main' --config 'D:\config\databases.json' --yes` |
+| `mongo_update` | 默认更新一个匹配文档 | `DatabaseMcpServer tool mongo_update --collection 'orders' --filter '{"_id":"order-42"}' --update '{"$set":{"status":"paid"}}' --database-name 'mongo-main' --config 'D:\config\databases.json' --yes` |
+| `mongo_delete` | 默认删除一个匹配文档 | `DatabaseMcpServer tool mongo_delete --collection 'orders' --filter '{"_id":"order-42"}' --database-name 'mongo-main' --config 'D:\config\databases.json' --yes` |
+
+`many=true` 要求连接开启危险操作；空过滤还需 `allowAll=true`，包括单文档操作。`--yes` 不覆盖服务端或连接权限。写入响应为 `writeOutcome=unknown` 或取消后，先核实数据库实际状态，不盲目重试。完整约束见 [Mongo 集合契约](mongodb-collections.md)。
 
 ## 9. 推荐调用顺序
 

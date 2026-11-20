@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="src\DatabaseMcpServer.Core\DatabaseMcpServer.Core.csproj" />
+  <Project Path="src\DatabaseMcpServer.Infrastructure\DatabaseMcpServer.Infrastructure.csproj" />
   <Project Path="src\DatabaseMcpServer\DatabaseMcpServer.csproj" />
   <Project Path="tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj" />
 </Solution>

@@ -1,7 +1,7 @@
 # DatabaseMCP Database Operation Server
 
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-3.7.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-4.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -16,7 +16,7 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 - ⚡ **Execution Isolation** - Exclusive SqlSugarClient leases + driver connection pooling + database-specific optimizations
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
 - 💾 **Complete Functionality** - 62 MCP tools including typed queries, MongoDB collections, table paging and capability diagnostics. Prefer .NET 10 LTS for new deployments; see the [database MCP workflow](Doc/database-mcp-workflow.md).
-- 🚀 **Production Ready** - Supports transactions, batch operations, stored procedures, automatic reconnection
+- 🚀 **Execution Controls** - Batch operations, stored procedures, access policies and timeouts; batch writes do not provide transactional rollback
 - 📦 **.NET Global Tool** - Published packages require .NET 10; source builds and tests retain .NET 9/10 targets
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
 
@@ -837,6 +837,8 @@ See [TOOLS.md](TOOLS.md) for the full parameter catalog.
 
 ### Local Development
 
+The backend has Host, Core and Infrastructure assemblies. See the [architecture guide](Doc/backend-architecture.md). Backend builds use tracked web assets; pass `-p:BuildWebsite=true` when updating the UI or packaging a release.
+
 ```bash
 # Clone project
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
@@ -855,7 +857,7 @@ dotnet build 'DatabaseMcpServer.slnx'
 dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # Package and publish
-dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0'
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
 Recommended stable verification flow:
@@ -882,10 +884,12 @@ CLI highlights:
 
 ## 🆕 Release Notes
 
-- **Unreleased: dependency and reliability updates**
-  - Upgrade MCP to 2.4.0, SqlSugarCore to 5.1.4.221 and compatible dependencies; pin SDK 10.0.404
-  - Reject mutating PRAGMAs in read-only tools, preserve tiny numeric parameters and report MCP tool errors correctly; use the current tool schema; see Doc/compatibility-cleanup.md
-  - See the [upgrade notes](Doc/dependency-upgrade.md) for versions, numeric boundaries, protocol cancellation and database validation
+- **4.0.0**
+  - Adopt `query_database`, typed parameters, named connections, bounded results, table paging and offline capability diagnostics; remove legacy query/output-parameter entry points and refresh client tool catalogs after upgrading
+  - Add six native MongoDB collection tools with Extended JSON, write outcomes, and guards for multi-document or empty-filter writes
+  - Split Host / Core / Infrastructure and group files by feature; unify execution admission and configuration state, and update the CLI usage skill
+  - Upgrade MCP to 2.4.0 and SqlSugarCore to 5.1.4.221, bundle additional drivers, and fix read-only enforcement, numeric precision and MCP error signaling
+  - Publish a .NET 10-only tool package while retaining dual-framework source tests; see the [4.0.0 migration notes](Doc/release-4.0.0.md)
 
 - **3.7.0**
   - Add optional configuration monitoring so persistent MCP stdio / `-web` processes follow file default changes; precedence is `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`, disabled by default

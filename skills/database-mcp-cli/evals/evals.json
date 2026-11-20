@@ -86,7 +86,7 @@
     {
       "id": 7,
       "name": "exit1-vs-exit2",
-      "prompt": "sql_query exits 1 with `{\"success\":false,\"errorMessage\":\"object name 'customers' not found\"}`. CLI bug? Reinstall?",
+      "prompt": "query_database exits 1 with `{\"success\":false,\"errorMessage\":\"object name 'customers' not found\"}`. CLI bug? Reinstall?",
       "expected_output": "Backend/tool failure (not CLI bug, not install). Customers table missing. Diagnose with is_any_table, get_table_info_list, get_current_database.",
       "files": [],
       "assertions": [
@@ -131,41 +131,138 @@
       "id": 10,
       "name": "batch-command-is-not-transactional",
       "prompt": "Can I use batch_execute_commands for three updates and rely on automatic rollback if the third update fails? Show the CLI shape with per-command parameters.",
-      "expected_output": "Says no: batch_execute_commands is sequential and non-transactional, earlier writes may persist, --yes is required, and parametersArray aligns by command index.",
+      "expected_output": "Says no: batch_execute_commands is sequential and non-transactional, earlier writes may persist, --yes is required, and each commands object embeds its typed parameters array.",
       "files": [],
       "assertions": [
         {"id": "a1", "text": "Explicitly states that batch_execute_commands is not transactional and does not guarantee rollback"},
         {"id": "a2", "text": "Warns that earlier successful writes can remain committed after a later failure"},
         {"id": "a3", "text": "Requires `--yes` because this is a write-class tool"},
-        {"id": "a4", "text": "Shows `--commands` and `--parameters-array` as single-quoted JSON arrays"},
+        {"id": "a4", "text": "Shows --commands as one single-quoted JSON array of {sql, parameters?} objects; each parameters value is an array of named typed parameters, without --parameters-array"},
         {"id": "a5", "text": "Instructs the caller to inspect per-command results rather than only top-level success"}
       ]
     },
     {
       "id": 11,
-      "name": "source-vs-global-tool-mismatch",
-      "prompt": "仓库源码里已经有 batch_sql_query，`dotnet run ... -- tool help batch_sql_query` 也能看到，但直接运行 `DatabaseMcpServer tool help batch_sql_query` 却说 unknown tool。是不是注册坏了？",
-      "expected_output": "Identifies a source-vs-installed-global mismatch, checks the global tool manifest, reports both executables, and recommends updating/installing a newly versioned package rather than changing source registration blindly.",
+      "name": "installed-tool-version-mismatch",
+      "prompt": "文档说有 query_database，但直接运行 `DatabaseMcpServer tool help query_database` 却说 unknown tool。我装过全局工具，也在单独目录装过一个版本。怎么确认当前调用的是哪个？",
+      "expected_output": "Identifies the executable resolved by PATH, checks the global and tool-path installation versions, and compares help from the actual executables before recommending an upgrade.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Recognizes that dotnet run and DatabaseMcpServer may execute different builds"},
+        {"id": "a1", "text": "Uses Get-Command DatabaseMcpServer -All or a platform equivalent to locate the executable resolved by PATH"},
         {"id": "a2", "text": "Uses `dotnet tool list --global` to inspect the installed global version"},
-        {"id": "a3", "text": "Does not conclude that source tool registration is broken when source help already works"},
-        {"id": "a4", "text": "Recommends updating or installing a newly versioned local package before retesting the global command"},
-        {"id": "a5", "text": "Clearly labels evidence as coming from source or global tool"}
+        {"id": "a3", "text": "Checks the separate installation with dotnet tool list --tool-path using the actual installation directory"},
+        {"id": "a4", "text": "Checks tool list/help on the intended executable before recommending an upgrade"},
+        {"id": "a5", "text": "Clearly labels which installation supplied each version or help result without requiring project source"}
       ]
     },
     {
       "id": 12,
       "name": "removed-export-tool",
       "prompt": "`DatabaseMcpServer tool export_query_to_excel` now says unknown tool. Give me the current CLI answer; don't assume an old catalog.",
-      "expected_output": "Confirms exact catalog/version first, does not invent the removed export tool, and suggests sql_query plus an external export workflow if export is still needed.",
+      "expected_output": "Confirms exact catalog/version first, does not invent the removed export tool, and suggests bounded query_database plus an external export workflow if export is still needed.",
       "files": [],
       "assertions": [
         {"id": "a1", "text": "Uses tool list/help and version evidence instead of assuming export_query_to_excel still exists"},
-        {"id": "a2", "text": "Does not claim that export_query_to_excel is part of the current 55-tool source catalog"},
+        {"id": "a2", "text": "Does not invent an export_query_to_excel entry absent from the actual installed tool catalog"},
         {"id": "a3", "text": "Offers a current read-only query path and labels any file export as an external workflow"},
-        {"id": "a4", "text": "Checks for source-vs-global version mismatch before making a final catalog claim"}
+        {"id": "a4", "text": "Bases the catalog claim on the actual executable and installed version"}
+      ]
+    },
+    {
+      "id": 13,
+      "name": "named-query-typed-null-budget",
+      "prompt": "当前连接是 primary。我只想对 reporting 执行一次查询，参数 note 是 NULL，最多返回 20 行。请给我当前 CLI 命令，不要改我的当前连接。",
+      "expected_output": "Uses query_database with --database-name reporting, --max-rows 20 and a typed parameters array containing value:null with an explicit suitable dbType. Does not switch the current connection or use the removed sql_query tool.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Uses --database-name reporting without switch_database or config use"},
+        {"id": "a2", "text": "Uses query_database with --max-rows 20 and a parameter array, not a dictionary"},
+        {"id": "a3", "text": "NULL parameter has an explicit dbType appropriate to the SQL"},
+        {"id": "a4", "text": "Does not claim limitReached with truncated:null proves complete results"}
+      ]
+    },
+    {
+      "id": 14,
+      "name": "mongo-unknown-write",
+      "prompt": "mongo_update 超时了，退出 1，writeOutcome 是 unknown。我可以直接重试吗？filter 是订单 _id，更新用 $inc。",
+      "expected_output": "Explains that the update may already have committed and replaying $inc can double-apply it. Recommends checking actual state with a named mongo_find and business evidence before deciding how to recover.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Does not automatically retry or assert rollback"},
+        {"id": "a2", "text": "Explains that unknown means write was invoked without successful acknowledgment"},
+        {"id": "a3", "text": "Uses Mongo collection tools and preserves the original _id BSON type and target connection"}
+      ]
+    },
+    {
+      "id": 15,
+      "name": "mongo-empty-filter-guards",
+      "prompt": "请给我删除 Mongo orders 所有文档的 CLI 命令。已确认清空测试库；连接 enableDangerousOperations=true，权限 read-write。",
+      "expected_output": "Uses mongo_delete with explicit collection, empty object filter, many=true, allow-all=true, target connection/config and --yes, explaining that all guards are required and multi-document deletion is not transactional.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Uses --filter '{}' --many true --allow-all true --yes with mongo_delete"},
+        {"id": "a2", "text": "Does not ask again for already granted deletion authorization"},
+        {"id": "a3", "text": "Does not replace collection operations with SQL or runCommand"}
+      ]
+    },
+    {
+      "id": 16,
+      "name": "configuration-partial-success",
+      "prompt": "重命名配置返回 success=false，但 saved=true、runtimeApplied=false、databaseName=reporting-new。我要重新把 reporting 改名吗？",
+      "expected_output": "Explains that saving already succeeded; re-read the actual configuration and diagnose runtime application before retrying using the saved name. Does not replay the rename against the old name blindly.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Distinguishes saved, runtimeApplied and selectionPersisted"},
+        {"id": "a2", "text": "Uses reporting-new as the saved identity when investigating"},
+        {"id": "a3", "text": "Does not claim the failed response implies no filesystem change"}
+      ]
+    },
+    {
+      "id": 17,
+      "name": "named-table-pagination",
+      "prompt": "已确认 reporting 连接的 users 表有主键。我想用 CLI 读取第二页，每页 20 行，不需要总数，也不要改变当前连接。请给出命令并说明并发写入时的分页限制。",
+      "expected_output": "Uses query_table_page with table-name users, page 2, page-size 20 and database-name reporting. Explains primary-key ordering, no implicit COUNT, and possible row movement under concurrent writes.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Uses query_table_page --table-name users --page 2 --page-size 20 --database-name reporting"},
+        {"id": "a2", "text": "Does not switch the current connection or run a COUNT query"},
+        {"id": "a3", "text": "Explains that primary-key ordering does not give a consistent snapshot across calls during concurrent writes"}
+      ]
+    },
+    {
+      "id": 18,
+      "name": "batch-timeout-and-server-policy",
+      "prompt": "三条 batch_sql_query 都设 command-timeout-seconds=10，是不是整个批次十秒内一定结束？把超时设 0 能绕过服务器上限吗？",
+      "expected_output": "Explains that the SQL timeout applies to each database command and is not a whole-batch deadline; server caps and AllowInfiniteTimeout still apply.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Does not promise a ten-second total batch deadline"},
+        {"id": "a2", "text": "Explains DB_COMMAND_MAX_TIMEOUT_SECONDS and DB_ALLOW_INFINITE_TIMEOUT"},
+        {"id": "a3", "text": "Distinguishes shared batch row/byte budgets from per-command SQL timeout"}
+      ]
+    },
+    {
+      "id": 19,
+      "name": "confirmation-does-not-override-access",
+      "prompt": "我给 execute_command 加了 --yes，连接 accessMode=read-only，还是返回 1010。是不是确认参数没传进去？",
+      "expected_output": "Explains that --yes is CLI confirmation while server and connection access policies independently prohibit writes; does not silently elevate access or disable guards.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Classifies 1010 as access-policy rejection rather than missing CLI confirmation"},
+        {"id": "a2", "text": "Explains the stricter combination of DB_TOOL_ACCESS and connection accessMode"},
+        {"id": "a3", "text": "Does not change accessMode or enableDangerousOperations automatically"}
+      ]
+    },
+    {
+      "id": 20,
+      "name": "in-array-without-dbtype",
+      "prompt": "query_database 的 IN (@ids) 传了 [{\"name\":\"ids\",\"value\":[1,2,3],\"dbType\":\"Int32\"}]，为什么返回 1004？请修正 CLI 调用。",
+      "expected_output": "Explains that array-valued IN parameters currently reject dbType even though scalar parameters support it. Removes only the array dbType and keeps the JSON values array and parameter binding.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Uses [{\"name\":\"ids\",\"value\":[1,2,3]}] without dbType"},
+        {"id": "a2", "text": "Keeps query_database and IN (@ids), without SQL value interpolation or a removed IN-query tool"},
+        {"id": "a3", "text": "Does not suggest changing drivers or database privileges to solve this input validation error"}
       ]
     }
   ]

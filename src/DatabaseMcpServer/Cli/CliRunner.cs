@@ -1,3 +1,5 @@
+using DatabaseMcpServer.Tools;
+using DatabaseMcpServer.Configuration;
 using System.Globalization;
 using System.Text;
 using DatabaseMcpServer.Hosting;
@@ -12,21 +14,21 @@ internal sealed class CliRunner
     private const int ToolFailureExitCode = 1;
     private const int UsageErrorExitCode = 2;
 
-    private readonly CliToolCatalog _catalog;
+    private readonly ToolCatalog _catalog;
     private readonly CliCommandParser _parser;
-    private readonly CliConfigCommandHandler _configCommandHandler;
+    private readonly ConfigurationCommands _configCommandHandler;
     private readonly ICliWebHost _webHost;
     private readonly string? _currentDatabaseStateFilePath;
     private readonly bool? _enableMonitorConfig;
 
     public CliRunner(bool? enableMonitorConfig = null)
-        : this(new CliToolCatalog(), new CliConfigCommandHandler(), new CliWebHost(), null, enableMonitorConfig)
+        : this(new ToolCatalog(), new ConfigurationCommands(), new CliWebHost(), null, enableMonitorConfig)
     {
     }
 
     internal CliRunner(
-        CliToolCatalog catalog,
-        CliConfigCommandHandler configCommandHandler,
+        ToolCatalog catalog,
+        ConfigurationCommands configCommandHandler,
         ICliWebHost webHost,
         string? currentDatabaseStateFilePath,
         bool? enableMonitorConfig = null)
@@ -332,7 +334,7 @@ internal sealed class CliRunner
             return UsageErrorExitCode;
         }
 
-        var resolution = CliConfigurationPathResolver.Resolve(parseResult.ConfigPath);
+        var resolution = ConfigurationPathResolver.Resolve(parseResult.ConfigPath);
         if (!resolution.Success)
         {
             await stderr.WriteLineAsync(resolution.ErrorMessage);
@@ -350,10 +352,10 @@ internal sealed class CliRunner
                 configPath: resolution.Path);
             using var host = builder.Build();
             var toolInstance = host.Services.GetRequiredService(tool.ToolType);
-            var payload = await CliToolInvoker.InvokeAsync(tool, toolInstance, arguments, cancellationToken);
+            var payload = await ToolInvoker.InvokeAsync(tool, toolInstance, arguments, cancellationToken);
 
             await stdout.WriteAsync(payload);
-            return CliToolInvoker.IsToolFailure(payload) ? ToolFailureExitCode : SuccessExitCode;
+            return ToolInvoker.IsToolFailure(payload) ? ToolFailureExitCode : SuccessExitCode;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -362,20 +364,20 @@ internal sealed class CliRunner
         }
         catch (Exception ex)
         {
-            await stderr.WriteLineAsync(CliToolInvoker.Unwrap(ex).Message);
+            await stderr.WriteLineAsync(ToolInvoker.Unwrap(ex).Message);
             return UsageErrorExitCode;
         }
     }
 
-    internal static object[] BindArguments(CliToolMetadata tool, IReadOnlyDictionary<string, string?> optionValues)
+    internal static object[] BindArguments(ToolDescriptor tool, IReadOnlyDictionary<string, string?> optionValues)
     {
-        return CliToolInvoker.BindArguments(tool, optionValues);
+        return ToolInvoker.BindArguments(tool, optionValues);
     }
 
-    private static async Task<int> ExecuteConfigPayloadAsync(string payload, TextWriter stdout)
+    private static async Task<int> ExecuteConfigPayloadAsync(DatabaseMcpServer.Models.ConfigurationCommandResult result, TextWriter stdout)
     {
-        await stdout.WriteAsync(payload);
-        return CliToolInvoker.IsToolFailure(payload) ? ToolFailureExitCode : SuccessExitCode;
+        await stdout.WriteAsync(System.Text.Json.JsonSerializer.Serialize(result, DatabaseMcpServer.Helpers.JsonSerializationDefaults.IndentedCamelCase));
+        return result.Success ? SuccessExitCode : ToolFailureExitCode;
     }
 
     private Task WriteToolListAsync(TextWriter stderr)
@@ -416,7 +418,7 @@ internal sealed class CliRunner
         return stderr.WriteAsync(builder.ToString());
     }
 
-    private static Task WriteToolHelpAsync(CliToolMetadata tool, TextWriter stderr)
+    private static Task WriteToolHelpAsync(ToolDescriptor tool, TextWriter stderr)
     {
         var builder = new StringBuilder();
         builder.AppendLine($"Tool: {tool.Name}");

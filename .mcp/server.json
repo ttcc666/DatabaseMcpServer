@@ -58,7 +58,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "3.7.0",
+      "version": "4.0.0",
       "environmentVariables": [
         {
           "name": "DB_CONFIG_PATH",
@@ -150,7 +150,7 @@
     },
     {
       "name": "get_primaries",
-      "description": "Return primary key metadata for the provided tableName, including the constraint name, columns, and ordinal order for composite keys."
+      "description": "Return primary key column names for the provided tableName; does not include constraint names or composite-key ordinal metadata."
     },
     {
       "name": "is_any_table",
@@ -310,7 +310,7 @@
     },
     {
       "name": "batch_execute_commands",
-      "description": "Execute a JSON array of SQL commands (with optional per-command parameter dictionaries) over a single long-lived connection and return success, affectedRows, or error per command."
+      "description": "Execute a JSON array of {sql, parameters?} command objects with optional typed parameter arrays. Execution is sequential and non-transactional; inspect each result for success, affectedRows, or errors."
     },
     {
       "name": "mongo_list_collections",
@@ -337,5 +337,5 @@
       "description": "Delete one document by default. many requires dangerous-operation permission; empty filter additionally requires allowAll. Returns deletedCount and writeOutcome."
     }
   ],
-  "version": "3.7.0"
+  "version": "4.0.0"
 }

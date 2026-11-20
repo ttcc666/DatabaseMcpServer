@@ -1,165 +1,144 @@
-# DatabaseMcpServer CLI — PowerShell Gotchas & Quick Reference
+# PowerShell 命令示例
 
-This file is **not** a command catalog. The full catalog lives in `references/cli.md` §4 (config management), §6 (PowerShell quoting), §7 (high-risk commands), and §8 (tool catalog). Read this file for the PowerShell-specific patterns and CLI quirks that tripped real users up.
+以下示例使用当前 CLI 契约。先替换配置路径、连接名和业务对象；写操作需要用户授权。SQL 方言由目标数据库决定。
 
-## Root and Help
+## 帮助和命名目标
 
 ```powershell
-DatabaseMcpServer --help
-DatabaseMcpServer -web --help
 DatabaseMcpServer tool list
-DatabaseMcpServer tool help get_table_schema
-DatabaseMcpServer tool get_table_schema --help
-DatabaseMcpServer config help add
+DatabaseMcpServer tool help query_database
+DatabaseMcpServer tool help batch_execute_commands
+DatabaseMcpServer config help update
+DatabaseMcpServer tool get_database_capabilities --database-name 'reporting' --config 'D:/config/databases.json'
+DatabaseMcpServer tool test_connection_by_name --database-name 'reporting' --config 'D:/config/databases.json'
+DatabaseMcpServer tool get_table_schema --table-name 'users' --database-name 'reporting' --refresh true --config 'D:/config/databases.json'
 ```
 
-Important: both root help and `tool list` write to **stderr**, not stdout. Don't misclassify a working help invocation as a failure just because stdout is empty.
+帮助输出到 stderr。支持的工具用 `--database-name` 固定本次目标，无需先切换当前库。
 
-## `-web` quick usage
+## 类型化 SQL 参数
+
+PowerShell 用单引号包住整个 JSON；内部 SQL 单引号写成两个单引号。每个对象或数组作为一个 argv 参数传入。
 
 ```powershell
-DatabaseMcpServer -web
-DatabaseMcpServer -web --config 'D:\config\databases.json'
-DatabaseMcpServer -web --config 'D:\config\databases.json' --port 5129 --no-browser
+DatabaseMcpServer tool query_database `
+  --sql 'select * from users where age >= @age and city = @city' `
+  --parameters '[{"name":"age","value":18,"dbType":"Int32"},{"name":"city","value":"北京","dbType":"String"}]' `
+  --max-rows 100 --max-response-bytes 1048576 `
+  --database-name 'reporting' --config 'D:/config/databases.json'
+
+DatabaseMcpServer tool query_database `
+  --sql 'select * from users where id in (@ids)' `
+  --parameters '[{"name":"ids","value":[1,2,3]}]' `
+  --database-name 'reporting' --config 'D:/config/databases.json'
 ```
 
-Quick notes:
+NULL 必须带 dbType，例如 `[{"name":"note","value":null,"dbType":"String"}]`。日期用明确的 ISO 8601 字符串，二进制用 base64；不要先把大整数转成 JavaScript Number，也不要通过拼接 SQL 插入值。IN 数组使用 JSON 值数组，当前不能声明 dbType，否则返回 1004；不要把标量类型声明套到数组上。
 
-- `-web` starts a localhost-only browser UI; it is not a remote admin endpoint.
-- `--no-browser` is useful in terminals / CI / remote sessions where auto-open would be noisy or impossible.
-- Invalid ports are now rejected in the CLI layer. Example symptom:
-
-```text
-选项 '--port' 必须在 0-65535 之间。命令: -web
-```
-
-## Config file vs CLI current connection
-
-The single most common source of confusion, surfaced here so Claude can route the user correctly without a full file-dive.
-
-| Command | Changes | Persists where |
-| --- | --- | --- |
-| `config use --name X` | `databases.json` `isDefault` | The config file (durable, visible, shared) |
-| `tool switch_database --database-name X` | CLI current-connection pointer | `%USERPROFILE%/.database-mcp/cli-state.json`, keyed by the resolved config path |
-
-`tool` calls pick the CLI current connection first; they only fall back to `isDefault` when cli-state is absent or points to a removed name. Sanity check:
+SQL Server 存储过程参数示例（输出 String 需要 size）：
 
 ```powershell
-DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'
-DatabaseMcpServer config show --name '<expected>' --config 'D:\config\databases.json'
+DatabaseMcpServer tool call_stored_procedure `
+  --procedure-name 'dbo.report_summary' `
+  --parameters '[{"name":"year","value":2026,"dbType":"Int32"},{"name":"summary","value":null,"dbType":"String","direction":"Output","size":200}]' `
+  --database-name 'sqlserver-main' --config 'D:/config/databases.json' --yes
 ```
 
-## PowerShell quoting gotchas
+Output / InputOutput 支持 SQL Server、MySQL；ReturnValue 支持 SQL Server。输出 Decimal precision 不支持，不要声称驱动会保留未传递的精度设置。
 
-The tool catalog in `cli.md` shows vanilla examples; these are the sharp edges.
+## 按表分页
 
-### 1. Single quotes around SQL and JSON — always
+表有主键且只需按表读取时，使用 query_table_page。以下读取第二页，每页 20 行，不隐式查询总行数：
 
 ```powershell
---sql 'select * from users where status=''active'''
---parameters '{"age":18,"city":"北京"}'
---in-values '[1,2,3]'
---queries '["select count(*) from users","select count(*) from roles"]'
---commands '["update users set status=''active'' where id=1","update users set status=''inactive'' where id=2"]'
+DatabaseMcpServer tool query_table_page --table-name 'users' --page 2 --page-size 20 `
+  --database-name 'reporting' --config 'D:/config/databases.json'
 ```
 
-Why: single quotes disable PowerShell variable expansion, so `$` and backtick inside SQL won't be interpreted. Within a single-quoted string, a literal single quote is written as `''` (two in a row).
+工具按主键排序；并发写入仍可能让数据在页间移动。需要筛选、关联或自定义 SQL 时使用 query_database。
 
-### 2. SQL Server `add_default_value` needs a SQL literal, not text
+## 批量查询与写入
 
 ```powershell
-# Wrong — passes the bare word 'active' as default, which is not valid SQL
---default-value 'active'
+DatabaseMcpServer tool batch_sql_query `
+  --queries '["select count(*) from users","select count(*) from roles"]' `
+  --max-rows 100 --max-response-bytes 1048576 `
+  --command-timeout-seconds 60 `
+  --database-name 'reporting' --config 'D:/config/databases.json'
 
-# Right — the tool expects SQL syntax, and SQL literal is 'active', which in PowerShell single-quoted form is '''active'''
---default-value '''active'''
+DatabaseMcpServer tool batch_execute_commands `
+  --commands '[{"sql":"update users set status=@status where id=@id","parameters":[{"name":"status","value":"active"},{"name":"id","value":1}]},{"sql":"delete from sessions where user_id=@id","parameters":[{"name":"id","value":1}]}]' `
+  --command-timeout-seconds 60 `
+  --database-name 'primary' --config 'D:/config/databases.json' --yes
 ```
 
-### 3. `execute_command_with_go` needs embedded newlines and `GO` in one argument
+- batch_sql_query 最多 5 条，只读，无逐条参数；需要绑定参数时分次调用 query_database。
+- batch_execute_commands 使用命令对象，每项内嵌自己的参数，不使用平行参数数组。
+- SQL 超时作用于每条命令；批量查询行数和字节预算在整批共享，预算耗尽的剩余项标记 executed=false。
+- 检查每个 results 项。批量写没有自动回滚，前面的成功写入可能已经提交。
+
+## 超时与预算
+
+query_database 默认 1000 行、1 MiB、30 秒；query_table_page 默认 100 行。其他 SQL 工具未启用默认预算时使用 provider 超时（通常 300 秒），仍受服务端限制。
 
 ```powershell
+DatabaseMcpServer tool query_database `
+  --sql 'select * from large_report where day = @day' `
+  --parameters '[{"name":"day","value":"2026-11-20","dbType":"Date"}]' `
+  --command-timeout-seconds 900 --max-rows 500 `
+  --database-name 'reporting' --config 'D:/config/databases.json'
+```
+
+0–86400 是语法范围，实际最大值由 DB_COMMAND_MAX_TIMEOUT_SECONDS 限制；0 还要求 DB_ALLOW_INFINITE_TIMEOUT=true。Mongo URI 中的驱动超时仍可能更短。响应字节指工具 JSON，不能等同协议传输量或进程内存上限。
+
+## Mongo 集合
+
+URI 必须包含业务数据库；authSource 不是查询目标。使用 JSON / Extended JSON v2 对象，PowerShell 单引号能保留 $oid、$set 等字段。
+
+```powershell
+DatabaseMcpServer tool mongo_list_collections --database-name 'mongo-main' --config 'D:/config/databases.json'
+
+DatabaseMcpServer tool mongo_find `
+  --collection 'orders' --filter '{"customerId":{"$oid":"507f1f77bcf86cd799439011"}}' `
+  --projection '{"customerId":1,"total":1}' --sort '{"_id":1}' --max-rows 20 `
+  --database-name 'mongo-main' --config 'D:/config/databases.json'
+
+DatabaseMcpServer tool mongo_count --collection 'orders' --filter '{"status":"paid"}' `
+  --database-name 'mongo-main' --config 'D:/config/databases.json'
+
+DatabaseMcpServer tool mongo_insert_one --collection 'orders' `
+  --document '{"_id":"order-42","total":{"$numberDecimal":"12.50"}}' `
+  --database-name 'mongo-main' --config 'D:/config/databases.json' --yes
+
+DatabaseMcpServer tool mongo_update --collection 'orders' --filter '{"_id":"order-42"}' `
+  --update '{"$set":{"status":"paid"}}' `
+  --database-name 'mongo-main' --config 'D:/config/databases.json' --yes
+
+DatabaseMcpServer tool mongo_delete --collection 'orders' --filter '{"_id":"order-42"}' `
+  --database-name 'mongo-main' --config 'D:/config/databases.json' --yes
+```
+
+Mongo 输出文档为 Canonical Extended JSON v2。普通字符串不会自动转换成 ObjectId；Int64 用 $numberLong，Decimal128 用 $numberDecimal。
+
+many=true 要求 enableDangerousOperations=true；空 filter 另外要求 allowAll=true，即使默认 one 操作也一样。默认 UpdateOne/DeleteOne；many 与 upsert 不可同时启用。update 仅接受支持的操作符对象，不接受 replacement/pipeline。没有 aggregation、任意 runCommand、批量插入或事务工具。
+
+写后检查 writeOutcome：acknowledged / not-executed / unknown。unknown 或取消都不能推断没有提交，先按 _id 核实实际状态，避免重复写入。
+
+## SQL Server 字面值与 GO
+
+```powershell
+DatabaseMcpServer tool add_default_value --table-name 'users' --column-name 'status' `
+  --default-value '''active''' --database-name 'sqlserver-main' `
+  --config 'D:/config/databases.json' --yes
+
 $sql = @'
 UPDATE users SET status='active' WHERE id=1
 GO
 UPDATE users SET status='inactive' WHERE id=2
 '@
 
-DatabaseMcpServer tool execute_command_with_go `
-  --sql $sql `
-  --yes `
-  --config 'D:\config\databases.json'
+DatabaseMcpServer tool execute_command_with_go --sql $sql `
+  --database-name 'sqlserver-main' --config 'D:/config/databases.json' --yes
 ```
 
-Use a here-string so the CLI receives one argv item containing real newlines and standalone `GO` lines.
-
-### 4. Batch query vs batch command
-
-```powershell
-# Read-only, 1-5 queries, no --yes
-DatabaseMcpServer tool batch_sql_query `
-  --queries '["select count(*) from users","select count(*) from roles"]' `
-  --config 'D:\config\databases.json'
-
-# Writes, per-command parameters, requires --yes
-DatabaseMcpServer tool batch_execute_commands `
-  --commands '["update users set status=@status where id=@id","delete from sessions where user_id=@id"]' `
-  --parameters-array '[{"status":"active","id":1},{"id":1}]' `
-  --yes `
-  --config 'D:\config\databases.json'
-```
-
-Both tools continue after an item-level failure and return per-item status in `results[]`. `batch_execute_commands` is not transactional, so successful earlier writes remain committed.
-
-### 5. Long-running SQL needs `--command-timeout-seconds`
-
-Query and write tools default to the provider command timeout (typically 300 seconds). Raise it for reports, bulk DML, and long stored procedures:
-
-```powershell
-DatabaseMcpServer tool sql_query `
-  --sql 'select * from large_report where day = @day' `
-  --parameters '{"day":"2026-08-01"}' `
-  --command-timeout-seconds 900 `
-  --config 'D:\config\databases.json'
-
-DatabaseMcpServer tool execute_command `
-  --sql 'update large_table set status=@status where id=@id' `
-  --parameters '{"status":"done","id":1}' `
-  --command-timeout-seconds 900 `
-  --yes `
-  --config 'D:\config\databases.json'
-```
-
-Rules:
-
-- `0` means wait indefinitely
-- Valid range is `0–86400`
-- On batch tools the timeout applies to the whole batch
-
-### 6. Scripted automation — skip the shell entirely
-
-```csharp
-var psi = new ProcessStartInfo("DatabaseMcpServer") {
-    RedirectStandardOutput = true,
-    RedirectStandardError = true,
-    UseShellExecute = false
-};
-psi.ArgumentList.Add("tool");
-psi.ArgumentList.Add("execute_command");
-psi.ArgumentList.Add("--sql");
-psi.ArgumentList.Add(sql); // literal, no escaping
-psi.ArgumentList.Add("--yes");
-```
-
-`ArgumentList` hands each argv entry to the OS verbatim — no quoting bugs possible.
-
-## Broad verification workflow
-
-When the user asks to "test all CLI commands" or run a smoke test across many tools:
-
-1. Identify whether the run targets the installed global tool or current source. Confirm the installed version with `dotnet tool list --global` (the CLI binary itself has no `--version` flag — it returns exit `2` on that argument); run `dotnet tool update --global DatabaseMcpServer` if it's stale.
-2. Generate a temporary config in `%TEMP%` with a throwaway database connection — never aim the smoke test at a business database.
-3. Create isolated temporary objects with prefix `cli_<yyyyMMdd_HHmmss>_<shortid>`.
-4. Run read-only tools first (`validate_configuration`, `test_connection`, `list_databases`, `get_table_info_list`). Any failure here means the rest won't tell you anything useful.
-5. Run write and DDL tools only against the temporary objects. Every write-class command needs `--yes`.
-6. Capture for each invocation: executable path, full argv, exit code, stdout, stderr, parsed `success` field.
-7. Clean up: drop temp objects, delete temp config (especially if it held credentials).
+default-value 接受 SQL 字面值。GO 脚本必须是包含实际换行的单个参数，GO 单独一行。自动化优先 ProcessStartInfo.ArgumentList；它避免手工 shell 转义，但参数内容仍须符合工具 JSON/schema。

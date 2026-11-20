@@ -1,3 +1,4 @@
+using DatabaseMcpServer.Tools;
 namespace DatabaseMcpServer.Cli;
 
 internal enum CliCommandKind
@@ -35,7 +36,7 @@ internal enum CliCommandKind
 
 internal sealed record CliParseResult(
     CliCommandKind Kind,
-    CliToolMetadata? Tool = null,
+    ToolDescriptor? Tool = null,
     CliCommandMetadata? Command = null,
     IReadOnlyDictionary<string, string?>? OptionValues = null,
     string? ConfigPath = null,
@@ -44,9 +45,9 @@ internal sealed record CliParseResult(
 
 internal sealed class CliCommandParser
 {
-    private readonly CliToolCatalog _catalog;
+    private readonly ToolCatalog _catalog;
 
-    public CliCommandParser(CliToolCatalog catalog)
+    public CliCommandParser(ToolCatalog catalog)
     {
         _catalog = catalog;
     }

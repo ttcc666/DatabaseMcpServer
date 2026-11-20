@@ -42,6 +42,10 @@ jobs:
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -113,9 +117,10 @@ jobs:
           dotnet pack `
               'src/DatabaseMcpServer/DatabaseMcpServer.csproj' `
               '--configuration' 'Release' `
-              '-p:TargetFrameworks=net10.0' `
-              '--no-restore' `
+              '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' `
+              '--artifacts-path' 'artifacts/package-build' `
               '--output' 'artifacts/release'
+          if ($LASTEXITCODE -ne 0) { throw 'Release package build failed.' }
 
       - name: Locate NuGet package
         id: package
@@ -130,9 +135,7 @@ jobs:
           }
 
           $package = (Resolve-Path -LiteralPath $package).Path
-          if ((Get-Item -LiteralPath $package).Length -gt 250000000) {
-              throw 'Package exceeds the NuGet.org size limit.'
-          }
+          & ./scripts/verify-package-content.ps1 -PackagePath $package
           $sha256 = (Get-FileHash -LiteralPath $package -Algorithm 'SHA256').Hash
 
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "path=$package"
