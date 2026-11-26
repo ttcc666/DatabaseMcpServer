@@ -27,7 +27,7 @@ DatabaseMcpServer tool list --json
 DatabaseMcpServer tool help 'mongo_aggregate' --json
 ```
 
-JSON list/help 写 stdout；普通帮助和驱动诊断写 stderr。JSON 目录包含 SDK inputSchema/outputSchema、camelCase 参数与 kebab-case 选项映射、权限和 provider。`.mcp/server.json` 由分支构建的 `scripts/update-tool-manifest.ps1` 更新；`-Check` 检查与当前目录一致。
+JSON list/help 写 stdout；普通帮助和驱动诊断写 stderr。JSON 目录包含 SDK inputSchema/outputSchema、camelCase 参数与 kebab-case 选项映射、权限和 provider。`.mcp/server.json` 由分支构建的 `scripts/update-tool-manifest.ps1` 更新，工具条目仅包含名称和描述，以满足 NuGet 的 20,000 字节读取上限；完整权限和 provider 元数据通过 CLI 目录与能力参考查询。`-Check` 检查名称和描述与当前目录一致。
 
 ## 旧入口如何收敛
 

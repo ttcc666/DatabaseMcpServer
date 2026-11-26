@@ -9,7 +9,8 @@ try {
     $catalog = & dotnet $AssemblyPath 'tool' 'list' '--json' '--all'
     if ($LASTEXITCODE -ne 0) { throw 'Unable to read tool catalog from the selected build.' }
     $discovery = $catalog | ConvertFrom-Json
-    $tools = @($discovery.tools | Select-Object 'name', 'description', 'provider', 'requiredAccess', 'analysis', 'supportedProviders', 'unsupportedProviders')
+    # NuGet reads at most 20,000 bytes; detailed policy metadata remains in the CLI catalog.
+    $tools = @($discovery.tools | Select-Object 'name', 'description')
     $path = Join-Path $root '.mcp/server.json'
     $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     if ($Check) {

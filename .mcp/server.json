@@ -93,642 +93,219 @@
   "tools": [
     {
       "name": "add_column",
-      "description": "Add a column using a typed column definition.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Add a column using a typed column definition."
     },
     {
       "name": "add_column_remark",
-      "description": "Attach a description to tableName.columnName, making the column meaning visible to downstream tools.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "TDengine",
-        "Doris"
-      ]
+      "description": "Attach a description to tableName.columnName, making the column meaning visible to downstream tools."
     },
     {
       "name": "add_default_value",
-      "description": "Set defaultValue on tableName.columnName by invoking DbMaintenance.AddDefaultValue.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb"
-      ]
+      "description": "Set defaultValue on tableName.columnName by invoking DbMaintenance.AddDefaultValue."
     },
     {
       "name": "add_primary_key",
-      "description": "Create a primary key constraint on tableName for columnName or composite columnNames.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "ClickHouse",
-        "TDengine",
-        "Doris"
-      ]
+      "description": "Create a primary key constraint on tableName for columnName or composite columnNames."
     },
     {
       "name": "add_table_remark",
-      "description": "Attach a description to tableName so schema consumers can surface the table’s purpose.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "TDengine",
-        "Doris"
-      ]
+      "description": "Attach a description to tableName so schema consumers can surface the table’s purpose."
     },
     {
       "name": "backup_table",
-      "description": "Use the provider's table-copy capability to create newTableName from oldTableName. Not a complete database backup: indexes, constraints, triggers, grants and recovery semantics are provider-dependent.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Use the provider's table-copy capability to create newTableName from oldTableName. Not a complete database backup: indexes, constraints, triggers, grants and recovery semantics are provider-dependent."
     },
     {
       "name": "batch_execute_commands",
-      "description": "Execute typed commands sequentially. Default atomic=false preserves per-item success and partial commits. Explicit atomic=true prevalidates ordinary DML and commits all or rolls back; transactionOutcome=unknown requires verification before retry. External trigger side effects and sequences are outside this guarantee.",
-      "provider": "sql",
-      "requiredAccess": "read-write",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Execute typed commands sequentially. Default atomic=false preserves per-item success and partial commits. Explicit atomic=true prevalidates ordinary DML and commits all or rolls back; transactionOutcome=unknown requires verification before retry. External trigger side effects and sequences are outside this guarantee."
     },
     {
       "name": "batch_sql_query",
-      "description": "Execute 1-5 independent read-only SQL queries sequentially over one connection and return success, rowCount, data, or error per query.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Execute 1-5 independent read-only SQL queries sequentially over one connection and return success, rowCount, data, or error per query."
     },
     {
       "name": "call_stored_procedure",
-      "description": "Invoke a stored procedure with typed Input, Output, InputOutput or ReturnValue parameters; return rows and outputParameters. Output directions support SQL Server/MySQL; ReturnValue supports SQL Server.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [
-        "MySql",
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Invoke a stored procedure with typed Input, Output, InputOutput or ReturnValue parameters; return rows and outputParameters. Output directions support SQL Server/MySQL; ReturnValue supports SQL Server."
     },
     {
       "name": "create_index",
-      "description": "Create an index named indexName on tableName for columnName or composite columnNames; set isUnique to true to build a unique index and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Create an index named indexName on tableName for columnName or composite columnNames; set isUnique to true to build a unique index and return success."
     },
     {
       "name": "create_table",
-      "description": "Create a table from typed project column definitions: name, dataType, length, precision, scale, nullable, primaryKey, identity, comment, defaultExpression.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Create a table from typed project column definitions: name, dataType, length, precision, scale, nullable, primaryKey, identity, comment, defaultExpression."
     },
     {
       "name": "delete_column_remark",
-      "description": "Delete the stored description for tableName.columnName and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "MySql",
-        "Tidb",
-        "OceanBase",
-        "PolarDB",
-        "GoldenDB",
-        "Doris",
-        "TDSQL",
-        "ClickHouse",
-        "TDengine",
-        "QuestDB"
-      ]
+      "description": "Delete the stored description for tableName.columnName and return success."
     },
     {
       "name": "delete_table_remark",
-      "description": "Remove the remark/description associated with tableName and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "TDengine",
-        "Doris"
-      ]
+      "description": "Remove the remark/description associated with tableName and return success."
     },
     {
       "name": "drop_column",
-      "description": "Drop the specified columnName from tableName and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Drop the specified columnName from tableName and return success."
     },
     {
       "name": "drop_constraint",
-      "description": "Drop the specified constraintName from tableName (primary key, unique index, foreign key, etc.) and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "ClickHouse",
-        "TDengine",
-        "DuckDB",
-        "Doris"
-      ]
+      "description": "Drop the specified constraintName from tableName (primary key, unique index, foreign key, etc.) and return success."
     },
     {
       "name": "drop_func",
-      "description": "Drop the database function identified by functionName, typically during cleanup.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "ClickHouse",
-        "TDengine",
-        "DuckDB",
-        "Doris"
-      ]
+      "description": "Drop the database function identified by functionName, typically during cleanup."
     },
     {
       "name": "drop_index",
-      "description": "Drop the specified indexName on tableName and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "MongoDb",
-        "TDengine",
-        "QuestDB",
-        "ClickHouse"
-      ]
+      "description": "Drop the specified indexName on tableName and return success."
     },
     {
       "name": "drop_proc",
-      "description": "Drop the stored procedure identified by procedureName and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "ClickHouse",
-        "TDengine",
-        "DuckDB",
-        "Doris"
-      ]
+      "description": "Drop the stored procedure identified by procedureName and return success."
     },
     {
       "name": "drop_table",
-      "description": "Immediately drop the specified tableName, removing both structure and data, and return success to indicate completion.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Immediately drop the specified tableName, removing both structure and data, and return success to indicate completion."
     },
     {
       "name": "drop_view",
-      "description": "Drop the specified viewName definition and return success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Drop the specified viewName definition and return success."
     },
     {
       "name": "execute_command",
-      "description": "Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, binding typed parameters, and return affectedRows.",
-      "provider": "sql",
-      "requiredAccess": "read-write",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Execute INSERT/UPDATE/DELETE SQL after dangerous-operation detection, binding typed parameters, and return affectedRows."
     },
     {
       "name": "execute_command_with_go",
-      "description": "Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Execute a SQL Server script that contains GO batches, automatically splitting the script and returning total affectedRows."
     },
     {
       "name": "explain_query",
-      "description": "Get an estimated execution plan for one SELECT/CTE without executing the target query. SQL Server requires SHOWPLAN; PostgreSQL uses ANALYZE FALSE; MySQL uses EXPLAIN FORMAT=JSON; SQLite uses EXPLAIN QUERY PLAN. Planning is not a security sandbox for functions: use a database read-only role. No actual execution statistics or universal cost units.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [
-        "Sqlite",
-        "MySql",
-        "PostgreSQL",
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Get an estimated execution plan for one SELECT/CTE without executing the target query. SQL Server requires SHOWPLAN; PostgreSQL uses ANALYZE FALSE; MySQL uses EXPLAIN FORMAT=JSON; SQLite uses EXPLAIN QUERY PLAN. Planning is not a security sandbox for functions: use a database read-only role. No actual execution statistics or universal cost units."
     },
     {
       "name": "get_current_database",
-      "description": "Return the currently active database connection name and database type so callers know the execution context. In CLI tool mode, this reflects the persisted current selection for the resolved config path.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Return the currently active database connection name and database type so callers know the execution context. In CLI tool mode, this reflects the persisted current selection for the resolved config path."
     },
     {
       "name": "get_data_base_list",
-      "description": "Call DbMaintenance.GetDataBaseList to retrieve every database the instance can see and return it inside the data array.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "Oracle",
-        "Dm",
-        "OceanBaseForOracle",
-        "GBase"
-      ]
+      "description": "Call DbMaintenance.GetDataBaseList to retrieve every database the instance can see and return it inside the data array."
     },
     {
       "name": "get_data_set_all",
-      "description": "Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets. Values retain the driver reader types; duplicate column names receive unique suffixes.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [
-        "Sqlite",
-        "MySql",
-        "PostgreSQL",
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Execute SQL that may contain multiple SELECT statements and return each result set with its rowCount inside resultSets. Values retain the driver reader types; duplicate column names receive unique suffixes."
     },
     {
       "name": "get_database_capabilities",
-      "description": "Inspect configured provider capabilities, budgets and settings without connecting to the database. No credentials are returned.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Inspect configured provider capabilities, budgets and settings without connecting to the database. No credentials are returned."
     },
     {
       "name": "get_database_config",
-      "description": "Summarize DB_CONFIG_PATH or DB_CONNECTION_STRING/DB_TYPE and return the active connection name, description, database type, masked connection string, and mode metadata.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Summarize DB_CONFIG_PATH or DB_CONNECTION_STRING/DB_TYPE and return the active connection name, description, database type, masked connection string, and mode metadata."
     },
     {
       "name": "get_object_definition",
-      "description": "Read an object's native definition. Use identity from list_objects as name (including PostgreSQL overload arguments or table.trigger). definition-unavailable can mean absent, encrypted, invisible or unsupported definition; it does not assert absence. SQL Server/PostgreSQL table DDL reconstruction is not provided.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [
-        "Sqlite",
-        "MySql",
-        "PostgreSQL",
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Read an object's native definition. Use identity from list_objects as name (including PostgreSQL overload arguments or table.trigger). definition-unavailable can mean absent, encrypted, invisible or unsupported definition; it does not assert absence. SQL Server/PostgreSQL table DDL reconstruction is not provided."
     },
     {
       "name": "get_table_schema",
-      "description": "Read metadata for one table or 1-50 tables with per-table status and shared output budgets. Native readers support asynchronous cancellation. Other SQL providers use synchronous driver metadata for basic sections. Refresh bypasses the metadata cache.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "MongoDb"
-      ]
+      "description": "Read metadata for one table or 1-50 tables with per-table status and shared output budgets. Native readers support asynchronous cancellation. Other SQL providers use synchronous driver metadata for basic sections. Refresh bypasses the metadata cache."
     },
     {
       "name": "health_check",
-      "description": "Perform a comprehensive health check on all configured database connections, testing connectivity and response time for each.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Perform a comprehensive health check on all configured database connections, testing connectivity and response time for each."
     },
     {
       "name": "insert_row",
-      "description": "Insert one row using SqlSugar and return its integer identity as a decimal string (Int64). Supports SQL Server/MySQL/SQLite with one SqlSugar-recognized integer identity; SQLite requires AUTOINCREMENT. Defaults, constraints and triggers run in the database. Cancellation does not guarantee rollback; do not retry without checking the outcome.",
-      "provider": "sql",
-      "requiredAccess": "read-write",
-      "analysis": false,
-      "supportedProviders": [
-        "Sqlite",
-        "MySql",
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Insert one row using SqlSugar and return its integer identity as a decimal string (Int64). Supports SQL Server/MySQL/SQLite with one SqlSugar-recognized integer identity; SQLite requires AUTOINCREMENT. Defaults, constraints and triggers run in the database. Cancellation does not guarantee rollback; do not retry without checking the outcome."
     },
     {
       "name": "is_any_column",
-      "description": "Check whether columnName exists on tableName and return an exists boolean.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Check whether columnName exists on tableName and return an exists boolean."
     },
     {
       "name": "is_any_constraint",
-      "description": "Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "QuestDB",
-        "ClickHouse",
-        "TDengine",
-        "DuckDB",
-        "Doris"
-      ]
+      "description": "Check whether the specified constraintName exists (unique, foreign key, or check constraint) and return an exists boolean."
     },
     {
       "name": "is_any_table",
-      "description": "Check whether tableName exists in the current database and return an exists boolean.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Check whether tableName exists in the current database and return an exists boolean."
     },
     {
       "name": "is_any_table_remark",
-      "description": "Return exists to show whether tableName already has a stored remark.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "MySql",
-        "Tidb",
-        "OceanBase",
-        "PolarDB",
-        "GoldenDB",
-        "Doris",
-        "TDSQL",
-        "PostgreSQL",
-        "Vastbase",
-        "GaussDB",
-        "OpenGauss",
-        "GaussDBNative",
-        "Kdbndp",
-        "Oscar",
-        "HG",
-        "DuckDB",
-        "ClickHouse",
-        "TDengine",
-        "QuestDB",
-        "GBase"
-      ]
+      "description": "Return exists to show whether tableName already has a stored remark."
     },
     {
       "name": "list_databases",
-      "description": "List every configured database connection (name, type, description, default flag, current flag) so callers can choose a target.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "List every configured database connection (name, type, description, default flag, current flag) so callers can choose a target."
     },
     {
       "name": "list_objects",
-      "description": "List tables, views, routines or triggers. MySQL/SQL Server/PostgreSQL/SQLite use native keyset paging; other SQL providers use SqlSugar metadata with client-side filtering/paging and report pagingMode. Visibility depends on database permissions. Pass the returned identity to get_object_definition where supported. Cursor is bound to filters, configuration content/path, working directory and database; it supports cross-process continuation without a cross-page snapshot.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "List tables, views, routines or triggers. MySQL/SQL Server/PostgreSQL/SQLite use native keyset paging; other SQL providers use SqlSugar metadata with client-side filtering/paging and report pagingMode. Visibility depends on database permissions. Pass the returned identity to get_object_definition where supported. Cursor is bound to filters, configuration content/path, working directory and database; it supports cross-process continuation without a cross-page snapshot."
     },
     {
       "name": "mongo_aggregate",
-      "description": "Run a read-only Mongo aggregation via SqlSugar's built-in ADO with a server row limit and response byte budget after provider materialization. Output uses provider-converted JSON, not lossless BSON; nested BSON uses Extended JSON. Supports match/project/group/sort and same-database $lookup/$facet. Nested pipelines share 64 stages, at most 4 levels and 8 facet branches; no nested facet inside facet, writes or JavaScript.",
-      "provider": "mongo",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Run a read-only Mongo aggregation via SqlSugar's built-in ADO with a server row limit and response byte budget after provider materialization. Output uses provider-converted JSON, not lossless BSON; nested BSON uses Extended JSON. Supports match/project/group/sort and same-database $lookup/$facet. Nested pipelines share 64 stages, at most 4 levels and 8 facet branches; no nested facet inside facet, writes or JavaScript."
     },
     {
       "name": "mongo_delete",
-      "description": "Batch delete MongoDB documents via SqlSugar.MongoDbCore ADO deleteMany. Requires write access and enableDangerousOperations. Empty filter also requires allowAll. Returns deletedCount and writeOutcome.",
-      "provider": "mongo",
-      "requiredAccess": "read-write",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Batch delete MongoDB documents via SqlSugar.MongoDbCore ADO deleteMany. Requires write access and enableDangerousOperations. Empty filter also requires allowAll. Returns deletedCount and writeOutcome."
     },
     {
       "name": "mongo_find",
-      "description": "Find MongoDB documents via SqlSugar's built-in ADO using JSON objects / Extended JSON v2 input. Output uses provider-converted JSON: ObjectId becomes string, missing fields become null; nested BSON uses Extended JSON. Not a lossless BSON round trip. Stable sort appends _id; concurrent writes can move pages. limitReached with truncated=null means row ceiling; truncated=true means byte ceiling.",
-      "provider": "mongo",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Find MongoDB documents via SqlSugar's built-in ADO using JSON objects / Extended JSON v2 input. Output uses provider-converted JSON: ObjectId becomes string, missing fields become null; nested BSON uses Extended JSON. Not a lossless BSON round trip. Stable sort appends _id; concurrent writes can move pages. limitReached with truncated=null means row ceiling; truncated=true means byte ceiling."
     },
     {
       "name": "mongo_insert_many",
-      "description": "Insert one or more MongoDB documents via SqlSugar.MongoDbCore ADO insertMany using JSON / Extended JSON v2 objects (1-1000 documents, <= 4 MiB total). Requires write access and acknowledged write concern (not w=0).",
-      "provider": "mongo",
-      "requiredAccess": "read-write",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Insert one or more MongoDB documents via SqlSugar.MongoDbCore ADO insertMany using JSON / Extended JSON v2 objects (1-1000 documents, <= 4 MiB total). Requires write access and acknowledged write concern (not w=0)."
     },
     {
       "name": "mongo_truncate",
-      "description": "Remove all documents in a MongoDB collection via cancellable SqlSugar ADO deleteMany, preserving the collection and indexes. Requires schema-admin access and enableDangerousOperations; cancellation does not roll back writes.",
-      "provider": "mongo",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Remove all documents in a MongoDB collection via cancellable SqlSugar ADO deleteMany, preserving the collection and indexes. Requires schema-admin access and enableDangerousOperations; cancellation does not roll back writes."
     },
     {
       "name": "mongo_update",
-      "description": "Batch update MongoDB documents via SqlSugar.MongoDbCore ADO updateMany. Requires write access and enableDangerousOperations. Empty filter also requires allowAll. Returns affected count and writeOutcome.",
-      "provider": "mongo",
-      "requiredAccess": "read-write",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Batch update MongoDB documents via SqlSugar.MongoDbCore ADO updateMany. Requires write access and enableDangerousOperations. Empty filter also requires allowAll. Returns affected count and writeOutcome."
     },
     {
       "name": "query_database",
-      "description": "Execute a read-only database query. Explicit database target, typed JSON parameters, bounded rows/bytes and structured results. Returns the actual database and configuration version. Use schema tools before writing SQL; limitReached means use narrower filters or stable pagination.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Execute a read-only database query. Explicit database target, typed JSON parameters, bounded rows/bytes and structured results. Returns the actual database and configuration version. Use schema tools before writing SQL; limitReached means use narrower filters or stable pagination."
     },
     {
       "name": "query_table_page",
-      "description": "Query a table page with non-null primary keys. Without columns/filters/orderBy, stream rows with byte checks and use nextCursor for keyset continuation. Supplying any of these options uses SqlSugar page-based offset pagination, loads the whole page before checking response bytes, appends missing primary keys to sorting, and returns no cursor. No COUNT or cross-page snapshot; NULL ordering follows the database.",
-      "provider": "sql",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [
-        "Sqlite",
-        "MySql",
-        "PostgreSQL",
-        "SqlServer"
-      ],
-      "unsupportedProviders": []
+      "description": "Query a table page with non-null primary keys. Without columns/filters/orderBy, stream rows with byte checks and use nextCursor for keyset continuation. Supplying any of these options uses SqlSugar page-based offset pagination, loads the whole page before checking response bytes, appends missing primary keys to sorting, and returns no cursor. No COUNT or cross-page snapshot; NULL ordering follows the database."
     },
     {
       "name": "reload_database_config",
-      "description": "Reload the databases.json file from DB_CONFIG_PATH, update connection admission state, and return the applied currentDatabase plus whether the previous selection was preserved. In CLI tool mode, the preserved selection is also persisted for later invocations.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Reload the databases.json file from DB_CONFIG_PATH, update connection admission state, and return the applied currentDatabase plus whether the previous selection was preserved. In CLI tool mode, the preserved selection is also persisted for later invocations."
     },
     {
       "name": "rename_column",
-      "description": "Rename oldColumnName to newColumnName within tableName to adjust field naming.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "Sqlite",
-        "MongoDb",
-        "ClickHouse",
-        "TDengine",
-        "GBase"
-      ]
+      "description": "Rename oldColumnName to newColumnName within tableName to adjust field naming."
     },
     {
       "name": "rename_table",
-      "description": "Rename oldTableName to newTableName and return success so callers know the rename succeeded.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": [
-        "MongoDb",
-        "ClickHouse",
-        "Oscar",
-        "QuestDB",
-        "GBase",
-        "TDengine"
-      ]
+      "description": "Rename oldTableName to newTableName and return success so callers know the rename succeeded."
     },
     {
       "name": "switch_database",
-      "description": "Switch the active connection to databaseName and return previousDatabase/currentDatabase; throw an error if the name does not exist. In CLI tool mode, the selected connection is persisted per resolved config path for later invocations.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Switch the active connection to databaseName and return previousDatabase/currentDatabase; throw an error if the name does not exist. In CLI tool mode, the selected connection is persisted per resolved config path for later invocations."
     },
     {
       "name": "test_connection",
-      "description": "Test a named or current connection with a fixed target snapshot, optional transient retries and a total deadline. Default: no retries. Backoff releases the execution slot.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": true,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Test a named or current connection with a fixed target snapshot, optional transient retries and a total deadline. Default: no retries. Backoff releases the execution slot."
     },
     {
       "name": "truncate_table",
-      "description": "Execute TRUNCATE on tableName to delete all rows while preserving the schema; the response includes success.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Execute TRUNCATE on tableName to delete all rows while preserving the schema; the response includes success."
     },
     {
       "name": "update_column",
-      "description": "Modify an existing column using a typed column definition.",
-      "provider": "sql",
-      "requiredAccess": "schema-admin",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Modify an existing column using a typed column definition."
     },
     {
       "name": "validate_configuration",
-      "description": "Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome.",
-      "provider": "any",
-      "requiredAccess": "read-only",
-      "analysis": false,
-      "supportedProviders": [],
-      "unsupportedProviders": []
+      "description": "Verify whether the environment variables or config file can produce a usable connection and return success/configured/currentDatabase/databaseType/message fields describing the outcome."
     }
   ],
   "version": "5.0.0"

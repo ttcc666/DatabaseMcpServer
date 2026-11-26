@@ -4,7 +4,9 @@
 
 Trusted Publishing 使用 GitHub OIDC token 换取短期 NuGet API key，不需要在 GitHub Secrets 中保存长期 `NUGET_API_KEY`。
 
-当前源码的发布范围见[5.0.0 说明](release-5.0.0.md)。本轮包含工具删除及 Mongo 批量语义变更，PackageVersion、MCP 清单和发布文档统一为 5.0.0。下文 3.5.6 等版本只演示流程；操作前替换为实际新版本，不能复用旧标签或依赖 `--skip-duplicate` 覆盖旧包。发布标签必须包含全部目标变更，暂存区内容不会自动进入 GitHub Actions。MCP 清单的 description 须为 1–100 字符，打包检查会验证此项；详细功能放在 README 和工具手册中。
+当前源码的发布范围见[5.0.0 说明](release-5.0.0.md)。本轮包含工具删除及 Mongo 批量语义变更，PackageVersion、MCP 清单和发布文档统一为 5.0.0。下文 3.5.6 等版本只演示流程；操作前替换为实际新版本，不能复用旧标签或依赖 `--skip-duplicate` 覆盖旧包。发布标签必须包含全部目标变更，暂存区内容不会自动进入 GitHub Actions。
+
+MCP 清单的 description 须为 1–100 字符，整个 UTF-8 文件须不超过 20,000 字节；打包检查会验证这两项。[NuGet Gallery 的读取实现](https://github.com/NuGet/NuGetGallery/blob/main/src/NuGetGallery.Services/Helpers/McpHelper.cs) 会截断超限文件，可能只报告 metadata invalid。清单工具条目仅保留名称和描述；详细权限与 provider 信息使用 `tool list --json --all`，功能边界见工具手册。
 
 ---
 

@@ -19,7 +19,11 @@ try {
         throw 'Package metadata must reference only the net10 framework.'
     }
 
-    $manifestReader = [IO.StreamReader]::new($archive.GetEntry('.mcp/server.json').Open())
+    $manifestEntry = $archive.GetEntry('.mcp/server.json')
+    if ($manifestEntry.Length -gt 20000) {
+        throw 'MCP server metadata exceeds the NuGet.org 20,000-byte read limit.'
+    }
+    $manifestReader = [IO.StreamReader]::new($manifestEntry.Open())
     try { $manifest = $manifestReader.ReadToEnd() | ConvertFrom-Json }
     finally { $manifestReader.Dispose() }
     if ([string]::IsNullOrWhiteSpace($manifest.description) -or $manifest.description.Length -gt 100) {
