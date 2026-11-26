@@ -17,7 +17,8 @@ internal static class DatabaseOptimizationOptions
 
     public static Dictionary<string, object?> Mapped(DbType product, ConnMoreSettings s) => product switch
     {
-        DbType.MySql or DbType.Tidb or DbType.PolarDB or DbType.OceanBase or DbType.Doris => new() { ["disableNvarchar"] = s.DisableNvarchar },
+        DbType.MySql or DbType.Tidb or DbType.TDSQL or DbType.PolarDB or DbType.OceanBase or DbType.Doris or DbType.GoldenDB
+            => new() { ["disableNvarchar"] = s.DisableNvarchar },
         DbType.PostgreSQL => new() { ["autoToLower"] = s.PgSqlIsAutoToLower, ["autoToLowerCodeFirst"] = s.PgSqlIsAutoToLowerCodeFirst,
             ["enableILike"] = s.EnableILike, ["identityStrategy"] = s.PostgresIdentityStrategy.ToString() },
         DbType.SqlServer => new() { ["enableNoLock"] = s.IsWithNoLockQuery, ["disableNoLockWithTran"] = s.DisableWithNoLockWithTran, ["disableNvarchar"] = s.DisableNvarchar },
@@ -27,8 +28,9 @@ internal static class DatabaseOptimizationOptions
             ["maxParamLength"] = s.MaxParameterNameLength, ["disableNvarchar"] = s.DisableNvarchar },
         DbType.Dm => new() { ["lowercaseTables"] = !s.IsAutoToUpper, ["dockerMysqlMode"] = s.DatabaseModel == DbType.MySql },
         DbType.Kdbndp => new() { ["mode"] = s.DatabaseModel.ToString(), ["camelCase"] = !s.IsAutoToUpper, ["disableNvarchar"] = s.DisableNvarchar },
-        DbType.HG => new() { ["autoToLower"] = s.PgSqlIsAutoToLower },
-        DbType.Vastbase => new() { ["autoToLower"] = s.PgSqlIsAutoToLower, ["disableNvarchar"] = s.DisableNvarchar },
+        DbType.HG or DbType.TDengine => new() { ["autoToLower"] = s.PgSqlIsAutoToLower, ["autoToLowerCodeFirst"] = s.PgSqlIsAutoToLowerCodeFirst },
+        DbType.Vastbase or DbType.GaussDB or DbType.OpenGauss
+            => new() { ["autoToLower"] = s.PgSqlIsAutoToLower, ["autoToLowerCodeFirst"] = s.PgSqlIsAutoToLowerCodeFirst, ["disableNvarchar"] = s.DisableNvarchar },
         DbType.GaussDBNative => new() { ["databaseModel"] = s.DatabaseModel.ToString(), ["isOpenGauss"] = s.DatabaseModel == DbType.OpenGauss },
         _ => new()
     };

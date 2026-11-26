@@ -1,4 +1,4 @@
-# Requires PowerShell 7, Python 3, .NET SDKs and Node.js. No publishing or global installation.
+# Requires PowerShell 7, Python 3, .NET 10 SDK and Node.js. No publishing or global installation.
 [CmdletBinding()]
 param()
 $ErrorActionPreference = 'Stop'
@@ -6,13 +6,13 @@ $repository = Split-Path -Parent $PSScriptRoot
 $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $scratch = Join-Path $temporaryRoot ('dbmcp-package-' + [Guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $scratch
-$version = '4.0.0-ci.' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss')
+$version = '5.0.0-ci.' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss')
 Push-Location $repository
 try {
     $packages = Join-Path $scratch 'packages'
     $install = Join-Path $scratch 'tool'
-    # Isolate restore assets from dual-framework builds and IDE background restores.
-    & dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path (Join-Path $scratch 'build') -o $packages ('-p:PackageVersion=' + $version)
+    # Isolate package restore assets from regular builds and IDE background restores.
+    & dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:BuildWebsite=true' --artifacts-path (Join-Path $scratch 'build') -o $packages ('-p:PackageVersion=' + $version)
     if ($LASTEXITCODE -ne 0) { throw 'Local package build failed.' }
     $packageFile = Get-Item -LiteralPath (Join-Path $packages ('DatabaseMcpServer.' + $version + '.nupkg'))
     & (Join-Path $PSScriptRoot 'verify-package-content.ps1') -PackagePath $packageFile.FullName

@@ -108,7 +108,7 @@ public class QueryToolsTests
         var payload = await Invoke(async tool =>
         {
             using var queries = JsonDocument.Parse("""["select 1 as v", "select 2 as v union all select abs(-9223372036854775808)", "select * from missing_table"]""");
-            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!, maxRows: 2, maxResponseBytes: 4096);
+            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray(), maxRows: 2, maxResponseBytes: 4096);
         });
         using var document = JsonDocument.Parse(payload);
         var root = document.RootElement;
@@ -127,7 +127,7 @@ public class QueryToolsTests
         var payload = await Invoke(async tool =>
         {
             using var queries = JsonDocument.Parse("""["drop table blocked", "select hex(zeroblob(1000000)) as value", "select * from missing_table"]""");
-            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!, maxResponseBytes: 2600);
+            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray(), maxResponseBytes: 2600);
         });
         using var response = JsonDocument.Parse(payload);
         var root = response.RootElement;
@@ -145,7 +145,7 @@ public class QueryToolsTests
         var payload = await Invoke(async tool =>
         {
             using var queries = JsonDocument.Parse("""["select 1 union all select abs(-9223372036854775808)", "select 2 as v"]""");
-            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!, maxRows: 3);
+            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray(), maxRows: 3);
         });
         using var result = JsonDocument.Parse(payload);
         Assert.Equal(1, result.RootElement.GetProperty("rowCount").GetInt32());
@@ -272,28 +272,28 @@ public class QueryToolsTests
     }
 
     [Fact]
-    public async Task SqlQuerySingle_ShouldReadOnlyFirstRowAndPreserveColumnValues()
+    public async Task QueryDatabase_MaxRowsOneDoesNotReadFollowingPoisonedRow()
     {
         const string sql = "select @value as MixedCase, null as missing, X'0102' as bytes union all select abs(-9223372036854775808), null, null";
-        var payload = await Invoke(tool => tool.SqlQuerySingle(sql, JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"value","value":17}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!, commandTimeoutSeconds: 30));
+        var payload = await InvokeQuery(tool => tool.QueryDatabase(sql, parameters: JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"value","value":17}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!, commandTimeoutSeconds: 30, maxRows: 1).Json());
 
         using var document = JsonDocument.Parse(payload);
         var root = document.RootElement;
         Assert.True(root.GetProperty("success").GetBoolean(), payload);
-        var row = root.GetProperty("data");
+        var row = Assert.Single(root.GetProperty("data").EnumerateArray());
         Assert.Equal(17, row.GetProperty("MixedCase").GetInt32());
         Assert.Equal(JsonValueKind.Null, row.GetProperty("missing").ValueKind);
         Assert.Equal(new byte[] { 1, 2 }, row.GetProperty("bytes").GetBytesFromBase64());
     }
 
     [Fact]
-    public async Task SqlQuerySingle_ShouldReturnNullForEmptyResult()
+    public async Task QueryDatabase_ReturnsEmptyArrayForNoRows()
     {
-        var payload = await Invoke(tool => tool.SqlQuerySingle("select 1 where 1 = 0"));
+        var payload = await InvokeQuery(tool => tool.QueryDatabase("select 1 where 1 = 0", maxRows: 1).Json());
 
         using var document = JsonDocument.Parse(payload);
         Assert.True(document.RootElement.GetProperty("success").GetBoolean(), payload);
-        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("data").ValueKind);
+        Assert.Empty(document.RootElement.GetProperty("data").EnumerateArray());
     }
 
     [Fact]
@@ -304,7 +304,7 @@ public class QueryToolsTests
             using var queries = JsonDocument.Parse("""
                 ["select 1", "select 2", "select 3", "select 4", "select 5"]
                 """);
-            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!);
+            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray());
         });
 
         using var document = JsonDocument.Parse(payload);
@@ -324,7 +324,7 @@ public class QueryToolsTests
             using var queries = JsonDocument.Parse("""
                 ["select 1", "select 2", "select 3", "select 4", "select 5", "select 6"]
                 """);
-            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!);
+            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray());
         });
 
         using var document = JsonDocument.Parse(payload);
@@ -341,7 +341,7 @@ public class QueryToolsTests
             using var queries = JsonDocument.Parse("""
                 ["select 1", "drop table users", "select 2"]
                 """);
-            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!);
+            return await tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray());
         });
 
         using var document = JsonDocument.Parse(payload);

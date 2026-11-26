@@ -56,7 +56,7 @@ public class DatabaseRoleTests
         var primary = Structured(await queries.QueryDatabase("select value from markers"));
         Assert.Equal(1, Assert.Single(primary.GetProperty("data").EnumerateArray()).GetProperty("value").GetInt32());
         var schema = fixture.Host.Services.GetRequiredService<SchemaTools>();
-        Success(schema.CreateTable("only_analytics", """[{"DbColumnName":"id","DataType":"int"}]""", databaseName: "analytics"));
+        Success(schema.CreateTable("only_analytics", [new() { Name = "id", DataType = "int" }], databaseName: "analytics"));
         Assert.False(Success(schema.IsAnyTable("only_analytics", databaseName: "primary")).GetProperty("exists").GetBoolean());
         Assert.True(Success(schema.IsAnyTable("only_analytics", databaseName: "analytics")).GetProperty("exists").GetBoolean());
         Assert.Equal("primary", fixture.Service.GetCurrentDatabaseName());
@@ -110,7 +110,7 @@ public class DatabaseRoleTests
             serverPolicy ? null : "read-only");
         var commands = fixture.Host.Services.GetRequiredService<CommandTools>();
         Error(await commands.ExecuteCommand("insert into markers values (99)", databaseName: "analytics"), 1010);
-        Error(commands.CallStoredProcedure("anything", databaseName: "analytics"), 1010);
+        Error(await commands.CallStoredProcedure("anything", databaseName: "analytics"), 1010);
         Error(fixture.Host.Services.GetRequiredService<SchemaTools>().DropTable("markers", "analytics"), 1010);
         var query = Structured(await fixture.Host.Services.GetRequiredService<DatabaseQueryTools>().QueryDatabase("select value from markers", "analytics"));
         Assert.Equal(2, Assert.Single(query.GetProperty("data").EnumerateArray()).GetProperty("value").GetInt32());
@@ -119,14 +119,13 @@ public class DatabaseRoleTests
         var args = ToolInvoker.BindArguments(command, new Dictionary<string, string?> { ["sql"] = "insert into markers values (99)", ["database-name"] = "analytics" });
         Error(await ToolInvoker.InvokeAsync(command, commands, args), 1010);
         var web = fixture.Host.Services.GetRequiredService<DatabaseMcpServer.Web.CliWebToolService>();
-        var webResult = JsonSerializer.SerializeToElement(await web.InvokeAsync("execute_command",
+        var webFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => web.InvokeAsync("execute_command",
             new(new Dictionary<string, JsonElement>
             {
                 ["sql"] = JsonSerializer.SerializeToElement("insert into markers values (99)"),
                 ["database-name"] = JsonSerializer.SerializeToElement("analytics")
             }, "execute_command"), CancellationToken.None));
-        Assert.False(webResult.GetProperty("toolSuccess").GetBoolean());
-        Assert.Equal(1010, webResult.GetProperty("result").GetProperty("errorCode").GetInt32());
+        Assert.Contains("未在当前配置", webFailure.Message);
     }
 
     [Fact]
@@ -136,12 +135,12 @@ public class DatabaseRoleTests
         var commands = fixture.Host.Services.GetRequiredService<CommandTools>();
         Success(await commands.ExecuteCommand("insert into markers values (3)", databaseName: "analytics"));
         Error(await commands.ExecuteCommand("create table blocked (id int)", databaseName: "analytics"), 1010);
-        Error(commands.CallStoredProcedure("anything", databaseName: "analytics"), 1010);
+        Error(await commands.CallStoredProcedure("anything", databaseName: "analytics"), 1010);
         using var list = JsonDocument.Parse("""["insert into markers values (4)","drop table markers"]""");
         var batch = Success(await commands.BatchExecuteCommands(list.RootElement.EnumerateArray().Select(item => new DatabaseCommand { Sql = item.GetString()! }).ToArray(), databaseName: "analytics"));
         Assert.True(batch.GetProperty("results")[0].GetProperty("success").GetBoolean());
         Assert.False(batch.GetProperty("results")[1].GetProperty("success").GetBoolean());
-        Assert.Equal(3, Success(await fixture.Host.Services.GetRequiredService<QueryTools>().GetScalar("select count(*) from markers", databaseName: "analytics")).GetProperty("value").GetInt32());
+        Assert.Equal(3, Success(await fixture.Host.Services.GetRequiredService<DatabaseQueryTools>().QueryDatabase("select count(*) as value from markers", databaseName: "analytics").Json()).GetProperty("data")[0].GetProperty("value").GetInt32());
     }
 
     [Fact]
@@ -149,18 +148,18 @@ public class DatabaseRoleTests
     {
         using var fixture = Create(new() { BoundedQueryDefaults = true, DefaultQueryRows = 1, DefaultResponseBytes = 2048,
             MaxQueryRows = 2, MaxResponseBytes = 4096, MaxCommandTimeoutSeconds = 10, AllowInfiniteTimeout = false });
-        var queries = fixture.Host.Services.GetRequiredService<QueryTools>();
         var structuredQueries = fixture.Host.Services.GetRequiredService<DatabaseQueryTools>();
         var limited = Success(await structuredQueries.QueryDatabase("select 1 as v union all select abs(-9223372036854775808)").Json());
         Assert.Equal(1, limited.GetProperty("rowCount").GetInt32());
         Assert.True(limited.GetProperty("limitReached").GetBoolean());
         Error(await structuredQueries.QueryDatabase("select 1", maxRows: 3).Json(), 1004);
         Error(await structuredQueries.QueryDatabase("select 1", maxResponseBytes: 4097).Json(), 1004);
-        Error(await queries.GetScalar("select 1", commandTimeoutSeconds: 0), 1004);
-        Error(await queries.SqlQuerySingle("select 1", commandTimeoutSeconds: 11), 1004);
-        Error(await queries.GetScalar("select hex(zeroblob(10000))"), 1013);
-        Error(await queries.SqlQuerySingle("select hex(zeroblob(10000)) as v"), 1013);
-        Assert.Equal(7, Success(await queries.GetScalar("select 7")).GetProperty("value").GetInt32());
+        Error(await structuredQueries.QueryDatabase("select 1", commandTimeoutSeconds: 0).Json(), 1004);
+        Error(await structuredQueries.QueryDatabase("select 1", commandTimeoutSeconds: 11).Json(), 1004);
+        var oversized = Success(await structuredQueries.QueryDatabase("select hex(zeroblob(10000)) as v").Json());
+        Assert.True(oversized.GetProperty("truncated").GetBoolean());
+        Assert.Empty(oversized.GetProperty("data").EnumerateArray());
+        Assert.Equal(7, Success(await structuredQueries.QueryDatabase("select 7 as value").Json()).GetProperty("data")[0].GetProperty("value").GetInt32());
     }
 
     [Fact]
@@ -227,6 +226,12 @@ public class DatabaseRoleTests
         Assert.True(doc.RootElement.GetProperty("success").GetBoolean(), payload);
         return doc.RootElement.Clone();
     }
+
+    internal static JsonElement Success(ModelContextProtocol.Protocol.CallToolResult result)
+        => Success(((ModelContextProtocol.Protocol.TextContentBlock)Assert.Single(result.Content)).Text);
+
+    internal static void Error(ModelContextProtocol.Protocol.CallToolResult result, int code)
+        => Error(((ModelContextProtocol.Protocol.TextContentBlock)Assert.Single(result.Content)).Text, code);
 
     internal static void Error(string payload, int code)
     {

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using DatabaseMcpServer.Extensions;
 using ModelContextProtocol.Server;
+using DatabaseMcpServer.Helpers;
 
 namespace DatabaseMcpServer.Tools;
 
@@ -12,13 +13,15 @@ internal sealed record ToolParameterDescriptor(
     string Description,
     Type ParameterType,
     bool IsRequired,
-    object? DefaultValue)
+    object? DefaultValue,
+    bool AllowsNull = false,
+    IReadOnlyList<string>? Choices = null)
 {
     public Type EffectiveType => Nullable.GetUnderlyingType(ParameterType) ?? ParameterType;
 
     public bool IsBoolean => EffectiveType == typeof(bool);
 
-    public bool IsJson => EffectiveType.IsArray || EffectiveType == typeof(Dictionary<string, System.Text.Json.JsonElement>);
+    public bool IsJson => EffectiveType.IsArray || EffectiveType == typeof(System.Text.Json.JsonElement) || EffectiveType == typeof(Dictionary<string, System.Text.Json.JsonElement>) || EffectiveType == typeof(DatabaseMcpServer.Models.ColumnDefinition);
 
     public string DisplayTypeName => EffectiveType == typeof(string)
         ? "string"
@@ -39,38 +42,58 @@ internal sealed record ToolDescriptor(
     IReadOnlyList<ToolParameterDescriptor> Parameters,
     bool RequiresConfirmation)
 {
-    public bool IsCollection => ToolType == typeof(Query.MongoCollectionQueryTools) || ToolType == typeof(Command.MongoCollectionCommandTools);
-    public string Category => ToolType == typeof(Management.ConnectionTools) ? "connection"
-        : ToolType == typeof(Management.SchemaTools) ? "schema"
-        : ToolType == typeof(Query.QueryTools) || ToolType == typeof(Query.DatabaseQueryTools) ? "query"
-        : ToolType == typeof(Command.CommandTools) ? "command" : "other";
+    private ToolGroupAttribute Group { get; } = ToolType.GetCustomAttribute<ToolGroupAttribute>()
+        ?? throw new InvalidOperationException($"Tool group metadata missing for {ToolType.Name}.");
+    private ToolPolicyAttribute? Policy { get; } = Method.GetCustomAttribute<ToolPolicyAttribute>();
+    public bool IsCollection => Provider == "mongo";
+    public string Provider => Group.Provider;
+    public string Category => Group.Category;
+    public bool Analysis => Policy?.Analysis == true;
+    public DatabaseCapability? Capability => Policy is { Capability: >= 0 } policy ? policy.Capability : null;
+    public string[] SupportedProviders => ProviderCapabilities.SupportedProviders(Capability);
+    public string[] UnsupportedProviders => ProviderCapabilities.UnsupportedProviders(Capability);
+    public DatabaseToolAccess RequiredAccess => Policy is { Access: >= DatabaseToolAccess.Read } policy ? policy.Access : Group.Access;
+    public string RequiredAccessName => RequiredAccess switch { DatabaseToolAccess.Read => "read-only", DatabaseToolAccess.Write => "read-write", _ => "schema-admin" };
+
+    private readonly Lazy<ModelContextProtocol.Protocol.Tool> _protocolTool = new(() => ToolInputSchema.Apply(McpServerTool.Create(Method,
+        (ModelContextProtocol.Server.RequestContext<ModelContextProtocol.Protocol.CallToolRequestParams> _) =>
+            throw new InvalidOperationException("Metadata-only tool cannot be invoked."), new() { Name = Name }).ProtocolTool, Method));
+    public ModelContextProtocol.Protocol.Tool ProtocolTool => _protocolTool.Value;
+
+    public object Describe() => new
+    {
+        name = Name, description = Description, category = Category, provider = Provider,
+        requiredAccess = RequiredAccessName,
+        requiresConfirmation = RequiresConfirmation, analysis = Analysis, supportedProviders = SupportedProviders,
+        unsupportedProviders = UnsupportedProviders, capability = Capability?.ToString(),
+        inputSchema = ProtocolTool.InputSchema, outputSchema = ProtocolTool.OutputSchema,
+        parameters = Parameters.Select(p => new { name = p.ParameterName, optionName = p.OptionName, required = p.IsRequired, defaultValue = p.DefaultValue })
+    };
 }
 
 internal sealed class ToolCatalog
 {
-    private readonly IReadOnlyList<ToolDescriptor> _toolList;
-    private readonly IReadOnlyDictionary<string, ToolDescriptor> _tools;
+    private readonly Lazy<ToolDescriptor[]> _toolList = new(() => DatabaseMcpToolCatalog.ToolTypes
+        .SelectMany(BuildToolMetadata)
+        .OrderBy(item => item.Name, StringComparer.Ordinal)
+        .ToArray());
+    private readonly Lazy<IReadOnlyDictionary<string, ToolDescriptor>> _tools;
 
     public ToolCatalog()
     {
-        _toolList = DatabaseMcpToolCatalog.ToolTypes
-            .SelectMany(BuildToolMetadata)
-            .OrderBy(item => item.Name, StringComparer.Ordinal)
-            .ToArray();
-
-        _tools = _toolList.ToDictionary(item => item.Name, StringComparer.Ordinal);
+        _tools = new(() => _toolList.Value.ToDictionary(item => item.Name, StringComparer.Ordinal));
     }
 
-    public IReadOnlyCollection<ToolDescriptor> Tools => _toolList;
+    public IReadOnlyCollection<ToolDescriptor> Tools => _toolList.Value;
 
     public bool TryGetTool(string toolName, out ToolDescriptor metadata)
     {
-        return _tools.TryGetValue(toolName, out metadata!);
+        return _tools.Value.TryGetValue(toolName, out metadata!);
     }
 
     public IReadOnlyList<string> GetClosestToolNames(string toolName, int count = 3)
     {
-        return _tools.Keys
+        return _tools.Value.Keys
             .OrderBy(name => GetDistance(toolName, name))
             .ThenBy(name => name, StringComparer.Ordinal)
             .Take(count)
@@ -87,14 +110,17 @@ internal sealed class ToolCatalog
                 var toolName = method.GetCustomAttribute<McpServerToolAttribute>()!.Name ?? ToSnakeCase(method.Name);
                 var parameters = method
                     .GetParameters()
-                    .Where(parameter => parameter.ParameterType != typeof(CancellationToken))
+                    .Where(parameter => parameter.ParameterType != typeof(CancellationToken) &&
+                        parameter.ParameterType != typeof(IProgress<ModelContextProtocol.ProgressNotificationValue>))
                     .Select(parameter => new ToolParameterDescriptor(
                         parameter.Name ?? string.Empty,
                         ToKebabCase(parameter.Name ?? string.Empty),
                         parameter.GetCustomAttribute<DescriptionAttribute>()?.Description ?? string.Empty,
                         parameter.ParameterType,
                         !parameter.HasDefaultValue,
-                        parameter.HasDefaultValue ? parameter.DefaultValue : null))
+                        parameter.HasDefaultValue ? parameter.DefaultValue : null,
+                        new NullabilityInfoContext().Create(parameter).ReadState == NullabilityState.Nullable,
+                        parameter.GetCustomAttribute<ToolChoicesDescriptionAttribute>()?.Choices))
                     .ToArray();
 
                 return new ToolDescriptor(

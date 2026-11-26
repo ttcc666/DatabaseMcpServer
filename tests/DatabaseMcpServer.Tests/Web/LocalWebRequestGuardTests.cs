@@ -7,6 +7,21 @@ namespace DatabaseMcpServer.Tests;
 public class LocalWebRequestGuardTests
 {
     [Theory]
+    [InlineData("GET", false)]
+    [InlineData("HEAD", false)]
+    [InlineData("POST", true)]
+    [InlineData("PUT", true)]
+    [InlineData("PATCH", true)]
+    [InlineData("DELETE", true)]
+    public void MarkerRequirement_DependsOnRequestMethod(string method, bool required)
+    {
+        var request = Request("localhost", null);
+        request.Method = method;
+        request.Headers.Remove("X-DatabaseMcp-Web");
+        Assert.Equal(required ? "缺少本地 Web 请求标记。" : null, LocalWebRequestGuard.Validate(request));
+    }
+
+    [Theory]
     [InlineData("localhost:8080", "http://localhost:8080")]
     [InlineData("127.0.0.1:8080", "http://127.0.0.1:8080")]
     [InlineData("[::1]:8080", "http://[::1]:8080")]
@@ -42,6 +57,7 @@ public class LocalWebRequestGuardTests
     private static HttpRequest Request(string host, string? origin)
     {
         var request = new DefaultHttpContext().Request;
+        request.Method = HttpMethods.Post;
         request.Scheme = "http";
         request.Host = HostString.FromUriComponent(host);
         request.Headers["X-DatabaseMcp-Web"] = "1";

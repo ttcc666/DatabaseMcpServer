@@ -11,23 +11,16 @@
     "// 方式 2: dnx 命令": "",
     "database-dnx": {
       "command": "dnx",
-      "args": ["DatabaseMcpServer@4.0.0", "--yes"],
+      "args": ["DatabaseMcpServer@5.0.0", "--yes"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
     },
 
-    "// 方式 3: 本地开发 - 使用源码运行（多目标项目请指定 --framework）": "",
+    "// 方式 3: 本地开发 - 使用 .NET 10 SDK 运行源码": "",
     "database-dev": {
       "command": "dotnet",
-      "args": ["run", "--framework", "net9.0", "--project", "path/to/DatabaseMcpServer"],
-      "env": {
-        "DB_CONFIG_PATH": "D:\\config\\databases.json"
-      }
-    },
-    "database-dev-net10": {
-      "command": "dotnet",
-      "args": ["run", "--framework", "net10.0", "--project", "path/to/DatabaseMcpServer"],
+      "args": ["run", "--project", "path/to/DatabaseMcpServer/src/DatabaseMcpServer/DatabaseMcpServer.csproj"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }

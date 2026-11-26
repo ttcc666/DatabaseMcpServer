@@ -13,7 +13,7 @@ Oscar 使用轻量优化策略，仅连接池提示。
   "databases": [
     {
       "name": "oscar-main",
-      "connectionString": "Server=oscar.host:2003;User Id=sysdba;Password=pass;Database=demo;",
+      "connectionString": "HOST=localhost;PORT=2003;DATABASE=osrdb;USER ID=SYSDBA;PASSWORD=oscar;",
       "dbType": "Oscar",
       "description": "神通数据库",
       "isDefault": false,

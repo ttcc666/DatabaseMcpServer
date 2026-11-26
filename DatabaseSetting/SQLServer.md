@@ -1,8 +1,10 @@
 # SQL Server 数据库配置指南
 
-本文档详细说明 Microsoft SQL Server 数据库的配置方法，涵盖新版驱动所需的加密参数、.NET 8 全球化配置、NoLock 规范、禁用 nvarchar 等实战要点。
+本文档详细说明 Microsoft SQL Server 数据库的配置方法，涵盖驱动加密参数、.NET 全球化配置、NoLock 规范、禁用 nvarchar 等实战要点。
 
 本服务执行原始 ADO/SqlQueryable SQL，enableNoLock 不会自动为这些查询添加 WITH(NOLOCK)。ORM 选项生效范围见 [统一配置约定](../Doc/orm-configuration.md)；未经本项目测量的性能比例不能视为承诺。
+
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
 
 ---
 
@@ -59,16 +61,16 @@
 | `User Id` | 用户名 | `sa` | 数据库用户 |
 | `Password` | 密码 | `YourStrong@Password` | 用户密码 |
 
-### 新版驱动必需参数（重要）
+### TLS 参数
 
 | 参数 | 说明 | 推荐值 | 备注 |
 |------|------|--------|------|
-| `Encrypt` | 启用加密 | `True` | 新版驱动必需 |
-| `TrustServerCertificate` | 信任服务器证书 | `True` | 开发环境推荐 |
+| `Encrypt` | 启用加密 | `True` | 配合服务器 TLS 和证书配置 |
+| `TrustServerCertificate` | 跳过证书校验 | `False` | True 仅用于受控开发环境 |
 
-**注意**: SqlSugarCore 5.1.4.169+ 版本必须添加这两个参数，否则连接失败；部分旧版可省略但不推荐。
+**注意**: 生产环境使用可信证书并校验服务器主机名。TrustServerCertificate=True 并非必需，不应作为所有连接问题的通用修复。
 
-### .NET 8 全球化配置
+### .NET 全球化配置
 
 如出现 `Only the invariant globalization mode is supported`，在启动项目的 `.csproj` 中设置：
 ```xml
@@ -93,7 +95,7 @@
 | `MultipleActiveResultSets` | 多活动结果集 | `false` | 复杂查询设为 `true` |
 | `Application Name` | 应用程序名称 | - | 便于监控和调试 |
 | `Integrated Security` | Windows 身份验证 | `false` | 设为 `true` 使用 Windows 认证 |
-| `Encrypt` / `TrustServerCertificate` | 加密/信任证书 | `True` / `True|False` | 新版驱动必需，云上建议关闭信任 |
+| `Encrypt` / `TrustServerCertificate` | 加密/证书校验 | 按驱动版本核对 | 生产应验证可信证书 |
 
 ---
 
@@ -105,8 +107,8 @@ DatabaseMcpServer 自动为 SQL Server 应用以下优化：
 |--------|------|------|
 | **NoLock 查询** | 仅实体 Queryable 的 ORM 选项；不改写 MCP 原始 SQL | 允许脏读，需要业务自行判断 |
 | 事务中禁用 NoLock | 实体 Queryable 设置，不覆盖 SQL 中显式 hints | 不代替事务隔离级别 |
-| 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
-| 可选禁用 nvarchar | 通过 `disableNvarchar` 配置 | 索引性能提升 **20-30%** |
+| 连接池复用 | 独立 SqlSugarClient + 驱动连接池 | 每次操作独占实例并自动关闭连接 |
+| 可选禁用 nvarchar | 通过 `disableNvarchar` 配置 | ORM 参数策略；效果需用实际执行计划验证 |
 | 原生连通性验证 | 建议失败时使用 `new SqlConnection(...).Open()` | 快速判定驱动/配置问题 |
 
 ---
@@ -144,9 +146,7 @@ DatabaseMcpServer 自动为 SQL Server 应用以下优化：
 }
 ```
 
-**效果**:
-- `true`: 使用 varchar 参数，索引正常使用
-- `false`: 使用 nvarchar 参数（默认）
+**作用范围**: ORM 生成路径；是否使用索引取决于类型、排序规则和执行计划。MCP 原始 SQL 参数需按实际字段选择 dbType，例如 String 或 AnsiString。
 
 **性能对比**:
 ```sql
@@ -161,7 +161,7 @@ WHERE name = '张三'   -- 索引正常使用
 
 ### enableNoLock
 
-**说明**: 控制是否为查询自动添加 `WITH(NOLOCK)`（默认 `true`）。
+**说明**: 控制实体 Queryable 的 WITH(NOLOCK) 选项（默认 true）；不改写本服务的原始 SQL 查询。
 
 **类型**: `boolean`
 
@@ -185,7 +185,7 @@ WHERE name = '张三'   -- 索引正常使用
 
 ### disableNoLockWithTran
 
-**说明**: 控制事务内是否禁用 NoLock（默认 `true`，保证事务一致性）。
+**说明**: 控制实体 Queryable 事务内是否禁用 NoLock（默认 true）；不代替事务隔离级别，也不移除 SQL 中显式编写的 hint。
 
 **类型**: `boolean`
 
@@ -297,12 +297,7 @@ WHERE name = '张三'   -- 索引正常使用
 A connection was successfully established with the server, but then an error occurred during the login process
 ```
 
-**原因**: 新版驱动要求 TLS/SSL 配置
-
-**解决方案**:
-```json
-"connectionString": "...;Encrypt=True;TrustServerCertificate=True;..."
-```
+**排查**: 检查服务端证书、证书链、主机名、TLS 版本与 Encrypt 设置。生产环境配置可信证书，受控本地开发才可临时使用 TrustServerCertificate=True。
 
 ### 问题 1.1: 连接不上/偶发现象
 
@@ -311,8 +306,8 @@ A connection was successfully established with the server, but then an error occ
 ```csharp
 new SqlConnection("Server=...;...").Open();
 ```
-2) 如偶发，使用 `SqlSugarScope` 单例模式提升线程安全。
-3) 再检查连接字符串是否含必需的 `Encrypt=True;TrustServerCertificate=True;`。
+2) 当前服务每次操作独占 `SqlSugarClient` 租约，物理连接由驱动池复用；结合 `config doctor`、`test_connection` 和请求日志检查连接池、超时及并发限制。
+3) 检查 `Encrypt`、服务器证书和主机名是否匹配。生产环境应使用可信证书；`TrustServerCertificate=True` 仅适用于受控的本地开发环境，并非必需参数。
 
 ### 问题 2: 查询慢 - 索引失效
 
@@ -355,7 +350,7 @@ Timeout expired. The timeout period elapsed prior to obtaining a connection from
 "connectionString": "...;Max Pool Size=200;..."
 ```
 
-### 问题 4: .NET 8 全球化错误
+### 问题 4: .NET 全球化错误
 
 **错误**:
 ```
@@ -481,4 +476,4 @@ db.Ado.ExecuteCommand("EXEC sp_name @p", param);
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2026-11-26

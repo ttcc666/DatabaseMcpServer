@@ -89,7 +89,7 @@ public class DatabaseRoleIntegrationTests
         fixture.Observer.Ado.ExecuteCommand(sql);
         try
         {
-            using var result = ProviderFixture.Success(fixture.Command.CallStoredProcedure(procedure, parameters:
+            using var result = ProviderFixture.Success(await fixture.Command.CallStoredProcedure(procedure, parameters:
             [
                 new() { Name = "@counter_value", DbType = DatabaseParameterType.Int64, Direction = DatabaseParameterDirection.InputOutput, Value = JsonSerializer.SerializeToElement(9007199254740993L) },
                 new() { Name = "@label_value", DbType = DatabaseParameterType.AnsiString, Direction = DatabaseParameterDirection.Output, Size = 64 }

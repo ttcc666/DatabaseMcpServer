@@ -1,5 +1,7 @@
 # 非配置兼容层清理
 
+> 本文是 2026-11-20 的历史清理记录，以下“当前接口”和测试数量仅指当时状态。现行 54 项工具及迁移见[工具契约](tool-evolution.md)和[5.0.0 说明](release-5.0.0.md)。
+
 2026-11-20，检查范围为本地未推送的“优化1”至“优化6”（基线 `5452fe7`）及工作区。本轮直接采用当前工具契约，不为旧调用增加别名或包装。配置文件无需迁移。agent 升级后重新读取 `tools/list`，CLI 使用 `tool list` / `tool help`。
 
 ## 当前接口
@@ -32,7 +34,7 @@
 - 执行策略、元数据缓存和连接身份改为必需依赖，不在工具内部补建缺失依赖。
 - 多结果和 batch 统一 reader 路径。删除旧完整 DataSet 路径和模拟旧 SqliteDataAdapter 的 DataTable 类型转换；结果值按 reader 实际类型输出，重复列名生成唯一后缀。SQLite 的 NULL 首行不再把后续整数转成二进制；datetime 文本按原值返回，未额外转换为 DateTime。
 
-保留的配置行为包括 `allowDangerousOperations` 字段/CLI 别名、配置发现与状态迁移、Web 配置重命名入口，以及 `DB_QUERY_BOUNDED_DEFAULTS` 等执行策略配置。该开关仍控制 batch/多结果等工具省略预算时的默认值；不再切换两套执行实现。`query_database` 始终填充预算。数据库驱动差异与当前 net9/net10 目标保留。
+保留的配置行为包括 `allowDangerousOperations` 字段/CLI 别名、配置发现与状态迁移、Web 配置重命名入口，以及 `DB_QUERY_BOUNDED_DEFAULTS` 等执行策略配置。该开关仍控制 batch/多结果等工具省略预算时的默认值；不再切换两套执行实现。`query_database` 始终填充预算。数据库驱动差异保留；2026-11-23 起项目统一使用 .NET 10 LTS，下方双框架结果为历史验收记录。
 
 ## 验证
 

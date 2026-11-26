@@ -1,5 +1,7 @@
 # MCP / SqlSugar 依赖升级与兼容性
 
+本文为历史验收记录，包含当时尚未实施的后续计划；当前类型化结果、查询预算、缓存和能力目录见[执行策略](database-mcp-workflow.md)及[后端架构](backend-architecture.md)。
+
 日期：2026-11-20。落实 `plans/2026-11-20-mcp-next-stage.md` 中的关键缺陷修复和依赖升级；未使用子代理，未发布 NuGet 包。
 
 ## 升级范围
@@ -15,7 +17,7 @@
 | Microsoft.NET.Test.Sdk | 18.8.1 | 18.12.0 | 更新测试基础设施，保持 xUnit 2 / VSTest |
 | SDK / global.json | 10.0.201 | 10.0.404 | 固定到本机已验证的 SDK，保留 latestFeature 策略 |
 
-OceanBase、ClickHouse、GaussDB provider 已核对，没有更新的稳定版。MySqlConnector 2.6.2、Pkcs 8.0.2 和 SQLite native 3.53.3 的安全固定继续生效；未引入 MySqlConnector 3、SharpCompress 1 或 .NET 11 等额外大版本迁移。SqlSugarCore 本次带入 Microsoft.Data.Sqlite 10.0.11；实际解析的 SQL Server / PostgreSQL 驱动为 Microsoft.Data.SqlClient 5.2.2 / Npgsql 5.0.18。
+OceanBase、ClickHouse、GaussDB provider 已核对。保留 MySqlConnector 2.6.2、Pkcs 8.0.2、SQLite native 3.53.3。SqlSugarCore 引入 Microsoft.Data.Sqlite 10.0.11，SQL Server 使用 Microsoft.Data.SqlClient 5.2.2。PostgreSQL 显式使用 Npgsql 8.0.9 修复连接池重置期间的取消问题，详见[工具契约](tool-evolution.md)。
 
 ## 行为修复
 
@@ -69,10 +71,10 @@ dotnet test 'DatabaseMcpServer.slnx' -c 'Release' --filter 'Category!=Integratio
 pwsh -NoProfile -File 'scripts/test-integration.ps1'
 dotnet list 'DatabaseMcpServer.slnx' package --vulnerable --include-transitive --no-restore --format 'json'
 dotnet build 'DatabaseMcpServer.slnx' -c 'Release' --no-restore
-dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
+dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
-保留 net9.0/net10.0 双目标兼容；.NET 9 已于 2026-11-10 结束支持，新部署推荐 .NET 10 LTS。MongoDB 和其他附加 provider 本轮完成依赖/编译检查，未宣称完成真实库 CRUD 回归。
+2026-11-23 起源码、测试和发布包统一使用 .NET 10 LTS，移除 .NET 9 目标；上方双框架数据保留为依赖升级时的历史验收记录。MongoDB 和其他附加 provider 在该次升级中完成依赖/编译检查，未宣称完成真实库 CRUD 回归。
 
 类型化 MCP 参数/结果、默认查询预算、按请求指定数据库、schema 缓存及 provider 能力表仍在后续计划中。当前不新增 outputSchema/structuredContent，也不宣称吞吐提升百分比。
 

@@ -3,22 +3,40 @@ using System.Text.Json;
 using DatabaseMcpServer.Models;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
+using MongoDB.Driver;
 
 namespace DatabaseMcpServer.Helpers;
 
 internal static class MongoDocumentContract
 {
     internal const int MaxInputBytes = 4 * 1024 * 1024;
-    private static readonly JsonWriterSettings Canonical = new() { OutputMode = JsonOutputMode.CanonicalExtendedJson };
+    internal static readonly JsonWriterSettings Canonical = new() { OutputMode = JsonOutputMode.CanonicalExtendedJson };
     private static readonly HashSet<string> UpdateOperators = new(StringComparer.Ordinal)
     { "$set", "$unset", "$inc", "$mul", "$min", "$max", "$push", "$pull", "$addToSet", "$pop", "$currentDate", "$setOnInsert" };
 
     public static DatabaseMcpException Invalid(string message) => new(DatabaseErrorCode.InvalidParameters, message);
 
+    public static MongoUrlBuilder ValidateUri(string uri)
+    {
+        try
+        {
+            var builder = new MongoUrlBuilder(uri);
+            if (uri.StartsWith("mongodb+srv://", StringComparison.OrdinalIgnoreCase))
+                throw Invalid("当前 SqlSugar Mongo provider 不支持 mongodb+srv URI；请使用显式主机的 mongodb:// 连接字符串。");
+            if (string.IsNullOrWhiteSpace(builder.DatabaseName))
+                throw Invalid("Mongo URI 必须显式指定数据库；authSource 不能替代数据库名。");
+            return builder;
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
+        {
+            throw Invalid("Mongo URI 无效，请检查连接选项。");
+        }
+    }
+
     public static void ValidateCollection(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.StartsWith("system.", StringComparison.Ordinal) || name.Contains('\0') || name.Contains('$'))
-            throw Invalid("collection 必须是非空集合名，不能包含 NUL、$ 或使用 system. 前缀。");
+        if (string.IsNullOrWhiteSpace(name) || name.StartsWith("system.", StringComparison.Ordinal) || name.Any(char.IsWhiteSpace) || name.Contains('\0') || name.Contains('$'))
+            throw Invalid("collection 必须是非空集合名，不能包含空白、NUL、$ 或使用 system. 前缀。");
     }
 
     // Validate the raw object before dictionary binding, which otherwise loses duplicate top-level keys.
@@ -65,6 +83,16 @@ internal static class MongoDocumentContract
         }
         catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException or InvalidOperationException or OverflowException)
         { throw Invalid("Mongo JSON 或 Extended JSON v2 无效；请检查类型包装及数值范围。"); }
+    }
+
+    public static BsonDocument[] ParseMany(Dictionary<string, JsonElement>[]? documents, ref int inputBytes)
+    {
+        if (documents is not { Length: > 0 and <= 1000 })
+            throw Invalid("documents 必须包含 1-1000 个 JSON 对象。");
+        var parsed = new List<BsonDocument>(documents.Length);
+        foreach (var item in documents)
+            parsed.Add(Parse(item, ref inputBytes, required: true));
+        return parsed.ToArray();
     }
 
     public static void ValidateFilter(BsonDocument filter) => ValidateBson(filter, true);
@@ -122,18 +150,17 @@ internal static class MongoDocumentContract
         }
     }
 
-    public static void EnsureMutationAllowed(BsonDocument filter, bool many, bool upsert, bool allowAll, bool dangerous)
+    public static void EnsureBatchMutationAllowed(BsonDocument filter, bool allowAll, bool dangerous)
     {
-        if (many && upsert) throw Invalid("many 与 upsert 不能同时启用。");
-        if ((many && !dangerous) || (filter.ElementCount == 0 && (!allowAll || !dangerous)))
-            throw new DatabaseMcpException(DatabaseErrorCode.AccessDenied, "批量操作需要 enableDangerousOperations；空 filter 还需要 allowAll=true。");
+        if (!dangerous)
+            throw new DatabaseMcpException(DatabaseErrorCode.AccessDenied, "SqlSugar Mongo 批量更新/删除需要 enableDangerousOperations=true。");
+        if (filter.ElementCount == 0 && !allowAll)
+            throw new DatabaseMcpException(DatabaseErrorCode.AccessDenied, "空 filter 会影响全部文档，必须同时指定 allowAll=true。");
     }
 
-    public static JsonElement ToJson(BsonDocument document)
+    public static JsonElement ToJson(BsonValue document)
     {
         using var json = JsonDocument.Parse(document.ToJson(Canonical));
         return json.RootElement.Clone();
     }
-
-    public static JsonElement IdToJson(BsonValue id) => ToJson(new BsonDocument("id", id)).GetProperty("id").Clone();
 }

@@ -22,9 +22,15 @@ try {
     $manifestReader = [IO.StreamReader]::new($archive.GetEntry('.mcp/server.json').Open())
     try { $manifest = $manifestReader.ReadToEnd() | ConvertFrom-Json }
     finally { $manifestReader.Dispose() }
-    if ($manifest.tools.Count -ne 62 -or @($manifest.tools.name | Select-Object -Unique).Count -ne 62) {
-        throw 'Packaged MCP catalog must contain 62 unique current tools.'
+    $sourceManifest = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '../.mcp/server.json') | ConvertFrom-Json
+    $toolNames = @($manifest.tools.name)
+    if ($toolNames.Count -eq 0 -or @($toolNames | Sort-Object -CaseSensitive -Unique).Count -ne $toolNames.Count -or
+        (Compare-Object -ReferenceObject $sourceManifest.tools.name -DifferenceObject $toolNames -CaseSensitive)) {
+        throw 'Packaged MCP catalog must match the source catalog and contain unique tool names.'
     }
+    $historicalFiles = @($archive.Entries.FullName | Where-Object { $_ -match '^Doc/.+(?:-validation\.md|\.json)$' })
+    if ($historicalFiles.Count) { throw ('Historical reports must stay out of the package: ' + ($historicalFiles -join ', ')) }
+    if (-not $archive.GetEntry('Doc/tool-evolution.md')) { throw 'Tool migration guide is missing from package.' }
     if (-not $archive.GetEntry('Doc/mongodb-collections.md')) { throw 'Mongo collection contract is missing from package.' }
     foreach ($assembly in @('DatabaseMcpServer.Core.dll', 'DatabaseMcpServer.Infrastructure.dll')) {
         if (-not $archive.GetEntry('tools/net10.0/any/' + $assembly)) {

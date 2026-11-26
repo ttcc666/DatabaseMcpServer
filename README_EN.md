@@ -1,7 +1,11 @@
 # DatabaseMCP Database Operation Server
 
+Current source defaults batch and multiple-result queries to shared budgets of 1000 rows and 1 MiB. Set `DB_QUERY_BOUNDED_DEFAULTS=false` explicitly to retain their previous omitted-budget behavior. Admission enforces both per-connection and application-wide limits, with `DB_MAX_TOTAL_CONCURRENT=32` and `DB_MAX_TOTAL_QUEUED=128`. Review truncation flags and capacity settings when upgrading; see the [execution policy](Doc/database-mcp-workflow.md).
+
+The current source catalog contains **54 tools** in [5.0.0](Doc/release-5.0.0.md); check `tool list/help --json` for your installed version. MCP, CLI and Web filter availability by configured providers and access. See table metadata, paging, Mongo aggregation, streaming CLI export and migration from 4.0.0 in the [current tool contract](Doc/tool-evolution.md).
+
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-4.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-5.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 Website](https://databasemcp.ttcc.online/)
@@ -10,14 +14,14 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 
 ## ✨ Core Features
 
-- 🗄️ **Database providers** - Product verification is separate from driver availability. MySQL, PostgreSQL, SQL Server and SQLite have regression coverage; other products need deployment-specific validation. See [ORM configuration](Doc/orm-configuration.md). HG/GBase/TDengine/DuckDB extensions and managed drivers are bundled; GBase and TDengine additionally require native clients on the deployment host. See [driver requirements](Doc/provider-drivers.md). MongoDB provides six native collection tools with Extended JSON v2; see the [collection contract](Doc/mongodb-collections.md).
+- 🗄️ **Database providers** - Product verification is separate from driver availability. MySQL, PostgreSQL, SQL Server and SQLite have regression coverage; other products need deployment-specific validation. See [ORM configuration](Doc/orm-configuration.md). HG/GBase/TDengine/DuckDB extensions and managed drivers are bundled; GBase and TDengine additionally require native clients on the deployment host. See [driver requirements](Doc/provider-drivers.md). MongoDB provides six tools through SqlSugar.MongoDbCore ADO: find, aggregate, insert_many, update, delete and truncate. Input accepts Extended JSON v2; output uses provider-converted JSON and is not a lossless BSON round trip. SRV URIs are rejected; see the [collection contract](Doc/mongodb-collections.md).
 - 🔄 **Single-Instance Multi-Database** - One MCP Server instance can configure and dynamically switch between multiple database connections
 - 🔒 **Security Protection** - Dangerous operation detection + SQL injection protection + sensitive information protection
 - ⚡ **Execution Isolation** - Exclusive SqlSugarClient leases + driver connection pooling + database-specific optimizations
 - 🔧 **Flexible Configuration** - JSON configuration file support for easy multi-database management
-- 💾 **Complete Functionality** - 62 MCP tools including typed queries, MongoDB collections, table paging and capability diagnostics. Prefer .NET 10 LTS for new deployments; see the [database MCP workflow](Doc/database-mcp-workflow.md).
-- 🚀 **Execution Controls** - Batch operations, stored procedures, access policies and timeouts; batch writes do not provide transactional rollback
-- 📦 **.NET Global Tool** - Published packages require .NET 10; source builds and tests retain .NET 9/10 targets
+- 💾 **Database tools** - Typed queries, MongoDB collections, table paging and offline capability discovery. See the [database MCP workflow](Doc/database-mcp-workflow.md).
+- 🚀 **Execution Controls** - Batch operations, stored procedures, access policies, timeouts and optional transactions for supported batch writes
+- 📦 **.NET Global Tool** - Source, tests and published packages target .NET 10 LTS
 - 🌐 **Cross-Platform** - Full support for Windows, macOS, Linux
 
 ## 🗄️ Supported Database Types
@@ -54,13 +58,14 @@ A powerful database operation MCP (Model Context Protocol) server focused on **1
 
 ### Step 1: Install .NET Global Tool
 
-The published tool requires the .NET 10 SDK, including the .NET and ASP.NET Core runtimes. Source builds and tests retain .NET 9/10 targets. See [driver requirements](Doc/provider-drivers.md).
+Source builds and the published tool require the .NET 10 SDK, including the .NET and ASP.NET Core runtimes. See [driver requirements](Doc/provider-drivers.md).
 
 ```bash
 # Install latest version
 dotnet tool install --global DatabaseMcpServer
 
-# Verify installation (the CLI has no --version flag; it exits 2 on that)
+# Verify the executable version without loading database configuration
+DatabaseMcpServer --version
 dotnet tool list --global | Select-String databasemcpserver
 ```
 
@@ -293,11 +298,8 @@ dnx DatabaseMcpServer@3.6.5 --yes
 ```bash
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
-# .NET 9
-dotnet run --framework net9.0
-
-# .NET 10
-dotnet run --framework net10.0
+# .NET 10 LTS
+dotnet run --project 'src/DatabaseMcpServer/DatabaseMcpServer.csproj'
 ```
 
 **MCP Configuration**:
@@ -305,16 +307,9 @@ dotnet run --framework net10.0
 ```json
 {
   "mcpServers": {
-    "database-net9": {
-      "command": "dotnet",
-      "args": ["run", "--framework", "net9.0", "--project", "path/to/DatabaseMcpServer"],
-      "env": {
-        "DB_CONFIG_PATH": "D:\\config\\databases.json"
-      }
-    },
     "database-net10": {
       "command": "dotnet",
-      "args": ["run", "--framework", "net10.0", "--project", "path/to/DatabaseMcpServer"],
+      "args": ["run", "--project", "path/to/DatabaseMcpServer/src/DatabaseMcpServer/DatabaseMcpServer.csproj"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -408,11 +403,9 @@ Example: even if the file has `"enableMonitorConfig": true`, this process will n
 - `list_databases` - List all available database connections
 - `switch_database` - Switch to a specified database
 - `get_current_database` - Get current active database
-- `test_connection_by_name` - Test connection for a specific database
 
 **Performance Optimization Tools:**
 - `health_check` - Perform health checks on all database connections (response time, connection status)
-- `test_connection_with_retry` - Connection test with automatic retry (exponential backoff strategy)
 
 ---
 
@@ -556,107 +549,11 @@ For more connection strings and optimization configurations, please refer to the
 
 ---
 
-## 📋 Complete Feature List (62 tools)
+## 📋 Complete Feature List (54 tools)
 
-See [TOOLS.md](TOOLS.md) for per-tool parameters, return behavior, CLI examples, and `--yes` requirements.
+Run `DatabaseMcpServer tool list` to see the tools available for your configuration and `tool help <name>` for arguments. See the [tool reference](TOOLS.md) for the complete catalog and the [capability matrix](Doc/capabilities.generated.md) for provider differences.
 
-MongoDB: `mongo_list_collections`, `mongo_find`, `mongo_count`, `mongo_insert_one`, `mongo_update`, `mongo_delete`. Inputs are JSON objects / Extended JSON v2; output documents preserve BSON types using Canonical EJSON. Writes default to one document; many requires dangerous-operation permission, and empty filters additionally require allowAll. Cancellation does not roll back committed writes. See the [collection contract](Doc/mongodb-collections.md).
-
-### 🔌 1. Connection and Configuration Management
-
-**Basic Connection Management**:
-- **test_connection** - Test current database connection
-- **test_connection_by_name** - Test connection for a specific database
-- **get_database_config** - Get current database configuration information
-- **validate_configuration** - Validate if database configuration is correct
-- **reload_database_config** - Reload `databases.json` and refresh the active configuration cache
-
-**Multi-Database Management**:
-- **list_databases** - List all available database connections
-- **switch_database** - Switch to a specified database
-- **get_current_database** - Get current active database
-
-**Performance and Health Checks**:
-- **health_check** - Perform health checks on all database connections (response time, connection status)
-- **test_connection_with_retry** - Connection test with automatic retry (exponential backoff strategy)
-
-### 🔍 2. Database Schema Queries
-
-- **get_data_base_list** - Get all database names
-- **get_table_info_list** - Get all table names
-- **get_view_info_list** - Query all views
-- **get_column_infos_by_table_name** - Get column information by table name
-- **get_table_schema** - Get complete table structure information
-- **get_is_identities** - Get identity columns
-- **get_primaries** - Get primary keys
-- **get_index_list** - Get all index name collections
-- **get_proc_list** - Get stored procedure name collections
-- **get_func_list** - Get function collections
-- **get_trigger_names** - Get trigger collections by table name
-
-### 🔎 3. Existence Checks
-
-- **is_any_table** - Check if table exists
-- **is_any_column** - Check if column exists
-- **is_any_constraint** - Check if constraint exists
-- **is_any_table_remark** - Check if table description exists
-
-### 📊 4. Data Query Tools
-
-**Basic Queries:**
-
-- **query_database** - Typed parameters, IN arrays, explicit targets and bounded structured results
-- **query_table_page** - Primary-key ordered paging without an implicit COUNT
-- **sql_query_single** - Execute SQL query and return single record (optional timeout)
-
-**Advanced Queries:**
-
-- **get_data_set_all** - Get multiple result sets, supports executing multiple queries at once (optional timeout)
-- **batch_sql_query** - Sequentially execute 1-5 read-only SQL queries and return success or error per query (optional timeout applies to every item)
-
-**Scalar Value Queries:**
-
-- **get_scalar** - Get first row first column value (scalar value; optional timeout)
-
-### ✏️ 5. Data Operation Tools
-
-- **execute_command** - Execute SQL commands (INSERT, UPDATE, DELETE; optional `commandTimeoutSeconds`)
-- **batch_execute_commands** - Batch execute SQL commands (performance optimized; optional timeout applies to every item)
-- **call_stored_procedure** - Typed Input/Output/InputOutput/ReturnValue parameters with optional timeout
-- **execute_command_with_go** - Execute SQL Server script containing GO statements (optional timeout)
-
-### 🛠️ 6. Database Schema Operations (High Risk)
-
-**Table Operations:**
-
-- **create_table** - Create table from a column-definition JSON array
-- **drop_table** - Drop table
-- **truncate_table** - Truncate table
-- **backup_table** - Backup table
-- **rename_table** - Rename table
-
-**Column Operations:**
-
-- **add_column** - Add column
-- **update_column** - Update column
-- **drop_column** - Drop column
-- **rename_column** - Rename column
-
-**Constraints and Indexes:**
-
-- **add_primary_key** - Add primary key
-- **drop_constraint** - Drop constraint
-- **create_index** - Create index or unique constraint
-
-**Others:**
-
-- **add_default_value** - Add default value
-- **add_table_remark** - Add table description
-- **add_column_remark** - Add column description
-- **delete_table_remark** - Delete table description
-- **delete_column_remark** - Delete column description
-
-*For complete tool list, please refer to [.mcp/server.json](.mcp/server.json)*
+`query_table_page` supports columns, AND filters and ascending/descending order. Supplying any of these options uses offset pages without a cursor and checks bytes after loading the page; omitting them retains primary-key cursor paging. `insert_row` returns an integer identity as a decimal string on SQL Server, MySQL and SQLite. Index tools support multiple columns and `drop_index` removes an index. MCP also exposes connection/capability/schema resources, slow-query and migration prompts, connection-name completion and health-check progress.
 
 ## 💡 Usage Examples
 
@@ -700,78 +597,10 @@ Query user information where user ID is in [1,2,3,4,5]
 Query users with city "Beijing", age between 20-30, and status active
 ```
 
-### Example 3: Data Statistics and Analysis
+### Example 3: Inspect a table
 
-**Aggregate Query**
-
-```
-Count product quantity and average price for each category in products table
-```
-
-**Multi-result Set Query**
-
-```
-Query simultaneously: 1) Total users and active user count 2) Order data for last 7 days
-```
-
-**Scalar Value Query**
-
-```
-Get total amount from orders table where order status is "completed"
-```
-
-### Example 4: Data Operations
-
-**Insert New Data**
-
-```
-Insert new product into products table: name "MacBook Pro M3", price 14999, stock 50
-```
-
-**Batch Update**
-
-```
-Batch update VIP status for following users: user IDs 1,3,5,7,9 set to VIP, others set to regular user
-```
-
-**Transaction Operation**
-
-```
-Execute transfer operation: transfer 500 yuan from account A (ID:1001) to account B (ID:1002)
-```
-
-### Example 5: Schema Queries
-
-**Get Table Structure**
-
-```
-Get complete structure information of orders table: columns, primary keys, indexes, identity columns, etc.
-```
-
-**Query Index Information**
-
-```
-Query all index information of users table
-```
-
-**Check if Table Exists**
-
-```
-Check if table named "user_logs" exists in database
-```
-
-### Example 6: Stored Procedure Calls
-
-**Simple Stored Procedure**
-
-```
-Call stored procedure sp_monthly_report, pass parameters year 2025, month 11
-```
-
-**Stored Procedure with Output Parameters**
-
-```
-Call stored procedure sp_user_statistics, pass user ID 1001, get total order count and total amount for this user
+```text
+Show the columns, primary key, and indexes of the orders table.
 ```
 
 ## 🔒 Security Features
@@ -804,10 +633,11 @@ All queries support parameterized queries, automatically preventing SQL injectio
 
 Query and data-operation tools accept optional `commandTimeoutSeconds` (CLI: `--command-timeout-seconds`):
 
-- Omitted: use the SqlSugar/provider default (typically 300 seconds)
-- `0`: wait indefinitely
-- Valid range: `0–86400`
-- On batch tools, the timeout applies to the whole batch
+- Async queries and writes default to a 30-second total deadline, including queueing, execution and reading; server policy can override this
+- Synchronous GO/DDL commands retain the SqlSugar/provider default (typically 300 seconds), subject to the server timeout ceiling
+- `0` permits infinite waiting only when `DB_ALLOW_INFINITE_TIMEOUT=true`; atomic batches still have an independent total deadline
+- Valid range: `0–86400`, also limited by `DB_COMMAND_MAX_TIMEOUT_SECONDS`
+- Async batch deadlines cover the whole batch; see the [execution workflow](Doc/database-mcp-workflow.md)
 
 ```json
 {
@@ -845,10 +675,7 @@ git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
 
 # Create databases.json configuration file, then run
-DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net9.0
-
-# Or use .NET 10
-DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net10.0
+DB_CONFIG_PATH="path/to/databases.json" dotnet run --project 'src/DatabaseMcpServer/DatabaseMcpServer.csproj'
 
 # Build project
 dotnet build 'DatabaseMcpServer.slnx'
@@ -857,7 +684,7 @@ dotnet build 'DatabaseMcpServer.slnx'
 dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # Package and publish
-dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
 Recommended stable verification flow:
@@ -884,12 +711,18 @@ CLI highlights:
 
 ## 🆕 Release Notes
 
+- **5.0.0**
+  - Provide 54 tools, table projection/filtering/ordering, single-row identity inserts, index removal and composite index/primary-key support
+  - Move MongoDB execution to SqlSugar built-in ADO; remove legacy tools, use batch update/delete semantics, and document output conversion and SRV restrictions
+  - Add MCP Resources, Prompts, connection-name completion and health-check progress; target .NET 10 for source and tests
+  - See the [5.0.0 release notes](Doc/release-5.0.0.md) for migration and verification commands; entries below describe historical releases
+
 - **4.0.0**
   - Adopt `query_database`, typed parameters, named connections, bounded results, table paging and offline capability diagnostics; remove legacy query/output-parameter entry points and refresh client tool catalogs after upgrading
   - Add six native MongoDB collection tools with Extended JSON, write outcomes, and guards for multi-document or empty-filter writes
   - Split Host / Core / Infrastructure and group files by feature; unify execution admission and configuration state, and update the CLI usage skill
   - Upgrade MCP to 2.4.0 and SqlSugarCore to 5.1.4.221, bundle additional drivers, and fix read-only enforcement, numeric precision and MCP error signaling
-  - Publish a .NET 10-only tool package while retaining dual-framework source tests; see the [4.0.0 migration notes](Doc/release-4.0.0.md)
+  - Publish the .NET 10 tool while retaining .NET 9 / 10 source targets at that release; later source changes target .NET 10 only. See the historical [4.0.0 migration notes](Doc/release-4.0.0.md)
 
 - **3.7.0**
   - Add optional configuration monitoring so persistent MCP stdio / `-web` processes follow file default changes; precedence is `--enable-monitor-config` > `ENABLE_MONITOR_CONFIG` > `enableMonitorConfig`, disabled by default
@@ -1034,9 +867,9 @@ Data Access Layer (SqlSugar ORM)
 
 ## 🛠️ Tech Stack
 
-- **.NET 9.0** - Latest .NET platform
-- **ModelContextProtocol 1.0.0** - MCP protocol C# SDK
-- **SqlSugarCore 5.1.4** - Lightweight high-performance ORM
+- **.NET 10 LTS** - The sole target framework for source, tests, benchmarks and the published tool
+- **ModelContextProtocol 2.4.0** - MCP protocol C# SDK
+- **SqlSugarCore 5.1.4.221** - ORM and SQL provider adapters
 - **Serilog** - Structured logging framework
 - **Microsoft.Extensions.Hosting** - Dependency injection and hosting
 

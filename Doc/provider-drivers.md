@@ -1,6 +1,6 @@
 # HG、GBase、TDengine、DuckDB 驱动清单
 
-后续 MongoDB 已新增六个[集合工具](mongodb-collections.md)，当前 catalog 为 62 个工具，显式固定 MongoDB.Driver 3.11.1。下列 56 tools 和回归数量保留为驱动补齐阶段的历史验收记录。
+当前 MongoDB 提供六个[集合工具](mongodb-collections.md)，执行统一使用 SqlSugar.MongoDbCore 5.1.4.280 内置 ADO 及其依赖的驱动。当前能力见[工具契约](tool-evolution.md)，下方结果记录驱动补齐时的验证。
 
 2026-11-20 补齐 NuGet 依赖，遵循 SqlSugar 官方扩展注册方式。版本按各扩展自身发布序列固定，不强制与 SqlSugarCore 版本相同。服务已统一注册 `InstanceFactory.CustomAssemblies`，使用者无需修改启动代码。
 
@@ -13,19 +13,19 @@
 
 GBase 和 TDengine 的 NuGet 包只提供 .NET 层，不能代替厂商客户端安装。这里没有复制未经核实的 SDK 二进制，也没有把 Windows 客户端写死到跨平台包。原生依赖必须安装在运行 MCP 的主机或容器内，仅启动数据库服务器容器不会补齐主机依赖。
 
-`available` 只表示扩展程序集可加载。离线预设、配置检查及能力查询不连接远程数据库。`get_database_capabilities` 的产品及能力验证状态继续按已有证据返回，不因补包就标记所有能力已验证。DB2/HANA 不在本次四个驱动的范围。
+`available` 表示扩展程序集可加载。预设、配置校验和能力查询离线执行，使用 `test_connection` 检查实际连接。
 
 DuckDB 使用文件连接，路径相对于 MCP 工作目录解析。MCP 每次操作持有独占连接，因此 `:memory:` 不适合作为跨工具共享数据库。
 
 ## 发布框架与包大小
 
-Full 包包含多个平台的原生库。实测双框架工具包约 299.3 MiB，超过 [NuGet.org 约 250 MB 上限](https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package#package-size-limits)。因此发布工作流及安装验证仅打包 .NET 10，包大小约 149.1 MiB，保留全部平台原生资产；源码仍以 net9.0/net10.0 构建和测试。安装发布工具需要 .NET 10 SDK 及对应运行时（包含 ASP.NET Core shared framework）。
+Full 包包含多个平台的原生库。此前实测双框架工具包约 299.3 MiB，超过 [NuGet.org 约 250 MB 上限](https://learn.microsoft.com/en-us/nuget/nuget-org/publish-a-package#package-size-limits)；单框架包约 149.1 MiB。当前源码、测试和发布包统一使用 .NET 10 LTS，保留全部平台原生资产。安装发布工具需要 .NET 10 SDK 及对应运行时（包含 ASP.NET Core shared framework）。
 
 ```powershell
-dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
+dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c 'Release' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
-请使用此发布命令；省略 TargetFrameworks 会生成含重复原生资产的双框架大包。发布及包测试在超过 250,000,000 字节时失败，包测试同时断言仅有 net10 工具和完整 DuckDB 原生资产。
+项目已声明单目标 `net10.0`，打包无需指定框架覆盖参数。发布及包测试在超过 250,000,000 字节时失败，包测试同时断言仅有 net10 工具和完整 DuckDB 原生资产。
 
 ## 验证
 
@@ -49,8 +49,9 @@ HG、GBase、TDengine 没有对应实库及原生客户端环境，本轮未声�
 在仓库根目录复现：
 
 ```powershell
-dotnet test 'DatabaseMcpServer.slnx' -c 'Release' --filter 'Category!=Integration'
+dotnet test 'DatabaseMcpServer.slnx' -c 'Release' --framework 'net10.0' --filter 'Category!=Integration&Category!=MongoIntegration'
 pwsh -NoProfile -File 'scripts/test-integration.ps1'
+pwsh -NoProfile -File 'scripts/test-mongodb-integration.ps1'
 pwsh -NoProfile -File 'scripts/test-package.ps1'
 dotnet list 'DatabaseMcpServer.slnx' package --vulnerable --include-transitive
 ```

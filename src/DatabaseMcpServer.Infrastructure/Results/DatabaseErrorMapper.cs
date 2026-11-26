@@ -44,16 +44,31 @@ internal static class DatabaseErrorMapper
                 if (mysql.Number is -1 or 3024) return DatabaseErrorCode.CommandTimeout;
                 if (mysql.Number is 1042 or 1045 or 1049 or 2002 or 2003) return DatabaseErrorCode.ConnectionFailed;
             }
-            if (current is Npgsql.PostgresException pg)
+            // Older drivers hide DbException.SqlState or expose the state as Code.
+            var sqlState = current switch
             {
-                if (pg.SqlState == "57014") return DatabaseErrorCode.CommandTimeout;
-                if (pg.SqlState.StartsWith("08", StringComparison.Ordinal) || pg.SqlState.StartsWith("28", StringComparison.Ordinal) || pg.SqlState == "3D000")
+                Npgsql.PostgresException pg => pg.SqlState,
+                Kdbndp.KingbaseException kingbase => kingbase.SqlState,
+                OpenGauss.NET.PostgresException gauss => gauss.SqlState,
+                Nhgdb.HighgoException highgo => highgo.SqlState,
+                System.Data.OscarClient.OscarException oscar => oscar.Code,
+                _ => null
+            };
+            if (sqlState != null)
+            {
+                if (sqlState == "57014") return DatabaseErrorCode.CommandTimeout;
+                if (sqlState.StartsWith("08", StringComparison.Ordinal) || sqlState.StartsWith("28", StringComparison.Ordinal) || sqlState == "3D000")
                     return DatabaseErrorCode.ConnectionFailed;
             }
             if (current is Microsoft.Data.SqlClient.SqlException sql)
             {
                 if (sql.Number is -2 or 1222) return DatabaseErrorCode.CommandTimeout;
                 if (sql.Number is 53 or 64 or 233 or 4060 or 18456 or 10060 or 10061) return DatabaseErrorCode.ConnectionFailed;
+            }
+            if (current is Oracle.ManagedDataAccess.Client.OracleException oracle)
+            {
+                if (oracle.Number == 1013) return DatabaseErrorCode.CommandTimeout;
+                if (oracle.Number is 1017 or 3113 or 3114 or 12154 or 12170 or 12514 or 12541) return DatabaseErrorCode.ConnectionFailed;
             }
             if (current is System.Net.Sockets.SocketException) return DatabaseErrorCode.ConnectionFailed;
         }
@@ -69,7 +84,10 @@ internal static class DatabaseErrorMapper
     private static ApiResult<object> HandleDatabaseMcpException(DatabaseMcpException ex, ILogger logger)
     {
         logger.LogError(ex, "数据库MCP异常: {ErrorCode} - {Message}", ex.ErrorCode, ex.Message);
-        return CreateErrorResponse(ex.Message, ex.ErrorCode);
+        var result = CreateErrorResponse(ex.Message, ex.ErrorCode);
+        result.Phase = ex.Phase ?? result.Phase;
+        result.Capability = ex.Capability;
+        return result;
     }
 
     private static ApiResult<object> HandleSqlSugarException(SqlSugarException ex, ILogger logger)

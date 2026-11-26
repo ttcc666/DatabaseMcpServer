@@ -130,7 +130,7 @@ public class RuntimeConsistencyTests
         using var provider = new ServiceCollection().AddSingleton<IDatabaseConfigService>(service)
             .AddSingleton(new DatabaseMcpServer.Services.ConfigurationRuntimeApplier(new(), () => service, () => { }))
             .BuildServiceProvider();
-        var api = new CliWebApiService(new(fixture.Path, "test"), new(), new(),
+        var api = CliWebApiTestFactory.Create(new(fixture.Path, "test"), new(), new(),
             fixture.Host.Services.GetRequiredService<ICurrentDatabaseStateStore>(), new(), provider);
         using var result = TestJson.Parse(api.CloneDatabase("primary", new("copy", false)));
         Assert.False(result.RootElement.GetProperty("success").GetBoolean());
@@ -145,7 +145,7 @@ public class RuntimeConsistencyTests
     public void RemovingLastConnection_ReportsSavedButNotApplied()
     {
         using var fixture = new Fixture();
-        var api = new CliWebApiService(new(fixture.Path, "test"), new(), new(),
+        var api = CliWebApiTestFactory.Create(new(fixture.Path, "test"), new(), new(),
             fixture.Host.Services.GetRequiredService<ICurrentDatabaseStateStore>(), new(), fixture.Host.Services);
         using var first = TestJson.Parse(api.RemoveDatabase("primary"));
         Assert.True(first.RootElement.GetProperty("success").GetBoolean());

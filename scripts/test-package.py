@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory(prefix='dbmcp-packaged-smoke-') as temporary:
         'connectionString': f'Data Source={work / "probe.db"};Pooling=False',
         'enableDangerousOperations': False
     }, {
+        'name': 'sqlserver', 'dbType': 'SqlServer', 'connectionString': 'Server=localhost,1;Database=test;User ID=test;Password=unused;TrustServerCertificate=true'
+    }, {
         'name': 'mongo', 'dbType': 'MongoDb', 'connectionString': 'mongodb://localhost:1/test'
     }, {
         'name': 'highgo', 'dbType': 'HG', 'connectionString': 'Server=localhost;Port=1;Database=test'
@@ -30,7 +32,10 @@ with tempfile.TemporaryDirectory(prefix='dbmcp-packaged-smoke-') as temporary:
         'enableDangerousOperations': True
     }]}), encoding='utf-8')
     environment = os.environ.copy()
-    environment.update(DB_CONFIG_PATH=str(config), ENABLE_MONITOR_CONFIG='false', SEQ_SERVER_URL='', SEQ_API_KEY='')
+    environment.update(DB_CONFIG_PATH=str(config), ENABLE_MONITOR_CONFIG='false', SEQ_SERVER_URL='', SEQ_API_KEY='', DB_MCP_TOOL_PROFILE='full')
+    version = subprocess.run(command + ['--version'], cwd=work, env=environment, capture_output=True, text=True, check=True).stdout.strip()
+    cli_catalog = json.loads(subprocess.run(command + ['tool', 'list', '--json'], cwd=work, env=environment,
+        capture_output=True, text=True, check=True).stdout)['tools']
     cli = subprocess.run(command + ['tool', 'query_database', '--sql', 'PRAGMA user_version=2026', '--config', str(config)],
                          cwd=work, env=environment, capture_output=True, text=True, encoding='utf-8', timeout=30)
     assert cli.returncode != 0, cli.stdout
@@ -85,11 +90,19 @@ with tempfile.TemporaryDirectory(prefix='dbmcp-packaged-smoke-') as temporary:
         initialized = send('initialize', {'protocolVersion': '2025-11-25', 'capabilities': {},
                                          'clientInfo': {'name': 'package-validation', 'version': '1'}})
         assert initialized['protocolVersion'] == '2025-11-25'
+        assert initialized['serverInfo']['version'] == version
         send('notifications/initialized', {}, True)
         tools = send('tools/list', {})['tools']
-        assert len(tools) == 62, len(tools)
-        assert not {'sql_query', 'sql_query_with_in_parameter', 'call_stored_procedure_with_output'} & {t['name'] for t in tools}
-        assert {'query_database', 'query_table_page', 'get_database_capabilities'}.issubset({t['name'] for t in tools})
+        expected = json.loads((Path(__file__).resolve().parents[1] / '.mcp/server.json').read_text(encoding='utf-8'))['tools']
+        tool_names = {t['name'] for t in tools}
+        assert tool_names and len(tools) == len(expected) == len(cli_catalog) == len(tool_names)
+        assert tool_names == {t['name'] for t in expected} == {t['name'] for t in cli_catalog}
+        for tool in tools:
+            descriptor = next(t for t in cli_catalog if t['name'] == tool['name'])
+            assert descriptor['inputSchema'] == tool['inputSchema'], tool['name']
+            assert descriptor.get('outputSchema') == tool.get('outputSchema'), tool['name']
+        assert not {'sql_query', 'sql_query_with_in_parameter', 'call_stored_procedure_with_output'} & tool_names
+        assert {'query_database', 'query_table_page', 'get_database_capabilities'}.issubset(tool_names)
         schema = next(t for t in tools if t['name'] == 'query_database')['outputSchema']
         assert schema['type'] == 'object' and 'configurationVersion' in schema['properties']
         typed = send('tools/call', {'name': 'query_database', 'arguments': {
@@ -124,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix='dbmcp-packaged-smoke-') as temporary:
         mongo = send('tools/call', {'name': 'get_database_capabilities', 'arguments': {'databaseName': 'mongo'}})
         assert not mongo.get('isError', False), mongo
         assert json.loads(mongo['content'][0]['text'])['capabilities']['sqlTools'] == 'unsupported'
-        assert json.loads(mongo['content'][0]['text'])['capabilities']['collectionQueries'] == 'supported'
+        assert json.loads(mongo['content'][0]['text'])['capabilities']['collectionQueries'] == 'supported-find-aggregate'
         mongo_find = next(t for t in tools if t['name'] == 'mongo_find')
         assert 'object' in mongo_find['inputSchema']['properties']['filter']['type']
         for invalid in [None, [], '{}', {'$where': 'private-test-value'}]:
@@ -132,7 +145,7 @@ with tempfile.TemporaryDirectory(prefix='dbmcp-packaged-smoke-') as temporary:
                 'databaseName': 'mongo', 'collection': 'docs', 'filter': invalid}})
             assert response['isError'] and response['structuredContent']['errorCode'] == 1004, response
             assert response['structuredContent'] == json.loads(response['content'][0]['text'])
-        for name in ['mongo_insert_one', 'mongo_update', 'mongo_delete']:
+        for name in ['mongo_insert_many', 'mongo_update', 'mongo_delete', 'mongo_truncate']:
             assert next(t for t in tools if t['name'] == name)['annotations']['destructiveHint']
         mongo_query = send('tools/call', {'name': 'query_database', 'arguments': {'databaseName': 'mongo', 'sql': 'select 1'}})
         assert mongo_query['isError'] and json.loads(mongo_query['content'][0]['text'])['errorCode'] == 1012

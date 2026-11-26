@@ -72,44 +72,48 @@ public class ArchitectureBoundaryTests
     }
 
     [Fact]
-    public void MongoAndOfflineCapabilities_NeverCreateSqlClients()
+    public async Task MongoAndOfflineCapabilities_NeverCreateSqlClients()
     {
         var sqlCalls = 0;
         using var fixture = MongoCollectionServiceTests.Fixture(configure: services =>
             ObservedClientFactory.Register(services, _ => { sqlCalls++; throw new InvalidOperationException("SQL client forbidden"); }));
         var tools = fixture.Host.Services.GetRequiredService<ConnectionTools>();
-        var mongo = DatabaseRoleTests.Success(tools.GetDatabaseCapabilities("primary"));
+        var mongo = DatabaseRoleTests.Success(await tools.GetDatabaseCapabilities("primary"));
         Assert.Equal("MongoDb", mongo.GetProperty("actualProvider").GetString());
-        Assert.Equal("supported", mongo.GetProperty("capabilities").GetProperty("collectionQueries").GetString());
-        var sql = DatabaseRoleTests.Success(tools.GetDatabaseCapabilities("analytics"));
+        Assert.Equal("supported-find-aggregate", mongo.GetProperty("capabilities").GetProperty("collectionQueries").GetString());
+        Assert.Equal("provider-limited", mongo.GetProperty("capabilities").GetProperty("asyncQueryCancellation").GetString());
+        var sql = DatabaseRoleTests.Success(await tools.GetDatabaseCapabilities("analytics"));
         Assert.Equal("Sqlite", sql.GetProperty("actualProvider").GetString());
         Assert.Equal(0, sqlCalls);
     }
 
     [Fact]
-    public async Task MongoExecution_ReachesNativeRegistryWithoutSqlFactory()
+    public async Task MongoExecution_UsesBuiltInSqlSugarAggregate()
     {
-        var nativeCalls = 0;
-        var sqlFactoryResolutions = 0;
-        using var registry = new MongoClientRegistry((_, _) =>
-        {
-            nativeCalls++;
-            throw new InvalidOperationException("native registry reached");
-        });
+        var sqlFactoryCalls = 0;
+        string? command = null;
         using var fixture = MongoCollectionServiceTests.Fixture(configure: services =>
-        {
-            services.AddSingleton(registry);
-            services.AddSingleton<ISqlSugarClientFactory>(_ =>
+            ObservedClientFactory.Register(services, db =>
             {
-                sqlFactoryResolutions++;
-                throw new InvalidOperationException("SQL factory forbidden");
-            });
-        });
+                sqlFactoryCalls++;
+                Assert.Equal(SqlSugar.DbType.MongoDb, db.CurrentConnectionConfig.DbType);
+                db.CurrentConnectionConfig.SqlMiddle = new SqlSugar.SqlMiddle
+                {
+                    IsSqlMiddle = true,
+                    GetDataReaderAsync = (sql, _) =>
+                    {
+                        command = sql;
+                        return Task.FromException<System.Data.IDataReader>(new InvalidOperationException("sqlsugar ado reached"));
+                    }
+                };
+            }));
         var result = await fixture.Host.Services.GetRequiredService<MongoCollectionService>()
-            .ExecuteAsync(new(MongoOperation.Count, "documents"), default);
+            .ExecuteAsync(new(MongoOperation.Find, "documents"), default);
         Assert.False(result.Success);
-        Assert.Equal(1, nativeCalls);
-        Assert.Equal(0, sqlFactoryResolutions);
+        Assert.Equal(1, sqlFactoryCalls);
+        Assert.StartsWith("aggregate documents [", command);
+        var pipeline = MongoDB.Bson.Serialization.BsonSerializer.Deserialize<MongoDB.Bson.BsonArray>(command!["aggregate documents ".Length..]);
+        Assert.Equal(1000, pipeline[^1]["$limit"].AsInt32);
     }
 
     [Fact]

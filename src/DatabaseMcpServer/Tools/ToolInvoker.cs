@@ -20,7 +20,7 @@ internal static class ToolInvoker
         return tool.Parameters.Select(parameter =>
         {
             if (arguments.TryGetValue(parameter.OptionName, out var value))
-                return ConvertJsonValue(parameter, value);
+                return ValidateChoices(parameter, ConvertJsonValue(parameter, value));
             if (parameter.IsRequired)
                 throw new InvalidOperationException($"缺少必填选项 '--{parameter.OptionName}'。");
             return parameter.DefaultValue!;
@@ -30,9 +30,14 @@ internal static class ToolInvoker
     private static object ConvertJsonValue(ToolParameterDescriptor parameter, JsonElement value)
     {
         var type = parameter.EffectiveType;
+        if (type == typeof(JsonElement)) return value.Clone();
+        if (value.ValueKind == JsonValueKind.Null)
+        {
+            if (parameter.AllowsNull) return null!;
+            throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 不接受 null。");
+        }
         if (type == typeof(string))
         {
-            if (value.ValueKind == JsonValueKind.Null) return string.Empty;
             if (value.ValueKind == JsonValueKind.String) return value.GetString()!;
             throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 需要字符串值。");
         }
@@ -52,8 +57,15 @@ internal static class ToolInvoker
         }
         if (type.IsArray)
         {
-            try { return value.Deserialize(type, ArgumentJson)!; }
+            try { ValidateJsonArray(type, value); return value.Deserialize(type, ArgumentJson)!; }
             catch (JsonException ex) { throw new InvalidOperationException("参数需要类型化 JSON 数组。", ex); }
+        }
+        if (type == typeof(DatabaseMcpServer.Models.ColumnDefinition))
+        {
+            if (value.ValueKind != JsonValueKind.Object) throw new InvalidOperationException("column 需要 JSON 对象。");
+            ValidateUniqueProperties(value);
+            try { return value.Deserialize(type, ArgumentJson)!; }
+            catch (JsonException ex) { throw new InvalidOperationException("column 字段契约无效。", ex); }
         }
         if (value.ValueKind == JsonValueKind.Null)
             throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 需要 {parameter.DisplayTypeName} 值。");
@@ -79,7 +91,7 @@ internal static class ToolInvoker
             var parameter = tool.Parameters[i];
             if (optionValues.TryGetValue(parameter.OptionName, out var rawValue))
             {
-                values[i] = ConvertValue(parameter, rawValue);
+                values[i] = ValidateChoices(parameter, ConvertValue(parameter, rawValue));
                 continue;
             }
 
@@ -100,10 +112,15 @@ internal static class ToolInvoker
         object[] arguments,
         CancellationToken cancellationToken = default)
     {
+        using var activity = DatabaseTelemetry.StartTool();
         cancellationToken.ThrowIfCancellationRequested();
         var argumentIndex = 0;
         var invocationArguments = tool.Method.GetParameters().Select(parameter =>
-            parameter.ParameterType == typeof(CancellationToken) ? (object)cancellationToken : arguments[argumentIndex++]).ToArray();
+            parameter.ParameterType == typeof(CancellationToken)
+                ? (object?)cancellationToken
+                : parameter.ParameterType == typeof(IProgress<ModelContextProtocol.ProgressNotificationValue>)
+                    ? null
+                    : arguments[argumentIndex++]).ToArray();
         object? result;
         try { result = tool.Method.Invoke(toolInstance, invocationArguments); }
         catch (TargetInvocationException ex) when (ex.InnerException != null)
@@ -116,6 +133,7 @@ internal static class ToolInvoker
             string text => text,
             Task<string> task => await task,
             Task<CallToolResult> task => GetPayload(await task),
+            CallToolResult structured => GetPayload(structured),
             _ => throw new InvalidOperationException($"tool '{tool.Name}' 返回类型不受支持。")
         };
     }
@@ -176,16 +194,62 @@ internal static class ToolInvoker
             catch (DatabaseMcpServer.Models.DatabaseMcpException ex) { throw new InvalidOperationException(ex.Message); }
         }
 
-        if (targetType.IsArray)
+        if (targetType == typeof(JsonElement))
+        {
+            try { using var document = JsonDocument.Parse(rawValue ?? "null"); return document.RootElement.Clone(); }
+            catch (JsonException ex) { throw new InvalidOperationException("参数需要有效 JSON。", ex); }
+        }
+
+        if (targetType.IsArray || targetType == typeof(DatabaseMcpServer.Models.ColumnDefinition))
         {
             try
             {
-                return JsonSerializer.Deserialize(rawValue ?? "null", targetType,
-                    ArgumentJson)!;
+                using var json = JsonDocument.Parse(rawValue ?? "null");
+                return ConvertJsonValue(parameter, json.RootElement);
             }
             catch (JsonException ex) { throw new InvalidOperationException("参数需要类型化 JSON 数组。", ex); }
         }
 
         throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 使用了不支持的参数类型 '{targetType.Name}'。");
+    }
+
+    private static object ValidateChoices(ToolParameterDescriptor parameter, object value)
+    {
+        if (parameter.Choices == null || value == null) return value!;
+        var values = value is string text ? new[] { text } : (string[])value;
+        if (values.Any(item => !parameter.Choices.Contains(item, StringComparer.Ordinal)))
+            throw new InvalidOperationException($"选项 '--{parameter.OptionName}' 仅接受: {string.Join(", ", parameter.Choices)}。");
+        return value;
+    }
+
+    private static void ValidateJsonArray(Type type, JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Array) throw new InvalidOperationException("参数需要 JSON 数组。");
+        if (type.GetElementType() != typeof(Dictionary<string, JsonElement>))
+        {
+            ValidateUniqueProperties(value);
+            return;
+        }
+        try
+        {
+            if (value.ValueKind != JsonValueKind.Array) throw MongoDocumentContract.Invalid("参数需要 JSON 对象数组。");
+            foreach (var item in value.EnumerateArray()) MongoDocumentContract.ValidateObject(item);
+        }
+        catch (DatabaseMcpServer.Models.DatabaseMcpException ex) { throw new InvalidOperationException(ex.Message); }
+    }
+
+    private static void ValidateUniqueProperties(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) throw new InvalidOperationException("类型化 JSON 参数不允许重复属性。");
+                ValidateUniqueProperties(property.Value);
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray()) ValidateUniqueProperties(item);
     }
 }

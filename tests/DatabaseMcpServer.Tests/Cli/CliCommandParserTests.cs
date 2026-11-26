@@ -245,7 +245,7 @@ public class CliCommandParserTests
     [Fact]
     public void BindArguments_ShouldHandleIntBoolJsonAndNullableDefaults()
     {
-        var retryTool = GetTool("test_connection_with_retry");
+        var retryTool = GetTool("test_connection");
         var retryArguments = CliRunner.BindArguments(
             retryTool,
             new Dictionary<string, string?>
@@ -254,8 +254,10 @@ public class CliCommandParserTests
                 ["initial-delay-ms"] = "250"
             });
 
-        Assert.Equal(5, retryArguments[0]);
-        Assert.Equal(250, retryArguments[1]);
+        Assert.Null(retryArguments[0]);
+        Assert.Equal(5, retryArguments[1]);
+        Assert.Equal(250, retryArguments[2]);
+        Assert.Equal(30, retryArguments[3]);
 
         var createIndexTool = GetTool("create_index");
         var createIndexArguments = CliRunner.BindArguments(
@@ -280,12 +282,12 @@ public class CliCommandParserTests
             new Dictionary<string, string?>
             {
                 ["table-name"] = "users",
-                ["columns-info"] = "[]",
+                ["columns"] = "[]",
                 ["is-create-primary-key"] = "false"
             });
 
         Assert.Equal("users", createTableArguments[0]);
-        Assert.Equal("[]", createTableArguments[1]);
+        Assert.Empty(Assert.IsType<DatabaseMcpServer.Models.ColumnDefinition[]>(createTableArguments[1]));
         Assert.Equal(false, createTableArguments[2]);
         var batchTool = GetTool("batch_execute_commands");
         var batchArguments = CliRunner.BindArguments(
@@ -305,10 +307,10 @@ public class CliCommandParserTests
             batchQueryTool,
             new Dictionary<string, string?>
             {
-                ["queries"] = "[\"SELECT 1\",\"SELECT 2\"]"
+                ["commands"] = """[{"sql":"SELECT 1"},{"sql":"SELECT 2"}]"""
             });
 
-        Assert.Equal(new[] { "SELECT 1", "SELECT 2" }, Assert.IsType<string[]>(batchQueryArguments[0]));
+        Assert.Equal(new[] { "SELECT 1", "SELECT 2" }, Assert.IsType<DatabaseMcpServer.Models.DatabaseCommand[]>(batchQueryArguments[0]).Select(c => c.Sql));
         Assert.False(batchQueryTool.RequiresConfirmation);
 
         var sqlQueryTool = GetTool("query_database");

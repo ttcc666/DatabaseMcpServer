@@ -41,7 +41,9 @@ internal static class SqlCommandTimeout
         CancellationToken cancellationToken, Func<ISqlSugarClient, Task<T>> action)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (commandTimeoutSeconds.HasValue) CommandTimeoutPolicy.Validate(commandTimeoutSeconds.Value);
+        // Request/transaction executors validate public policy. A native fallback can be
+        // one second longer than the request deadline, including at the public 24h ceiling.
+        if (commandTimeoutSeconds is < 0) throw new ArgumentOutOfRangeException(nameof(commandTimeoutSeconds));
         var previousTimeout = db.Ado.CommandTimeOut;
         var previousToken = db.Ado.CancellationToken;
         try

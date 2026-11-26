@@ -20,7 +20,7 @@ public class GoldenDbOptimizationStrategy : IDatabaseOptimizationStrategy
     /// </summary>
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
-        // MySQL 兼容，不禁用 nvarchar
+        // GoldenDB 兼容 MySQL，默认不禁用 nvarchar，按需显式关闭；连接池建议在连接串设置 Pooling=false
         settings.DisableNvarchar = false;
 
         if (optimizationSettings == null)
@@ -29,30 +29,11 @@ public class GoldenDbOptimizationStrategy : IDatabaseOptimizationStrategy
             return;
         }
 
-        var applied = new List<string>();
-
-        // GoldenDB 官方建议连接串禁用连接池（Pooling=false）
-        if (!optimizationSettings.TryGetValue("disablePooling", out var disablePoolingStr) ||
-            !bool.TryParse(disablePoolingStr, out var disablePooling) ||
-            !disablePooling)
+        if (optimizationSettings.TryGetValue("disableNvarchar", out var disableNvarcharStr) &&
+            bool.TryParse(disableNvarcharStr, out var disableNvarchar))
         {
-            _logger?.LogWarning("GoldenDB 建议在连接字符串中设置 Pooling=false 以避免兼容性问题");
-        }
-        else
-        {
-            applied.Add($"disablePooling={disablePooling}");
-        }
-
-        if (optimizationSettings.TryGetValue("maxPoolSize", out var maxPoolSizeStr) &&
-            int.TryParse(maxPoolSizeStr, out var maxPoolSize))
-        {
-            _logger?.LogDebug("GoldenDB 最大连接池: {MaxPoolSize}", maxPoolSize);
-            applied.Add($"maxPoolSize={maxPoolSize}");
-        }
-
-        if (applied.Count > 0)
-        {
-            _logger?.LogDebug("GoldenDB 优化配置选项: {Options}", string.Join(", ", applied));
+            settings.DisableNvarchar = disableNvarchar;
+            _logger?.LogDebug("GoldenDB 禁用 Nvarchar: {Disabled}", disableNvarchar);
         }
 
         _logger?.LogDebug("应用 GoldenDB 性能优化配置");

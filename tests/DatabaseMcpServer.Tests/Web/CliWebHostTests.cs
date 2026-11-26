@@ -1,12 +1,251 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DatabaseMcpServer.Web;
 
 namespace DatabaseMcpServer.Tests;
 
 public class CliWebHostTests
 {
+    [Theory]
+    [InlineData("GET", "/api/config/export")]
+    [InlineData("HEAD", "/api/config/export")]
+    [InlineData("GET", "/api/dashboard")]
+    [InlineData("HEAD", "/api/dashboard")]
+    [InlineData("GET", "/api/tools")]
+    [InlineData("GET", "/api/missing")]
+    public async Task ReadGuards_RejectForeignHosts(string method, string path)
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        request.Headers.Host = "attacker.example";
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Null(response.Content.Headers.ContentDisposition);
+        Assert.DoesNotContain("connectionString", await response.Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("foreign-origin", false)]
+    [InlineData("cross-site", false)]
+    [InlineData("same-site", false)]
+    [InlineData("same-origin", true)]
+    [InlineData("direct", true)]
+    [InlineData("no-metadata", true)]
+    public async Task ConfigurationExport_EnforcesOriginAndFetchMetadata(string scenario, bool allowed)
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/config/export");
+        if (scenario == "foreign-origin") request.Headers.Add("Origin", "http://attacker.example");
+        if (scenario == "same-origin") request.Headers.Add("Origin", handle.BaseAddress.GetLeftPart(UriPartial.Authority));
+        if (scenario is "cross-site" or "same-site" or "same-origin") request.Headers.Add("Sec-Fetch-Site", scenario);
+        if (scenario == "direct") request.Headers.Add("Sec-Fetch-Site", "none");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(allowed ? HttpStatusCode.OK : HttpStatusCode.Forbidden, response.StatusCode);
+        if (allowed)
+        {
+            Assert.Equal(File.ReadAllBytes(fixture.Path), await response.Content.ReadAsByteArrayAsync());
+            Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
+        }
+        else
+        {
+            Assert.Null(response.Content.Headers.ContentDisposition);
+            Assert.DoesNotContain("connectionString", await response.Content.ReadAsStringAsync());
+        }
+    }
+
+    [Theory]
+    [InlineData("content-type", HttpStatusCode.UnsupportedMediaType, "Tool 请求必须使用 application/json。")]
+    [InlineData("malformed-json", HttpStatusCode.BadRequest, "Tool 请求 JSON 无效:")]
+    [InlineData("null-json", HttpStatusCode.BadRequest, "请求体不能为空。")]
+    [InlineData("unknown-tool", HttpStatusCode.NotFound, "未知 tool 'missing_web_tool'。")]
+    public async Task ToolInvocation_MapsRequestErrors(string scenario, HttpStatusCode expectedStatus, string expectedMessage)
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        var body = scenario switch { "malformed-json" => "{", "null-json" => "null", _ => "{}" };
+        var tool = scenario == "unknown-tool" ? "missing_web_tool" : "list_databases";
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/tools/{tool}/invoke")
+        {
+            Content = new StringContent(body, Encoding.UTF8, scenario == "content-type" ? "text/plain" : "application/json")
+        };
+        request.Headers.Add("X-DatabaseMcp-Web", "1");
+
+        using var response = await client.SendAsync(request);
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(expectedStatus, response.StatusCode);
+        Assert.Equal("application/json; charset=utf-8", response.Content.Headers.ContentType?.ToString());
+        Assert.False(payload.RootElement.GetProperty("success").GetBoolean());
+        Assert.Contains(expectedMessage, payload.RootElement.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false, -1)]
+    [InlineData(false, 0)]
+    [InlineData(false, 1)]
+    [InlineData(true, -1)]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    public async Task ToolInvocation_EnforcesBodyLimitForFixedAndChunkedRequests(bool chunked, int offset)
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        var body = Encoding.UTF8.GetBytes("{\"arguments\":{}}".PadRight(1024 * 1024 + offset));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tools/list_databases/invoke")
+        {
+            Version = HttpVersion.Version11,
+            Content = chunked ? new ChunkedJsonContent(body) : new ByteArrayContent(body)
+        };
+        request.Content.Headers.ContentType = new("application/json");
+        request.Headers.TransferEncodingChunked = chunked;
+        request.Headers.Add("X-DatabaseMcp-Web", "1");
+
+        using var response = await client.SendAsync(request);
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(offset > 0 ? HttpStatusCode.RequestEntityTooLarge : HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json; charset=utf-8", response.Content.Headers.ContentType?.ToString());
+        Assert.Equal(offset <= 0, payload.RootElement.GetProperty("success").GetBoolean());
+        if (offset > 0)
+        {
+            Assert.Equal("Tool 请求体不能超过 1 MiB。", payload.RootElement.GetProperty("message").GetString());
+        }
+        else
+        {
+            Assert.True(payload.RootElement.GetProperty("toolSuccess").GetBoolean());
+            Assert.Equal("list_databases", payload.RootElement.GetProperty("toolName").GetString());
+            Assert.Equal(2, payload.RootElement.GetProperty("result").GetProperty("totalDatabases").GetInt32());
+        }
+    }
+
+    [Fact]
+    public async Task ConfigurationTransfer_RepairsInvalidConfigAndExportsSavedBytes()
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        File.WriteAllText(fixture.Path, "{");
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        var context = await client.GetFromJsonAsync<JsonElement>("/api/context");
+        Assert.True(context.GetProperty("success").GetBoolean());
+        var invalidDashboard = await client.GetFromJsonAsync<JsonElement>("/api/dashboard");
+        Assert.False(invalidDashboard.GetProperty("success").GetBoolean());
+        const string imported = """{"databases":[{"name":"restored","dbType":"Sqlite","connectionString":"Data Source=:memory:","isDefault":true}]}""";
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/config/import")
+        {
+            Content = new MultipartFormDataContent
+            {
+                { new StringContent(imported, Encoding.UTF8, "application/json"), "file", "restored.json" },
+                { new StringContent("true"), "force" }
+            }
+        };
+        request.Headers.Add("X-DatabaseMcp-Web", "1");
+
+        using var response = await client.SendAsync(request);
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json; charset=utf-8", response.Content.Headers.ContentType?.ToString());
+        Assert.True(payload.RootElement.GetProperty("success").GetBoolean());
+        Assert.True(payload.RootElement.GetProperty("saved").GetBoolean());
+        Assert.True(payload.RootElement.GetProperty("runtimeApplied").GetBoolean());
+        var dashboard = await client.GetFromJsonAsync<JsonElement>("/api/dashboard");
+        Assert.True(dashboard.GetProperty("success").GetBoolean());
+        Assert.Equal("restored", dashboard.GetProperty("currentDatabase").GetString());
+        using var export = await client.GetAsync("/api/config/export");
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+        Assert.Equal("application/json", export.Content.Headers.ContentType?.ToString());
+        var disposition = export.Content.Headers.ContentDisposition;
+        Assert.NotNull(disposition);
+        Assert.Equal("attachment", disposition.DispositionType);
+        Assert.Matches(@"^databases-\d{8}-\d{6}\.json$", disposition.FileNameStar ?? disposition.FileName!.Trim('"'));
+        Assert.Equal(File.ReadAllBytes(fixture.Path), await export.Content.ReadAsByteArrayAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Import_RejectsMissingOrEmptyUploadWithoutChangingConfig(bool emptyFile)
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        var original = File.ReadAllBytes(fixture.Path);
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        using var form = new MultipartFormDataContent { { new StringContent("true"), "force" } };
+        if (emptyFile) form.Add(new ByteArrayContent([]), "file", "empty.json");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/config/import") { Content = form };
+        request.Headers.Add("X-DatabaseMcp-Web", "1");
+
+        using var response = await client.SendAsync(request);
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(payload.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal("请选择要导入的 JSON 文件。", payload.RootElement.GetProperty("message").GetString());
+        Assert.Equal(original, File.ReadAllBytes(fixture.Path));
+    }
+
+    [Fact]
+    public async Task StaticFilesAndFallback_KeepAssetsPagesAndApiResponsesDistinct()
+    {
+        using var fixture = new RuntimeConsistencyTests.Fixture();
+        await using var handle = await new CliWebHost(new TestBrowserLauncher(), fixture.StatePath)
+            .StartAsync(new CliWebCommandOptions(fixture.Path, null, false, false));
+        using var client = new HttpClient { BaseAddress = handle.BaseAddress };
+        var index = await client.GetStringAsync("/");
+        using var page = await client.GetAsync("/connections/details");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Equal("text/html; charset=utf-8", page.Content.Headers.ContentType?.ToString());
+        Assert.Equal(index, await page.Content.ReadAsStringAsync());
+        var assetPath = Regex.Match(index, "src=\"(?<path>/assets/[^\"]+\\.js)\"");
+        Assert.True(assetPath.Success, "The embedded index must reference its JavaScript asset.");
+        using var asset = await client.GetAsync(assetPath.Groups["path"].Value);
+        Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
+        Assert.Contains(asset.Content.Headers.ContentType?.MediaType, new[] { "text/javascript", "application/javascript" });
+        Assert.NotEmpty(await asset.Content.ReadAsByteArrayAsync());
+        using var missingApi = await client.GetAsync("/api/missing-host-route");
+        Assert.Equal(HttpStatusCode.NotFound, missingApi.StatusCode);
+        Assert.Equal("application/json; charset=utf-8", missingApi.Content.Headers.ContentType?.ToString());
+        using var error = JsonDocument.Parse(await missingApi.Content.ReadAsStringAsync());
+        Assert.False(error.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal("未知 API: /api/missing-host-route", error.RootElement.GetProperty("message").GetString());
+    }
+
+    private sealed class ChunkedJsonContent(byte[] bytes) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            for (var offset = 0; offset < bytes.Length; offset += 8192)
+            {
+                await stream.WriteAsync(bytes.AsMemory(offset, Math.Min(8192, bytes.Length - offset)));
+            }
+        }
+    }
+
     [Fact]
     public async Task WriteGuards_RejectRequestsBeforeChangingConfiguration()
     {
@@ -157,7 +396,7 @@ public class CliWebHostTests
             Assert.True(safeInvocation.Payload.GetProperty("queueMs").GetInt64() >= 0);
             Assert.True(safeInvocation.Payload.GetProperty("durationMs").GetInt64() >= 0);
 
-            var failedQuery = await PostToolJsonAsync(client, "/api/tools/sql_query_single/invoke", new
+            var failedQuery = await PostToolJsonAsync(client, "/api/tools/query_database/invoke", new
             {
                 arguments = new Dictionary<string, object> { ["sql"] = "select * from missing_table_for_test" }
             });
@@ -185,7 +424,7 @@ public class CliWebHostTests
                 arguments = new Dictionary<string, object>
                 {
                     ["table-name"] = temporaryTableName,
-                    ["columns-info"] = "[{\"DbColumnName\":\"id\",\"DataType\":\"integer\",\"IsPrimarykey\":true}]"
+                    ["columns"] = new[] { new { name = "id", dataType = "integer", primaryKey = true } }
                 },
                 confirmation = "create_table"
             });

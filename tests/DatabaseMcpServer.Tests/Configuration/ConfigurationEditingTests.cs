@@ -53,7 +53,7 @@ public class ConfigurationEditingTests
     public void Dashboard_ReportsActiveSelectionAndUnappliedChanges()
     {
         using var fixture = new RuntimeConsistencyTests.Fixture();
-        var api = new CliWebApiService(new(fixture.Path, "test"), new(), new(),
+        var api = CliWebApiTestFactory.Create(new(fixture.Path, "test"), new(), new(),
             fixture.Host.Services.GetRequiredService<ICurrentDatabaseStateStore>(), new(), fixture.Host.Services);
         var before = fixture.Service.GetRuntimeStatus();
         var saved = new ConfigurationFileStore().Load(fixture.Path);
@@ -100,7 +100,7 @@ public class ConfigurationEditingTests
     public void Dashboard_KeepsActiveTargetWhenSavedFileIsUnavailable(bool missing)
     {
         using var fixture = new RuntimeConsistencyTests.Fixture();
-        var api = new CliWebApiService(new(fixture.Path, "test"), new(), new(),
+        var api = CliWebApiTestFactory.Create(new(fixture.Path, "test"), new(), new(),
             fixture.Host.Services.GetRequiredService<ICurrentDatabaseStateStore>(), new(), fixture.Host.Services);
         if (missing) File.Delete(fixture.Path);
         else File.WriteAllText(fixture.Path, "{");

@@ -38,8 +38,8 @@ public class PooledClientLifecycleTests
 
             var tool = host.Services.GetRequiredService<ConnectionTools>();
 
-            AssertSuccess(await tool.TestConnection());
-            AssertSuccess(await tool.TestConnection());
+            AssertSuccess(await tool.TestConnection().Json());
+            AssertSuccess(await tool.TestConnection().Json());
             Assert.Empty(executedSql);
             using var next = databaseConfig.AcquireClient();
             Assert.NotSame(client, next.Client);
@@ -83,7 +83,7 @@ public class PooledClientLifecycleTests
                     {
                         switched = true;
                         service!.SwitchDatabase("second");
-                        if (retry) throw new InvalidOperationException("模拟第一次连接失败");
+                        if (retry) throw new TimeoutException("模拟可恢复的第一次连接失败");
                     }
                 };
             });
@@ -91,7 +91,7 @@ public class PooledClientLifecycleTests
             service = host.Services.GetRequiredService<IDatabaseConfigService>();
             var tool = host.Services.GetRequiredService<ConnectionTools>();
 
-            using var first = JsonDocument.Parse(retry ? await tool.TestConnectionWithRetry(1, 1) : await tool.TestConnection());
+            using var first = JsonDocument.Parse(await tool.TestConnection(maxRetries: retry ? 1 : 0, initialDelayMs: 1).Json());
             Assert.True(first.RootElement.GetProperty("connected").GetBoolean());
             if (retry)
             {
@@ -99,7 +99,7 @@ public class PooledClientLifecycleTests
             }
             Assert.Equal("first", first.RootElement.GetProperty("currentDatabase").GetString());
             Assert.Equal("sqlite", first.RootElement.GetProperty("databaseType").GetString());
-            using var second = JsonDocument.Parse(await tool.TestConnection());
+            using var second = TestJson.Parse(await tool.TestConnection());
             Assert.Equal("second", second.RootElement.GetProperty("currentDatabase").GetString());
             Assert.Equal("Sqlite", second.RootElement.GetProperty("databaseType").GetString());
         }

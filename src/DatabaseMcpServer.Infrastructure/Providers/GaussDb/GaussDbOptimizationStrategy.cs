@@ -8,7 +8,20 @@ public class GaussDbOptimizationStrategy(ILogger? logger = null, DbType product 
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
         settings.DisableNvarchar = true;
-        if (product != DbType.GaussDBNative) return;
+        if (product != DbType.GaussDBNative)
+        {
+            settings.PgSqlIsAutoToLower = true;
+            if (optimizationSettings?.TryGetValue("autoToLower", out var autoToLowerStr) == true &&
+                bool.TryParse(autoToLowerStr, out var autoToLower))
+                settings.PgSqlIsAutoToLower = autoToLower;
+            if (optimizationSettings?.TryGetValue("autoToLowerCodeFirst", out var autoToLowerCodeFirstStr) == true &&
+                bool.TryParse(autoToLowerCodeFirstStr, out var autoToLowerCodeFirst))
+                settings.PgSqlIsAutoToLowerCodeFirst = autoToLowerCodeFirst;
+            if (optimizationSettings?.TryGetValue("disableNvarchar", out var disableNvarcharStr) == true &&
+                bool.TryParse(disableNvarcharStr, out var disableNvarchar))
+                settings.DisableNvarchar = disableNvarchar;
+            return;
+        }
 
         // DbType selects the driver; DatabaseModel selects the native provider's server dialect.
         settings.DatabaseModel = DbType.GaussDB;

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DatabaseMcpServer.Tests;
 
-public class DatabaseConfigFileMonitorServiceTests
+public partial class DatabaseConfigFileMonitorServiceTests
 {
     [Fact]
     public void HandleMonitoredFileChanged_ShouldFollowNewDefaultWhenMonitorEnabled()

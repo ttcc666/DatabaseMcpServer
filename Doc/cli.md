@@ -1,17 +1,19 @@
 # DatabaseMcpServer CLI 命令文档
 
-本文档面向直接在命令行调用 `DatabaseMcpServer` 的场景，不讨论 MCP 客户端接入。
+本文档面向直接在命令行调用 `DatabaseMcpServer` 的场景。当前源码的 54 项工具属于[5.0.0](release-5.0.0.md)，安装版以实际 `tool list/help --json` 为准；MCP Resources/Prompts 见[工具手册](../TOOLS.md)。
 
 ---
 
 ## 1. 基本说明
 
-`DatabaseMcpServer` 现在有两种运行模式：
+`DatabaseMcpServer` 提供以下入口：
 
 - **无参数**：启动 stdio MCP Server
 - **`-web`**：启动本地 Web 配置管理页
 - **`tool` 子命令**：直接执行某个 MCP tool
 - **`init` / `config` 子命令**：初始化和维护本地连接配置
+- **`export` 子命令**：流式导出 CSV/JSONL
+- **`--version` / `--help`**：查看版本和帮助
 
 CLI 模式的基本格式：
 
@@ -119,7 +121,7 @@ dotnet tool install --global DatabaseMcpServer
 dotnet tool list --global | Select-String databasemcpserver
 ```
 
-**注意**：查安装版本用 `dotnet tool list --global`，不要用 `DatabaseMcpServer --version`——CLI 本身并不识别 `--version` 这个参数，会以退出码 `2` 返回 `未知命令: '--version'`。.NET 工具清单才是权威来源。
+用 `DatabaseMcpServer --version` 查看实际命中的程序版本；它不读取配置或连接数据库，并与 MCP serverInfo 同源。旧安装如不支持该参数，再用 `dotnet tool list --global` 或 `--tool-path` 核对。`tool list --json` 和 `tool help <name> --json` 输出机器可读 schema 到 stdout，普通帮助仍写 stderr。新分析工具、sections、参数化 batch 和显式 atomic 模式见[工具扩展](tool-evolution.md)。
 
 升级到最新版：
 
@@ -192,7 +194,7 @@ DatabaseMcpServer config doctor                  # 全量诊断 + 修复建议
 ```powershell
 DatabaseMcpServer tool list_databases
 DatabaseMcpServer tool get_current_database
-DatabaseMcpServer tool get_table_info_list
+DatabaseMcpServer tool list_objects --kind 'table'
 DatabaseMcpServer tool get_table_schema --table-name 'users'
 DatabaseMcpServer tool query_database --sql 'select * from users limit 10'
 ```
@@ -270,7 +272,6 @@ DatabaseMcpServer config show --name '<expected>'
 
 例如：
 
-- `test_connection_by_name`
 - `get_table_schema`
 - `--database-name`
 - `--initial-delay-ms`
@@ -473,10 +474,10 @@ DatabaseMcpServer tool query_database `
 
 查询与数据操作类工具支持可选 `--command-timeout-seconds`：
 
-- 省略：query_database 默认 30 秒；其他工具按执行策略配置，未启用默认预算时使用驱动默认（通常 300 秒）
+- 省略：异步 SQL 使用服务端查询超时（通常 30 秒），覆盖排队、执行和读取；同步 GO/DDL 使用驱动命令超时
 - `0`：无限等待
 - 合法范围：`0–86400`
-- 批处理工具上的超时作用于每条命令
+- 非原子批次共享总超时；原子批次由 totalTimeoutSeconds 控制总 deadline，commandTimeoutSeconds 控制每条命令
 
 ```powershell
 DatabaseMcpServer tool query_database `
@@ -499,7 +500,7 @@ DatabaseMcpServer tool execute_command `
 
 ```powershell
 DatabaseMcpServer tool batch_sql_query `
-  --queries '["select count(*) from users","select count(*) from roles"]' `
+  --commands '[{"sql":"select count(*) as total from users"},{"sql":"select count(*) as total from roles"}]' `
   --command-timeout-seconds 600 `
   --config 'D:\config\databases.json'
 ```
@@ -516,7 +517,9 @@ DatabaseMcpServer tool query_database `
 
 同样适用于 IN 查询、batch 和 SQLite/MySQL/PostgreSQL/SQL Server 多结果集。预算在 reader 读取过程中执行，不会先加载完整结果。batch 的预算在所有查询间共享，耗尽后剩余项标为 `executed=false`。`truncated=null` 表示触发行数限制，未额外读取下一行确认是否还有数据；完整边界与最小字节数见 [TOOLS.md](../TOOLS.md#查询6)。命名目标、类型化参数、分页和服务端限制见[数据库 MCP 工作流](database-mcp-workflow.md)。
 
-配置路径在每个 Host 创建时固定，Web/CLI 不再为传递路径修改 `DB_CONFIG_PATH`。Web 写接口统一要求 `X-DatabaseMcp-Web: 1`；有 `Origin` 时必须匹配本地 scheme、host 和 port。该要求包括无请求体的 DELETE、set-default 和 multipart import。
+配置路径在每个 Host 创建时固定，Web/CLI 不再为传递路径修改 `DB_CONFIG_PATH`。所有 Web API 请求（包括 GET/HEAD 配置导出）均校验本地 Host；有 `Origin` 时必须匹配本地 scheme、host 和 port，有 `Sec-Fetch-Site` 时只接受 `same-origin` 或 `none`。正常页面下载及无浏览器元数据的本地 CLI 请求仍可使用。Web 写接口还统一要求 `X-DatabaseMcp-Web: 1`，包括无请求体的 DELETE、set-default 和 multipart import。
+
+`query_table_page` 和 `list_objects` 的新 cursor 可在同一配置文件、相同内容及工作目录下跨 CLI 进程或服务重启续页。配置内容（包括空白）、路径、目标库、工作目录或查询条件改变会使 cursor 失效；旧版本生成的 cursor 需从第一页重新获取。cursor 不是访问凭证，也不提供跨页快照或固定有效期；完整恢复原配置后令牌可再次匹配。表分页要求非空主键，SQLite 普通表的可空 TEXT/复合主键会在第一页返回 1004。
 
 配置编辑响应分别报告 `saved`、`runtimeApplied` 和涉及选库时的 `selectionPersisted`。已保存但运行时更新失败时 `success=false`，页面显示错误并刷新实际配置；初始化空配置会明确表示没有可用运行时。重命名当前连接会同步维护运行时和 CLI 持久化选择，且不会覆盖另一进程已更改的选择。
 
@@ -524,7 +527,7 @@ DatabaseMcpServer tool query_database `
 
 ### 6.6 批量写命令示例
 
-`batch_execute_commands` 不是事务；单条失败不会回滚之前成功的命令。调用方必须检查每个 `results[]`：
+`batch_execute_commands` 默认不是事务；单条失败不会回滚之前成功的命令。显式 `--atomic true` 可启用 SQLite/SQL Server/PostgreSQL 单次 DML 事务，必须检查 transactionOutcome；unknown 先核实。调用方必须检查每个 `results[]`：
 
 ```powershell
 DatabaseMcpServer tool batch_execute_commands `
@@ -556,6 +559,12 @@ DatabaseMcpServer tool batch_execute_commands `
 - `add_primary_key`
 - `drop_constraint`
 - `create_index`
+- `drop_index`
+- `insert_row`
+- `mongo_insert_many`
+- `mongo_update`
+- `mongo_delete`
+- `mongo_truncate`
 - `add_default_value`
 - `add_table_remark`
 - `delete_table_remark`
@@ -573,119 +582,27 @@ DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\c
 
 ---
 
-## 8. 命令清单
-
-每个 tool 的 MCP/CLI 参数、返回行为、风险等级和调用示例见 [TOOLS.md](../TOOLS.md)。本节保留按 CLI 工作流组织的速查表。
-
-## 8.1 连接与配置
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `test_connection` | 测试当前连接 | `DatabaseMcpServer tool test_connection --config 'D:\config\databases.json'` |
-| `test_connection_by_name` | 测试指定连接 | `DatabaseMcpServer tool test_connection_by_name --database-name 'reporting' --config 'D:\config\databases.json'` |
-| `get_database_config` | 获取当前配置摘要 | `DatabaseMcpServer tool get_database_config --config 'D:\config\databases.json'` |
-| `validate_configuration` | 验证配置 | `DatabaseMcpServer tool validate_configuration --config 'D:\config\databases.json'` |
-| `reload_database_config` | 重新加载配置，并尽量保留当前连接 | `DatabaseMcpServer tool reload_database_config --config 'D:\config\databases.json'` |
-| `list_databases` | 列出所有连接 | `DatabaseMcpServer tool list_databases --config 'D:\config\databases.json'` |
-| `switch_database` | 切换并持久化当前连接（按 config 路径隔离） | `DatabaseMcpServer tool switch_database --database-name 'reporting' --config 'D:\config\databases.json'` |
-| `get_current_database` | 查看当前连接（优先读取 CLI 持久化状态） | `DatabaseMcpServer tool get_current_database --config 'D:\config\databases.json'` |
-| `get_database_capabilities` | 离线查看指定连接的 provider、驱动和操作能力 | `DatabaseMcpServer tool get_database_capabilities --database-name 'reporting' --config 'D:\config\databases.json'` |
-| `health_check` | 健康检查 | `DatabaseMcpServer tool health_check --config 'D:\config\databases.json'` |
-| `test_connection_with_retry` | 带重试测试连接 | `DatabaseMcpServer tool test_connection_with_retry --max-retries 3 --initial-delay-ms 1000 --config 'D:\config\databases.json'` |
-
-## 8.2 架构查询
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `get_data_base_list` | 获取实例中的数据库列表 | `DatabaseMcpServer tool get_data_base_list --config 'D:\config\databases.json'` |
-| `get_view_info_list` | 获取视图列表 | `DatabaseMcpServer tool get_view_info_list --config 'D:\config\databases.json'` |
-| `get_table_info_list` | 获取表列表 | `DatabaseMcpServer tool get_table_info_list --config 'D:\config\databases.json'` |
-| `get_column_infos_by_table_name` | 获取表字段信息 | `DatabaseMcpServer tool get_column_infos_by_table_name --table-name 'users' --config 'D:\config\databases.json'` |
-| `get_is_identities` | 获取自增列 | `DatabaseMcpServer tool get_is_identities --table-name 'users' --config 'D:\config\databases.json'` |
-| `get_primaries` | 获取主键 | `DatabaseMcpServer tool get_primaries --table-name 'users' --config 'D:\config\databases.json'` |
-| `get_index_list` | 获取索引列表 | `DatabaseMcpServer tool get_index_list --table-name 'users' --config 'D:\config\databases.json'` |
-| `get_proc_list` | 获取存储过程列表 | `DatabaseMcpServer tool get_proc_list --config 'D:\config\databases.json'` |
-| `get_func_list` | 获取函数列表 | `DatabaseMcpServer tool get_func_list --config 'D:\config\databases.json'` |
-| `get_trigger_names` | 获取触发器列表 | `DatabaseMcpServer tool get_trigger_names --table-name 'users' --config 'D:\config\databases.json'` |
-| `get_table_schema` | 获取汇总表结构 | `DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config\databases.json'` |
-
-## 8.3 存在性检查
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `is_any_table` | 判断表是否存在 | `DatabaseMcpServer tool is_any_table --table-name 'users' --config 'D:\config\databases.json'` |
-| `is_any_column` | 判断列是否存在 | `DatabaseMcpServer tool is_any_column --table-name 'users' --column-name 'email' --config 'D:\config\databases.json'` |
-| `is_any_constraint` | 判断约束是否存在 | `DatabaseMcpServer tool is_any_constraint --constraint-name 'PK_users' --config 'D:\config\databases.json'` |
-| `is_any_table_remark` | 判断表描述是否存在 | `DatabaseMcpServer tool is_any_table_remark --table-name 'users' --config 'D:\config\databases.json'` |
-
-## 8.4 查询
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `query_database` | 执行只读查询（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool query_database --sql 'select top 10 * from users' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
-| `query_table_page` | 按主键稳定分页，默认 100 行，不隐式 COUNT | `DatabaseMcpServer tool query_table_page --table-name 'users' --config 'D:\config\databases.json'` |
-| `sql_query_single` | 查询单条记录 | `DatabaseMcpServer tool sql_query_single --sql 'select top 1 * from users order by id desc' --config 'D:\config\databases.json'` |
-| `get_data_set_all` | 多结果集查询 | `DatabaseMcpServer tool get_data_set_all --sql 'select * from users; select * from roles' --config 'D:\config\databases.json'` |
-| `get_scalar` | 查询标量值 | `DatabaseMcpServer tool get_scalar --sql 'select count(*) from users' --config 'D:\config\databases.json'` |
-| `batch_sql_query` | 顺序执行 1-5 条只读查询并逐条返回结果（超时作用于每条命令，行数/字节预算整批共享） | `DatabaseMcpServer tool batch_sql_query --queries '["select count(*) from users","select count(*) from roles"]' --command-timeout-seconds 600 --config 'D:\config\databases.json'` |
-
-## 8.5 数据写入
-
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `execute_command` | 执行 DML（可选 `--command-timeout-seconds`） | `DatabaseMcpServer tool execute_command --sql 'update users set status=''active'' where id=1' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
-| `batch_execute_commands` | 非事务批量执行命令对象，每项可带类型化 parameters；超时作用于每条命令 | `DatabaseMcpServer tool batch_execute_commands --commands '[{"sql":"update users set status=@status where id=@id","parameters":[{"name":"status","value":"active"},{"name":"id","value":1}]},{"sql":"update users set status=@status where id=@id","parameters":[{"name":"status","value":"inactive"},{"name":"id","value":2}]}]' --command-timeout-seconds 900 --yes --config 'D:\config\databases.json'` |
-| `call_stored_procedure` | 调用存储过程 | `DatabaseMcpServer tool call_stored_procedure --procedure-name 'sp_monthly_report' --parameters '[{"name":"year","value":2025},{"name":"month","value":11}]' --yes --config 'D:\config\databases.json'` |
-| `execute_command_with_go` | 执行带 GO 的 SQL Server 脚本 | 使用下方 here-string 示例，保留实际换行 |
+## 表查询、插入与 Mongo 示例
 
 ```powershell
-$sql = @'
-UPDATE users SET status='active' WHERE id=1
-GO
-UPDATE users SET status='inactive' WHERE id=2
-'@
-DatabaseMcpServer tool execute_command_with_go --sql $sql --yes --config 'D:\config\databases.json'
+DatabaseMcpServer tool query_table_page --table-name 'users' --database-name 'reporting' `
+  --columns '["id","name"]' --filters '[{"column":"status","op":"eq","value":"active"}]' `
+  --order-by '[{"column":"id","direction":"desc"}]' --page 1 --page-size 20
+DatabaseMcpServer tool insert_row --table-name 'users' --row '{"name":"Alice","email":null}' --database-name 'primary' --yes
+DatabaseMcpServer tool create_index --table-name 'users' --index-name 'IX_users_status_id' --column-names '["status","id"]' --database-name 'primary' --yes
+DatabaseMcpServer tool mongo_aggregate --collection 'orders' --pipeline '[{"$match":{"status":"paid"}},{"$count":"total"}]' --database-name 'mongo-main'
+DatabaseMcpServer tool mongo_insert_many --collection 'orders' --documents '[{"_id":"order-42","status":"new"}]' --database-name 'mongo-main' --yes
 ```
 
-## 8.6 架构变更
+表分页的 columns/filters/orderBy 任一出现即采用 offset 页码（包括空筛选/排序数组），不能同时传 cursor；实际排序追加缺失主键，整页读取后检查字节预算。不传这些选项时保留主键 cursor。两种模式都要求非空主键，不做 COUNT。
 
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `create_table` | 创建表 | `DatabaseMcpServer tool create_table --table-name 'users' --columns-info '[{"DbColumnName":"id","DataType":"int","IsPrimarykey":true,"IsIdentity":true},{"DbColumnName":"name","DataType":"nvarchar","Length":100}]' --yes --config 'D:\config\databases.json'` |
-| `drop_table` | 删除表 | `DatabaseMcpServer tool drop_table --table-name 'temp_users' --yes --config 'D:\config\databases.json'` |
-| `truncate_table` | 清空表 | `DatabaseMcpServer tool truncate_table --table-name 'temp_users' --yes --config 'D:\config\databases.json'` |
-| `backup_table` | 备份表 | `DatabaseMcpServer tool backup_table --old-table-name 'users' --new-table-name 'users_backup' --yes --config 'D:\config\databases.json'` |
-| `rename_table` | 重命名表 | `DatabaseMcpServer tool rename_table --old-table-name 'users_tmp' --new-table-name 'users_archive' --yes --config 'D:\config\databases.json'` |
-| `add_column` | 添加列 | `DatabaseMcpServer tool add_column --table-name 'users' --column-info '{"DbColumnName":"mobile","DataType":"nvarchar","Length":20,"IsNullable":true}' --yes --config 'D:\config\databases.json'` |
-| `update_column` | 修改列 | `DatabaseMcpServer tool update_column --table-name 'users' --column-info '{"DbColumnName":"mobile","DataType":"nvarchar","Length":30,"IsNullable":true}' --yes --config 'D:\config\databases.json'` |
-| `drop_column` | 删除列 | `DatabaseMcpServer tool drop_column --table-name 'users' --column-name 'mobile' --yes --config 'D:\config\databases.json'` |
-| `rename_column` | 重命名列 | `DatabaseMcpServer tool rename_column --table-name 'users' --old-column-name 'mobile' --new-column-name 'phone' --yes --config 'D:\config\databases.json'` |
-| `add_primary_key` | 添加主键 | `DatabaseMcpServer tool add_primary_key --table-name 'users' --column-name 'id' --yes --config 'D:\config\databases.json'` |
-| `drop_constraint` | 删除约束 | `DatabaseMcpServer tool drop_constraint --table-name 'users' --constraint-name 'PK_users' --yes --config 'D:\config\databases.json'` |
-| `create_index` | 创建索引 | `DatabaseMcpServer tool create_index --table-name 'users' --index-name 'IX_users_email' --column-name 'email' --yes --config 'D:\config\databases.json'` |
-| `add_default_value` | 添加默认值 | `DatabaseMcpServer tool add_default_value --table-name 'users' --column-name 'status' --default-value '''active''' --yes --config 'D:\config\databases.json'` |
-| `add_table_remark` | 添加表描述 | `DatabaseMcpServer tool add_table_remark --table-name 'users' --description '用户表' --yes --config 'D:\config\databases.json'` |
-| `delete_table_remark` | 删除表描述 | `DatabaseMcpServer tool delete_table_remark --table-name 'users' --yes --config 'D:\config\databases.json'` |
-| `add_column_remark` | 添加列描述 | `DatabaseMcpServer tool add_column_remark --table-name 'users' --column-name 'email' --description '邮箱地址' --yes --config 'D:\config\databases.json'` |
-| `delete_column_remark` | 删除列描述 | `DatabaseMcpServer tool delete_column_remark --table-name 'users' --column-name 'email' --yes --config 'D:\config\databases.json'` |
-| `drop_view` | 删除视图 | `DatabaseMcpServer tool drop_view --view-name 'v_active_users' --yes --config 'D:\config\databases.json'` |
-| `drop_func` | 删除函数 | `DatabaseMcpServer tool drop_func --function-name 'fn_calc_score' --yes --config 'D:\config\databases.json'` |
-| `drop_proc` | 删除存储过程 | `DatabaseMcpServer tool drop_proc --procedure-name 'sp_cleanup_logs' --yes --config 'D:\config\databases.json'` |
+insert_row 只支持 SQL Server/MySQL/SQLite 的普通表名和唯一整数自增列；SQLite 需要 AUTOINCREMENT。返回 identityColumn 和十进制字符串 identity，不返回完整行。row 只接受标量/null，不能指定自增列，复杂类型或显式 schema 使用 execute_command。
 
-## 8.7 Mongo 集合
+Mongo 当前提供 find、aggregate、insert_many、update、delete、truncate 六个工具。单文档插入也传 documents 数组；update/delete 始终批量执行并要求危险操作开关，空 filter 还需 allowAll=true；truncate 要求 schema-admin。many/upsert 已移除，SRV URI 不支持，输出不再保证 BSON 无损往返。完整迁移及限制见[Mongo 契约](mongodb-collections.md)。
 
-Mongo 使用原生集合工具；SQL/DDL 工具不适用。URI 必须包含业务数据库，`authSource` 不能替代目标库。对象参数支持 JSON / Extended JSON v2，输出使用 Canonical Extended JSON v2。
+## 8. 命令清单
 
-| CLI 命令 | 说明 | 示例 |
-| --- | --- | --- |
-| `mongo_list_collections` | 列出集合 | `DatabaseMcpServer tool mongo_list_collections --database-name 'mongo-main' --config 'D:\config\databases.json'` |
-| `mongo_find` | 有预算限制的集合查询 | `DatabaseMcpServer tool mongo_find --collection 'orders' --filter '{"status":"paid"}' --max-rows 20 --database-name 'mongo-main' --config 'D:\config\databases.json'` |
-| `mongo_count` | 统计匹配文档 | `DatabaseMcpServer tool mongo_count --collection 'orders' --filter '{"status":"paid"}' --database-name 'mongo-main' --config 'D:\config\databases.json'` |
-| `mongo_insert_one` | 插入单个文档 | `DatabaseMcpServer tool mongo_insert_one --collection 'orders' --document '{"_id":"order-42","total":{"$numberDecimal":"12.50"}}' --database-name 'mongo-main' --config 'D:\config\databases.json' --yes` |
-| `mongo_update` | 默认更新一个匹配文档 | `DatabaseMcpServer tool mongo_update --collection 'orders' --filter '{"_id":"order-42"}' --update '{"$set":{"status":"paid"}}' --database-name 'mongo-main' --config 'D:\config\databases.json' --yes` |
-| `mongo_delete` | 默认删除一个匹配文档 | `DatabaseMcpServer tool mongo_delete --collection 'orders' --filter '{"_id":"order-42"}' --database-name 'mongo-main' --config 'D:\config\databases.json' --yes` |
-
-`many=true` 要求连接开启危险操作；空过滤还需 `allowAll=true`，包括单文档操作。`--yes` 不覆盖服务端或连接权限。写入响应为 `writeOutcome=unknown` 或取消后，先核实数据库实际状态，不盲目重试。完整约束见 [Mongo 集合契约](mongodb-collections.md)。
+使用 `DatabaseMcpServer tool list` 查看当前配置可用的工具，`tool help <name>` 查看参数。工具的参数、返回值、写入确认规则和 CLI 示例见[工具手册](../TOOLS.md)。
 
 ## 9. 推荐调用顺序
 
@@ -702,7 +619,7 @@ DatabaseMcpServer tool get_database_config --config 'D:\config\databases.json'
 ```powershell
 DatabaseMcpServer tool is_any_table --table-name 'users' --config 'D:\config\databases.json'
 DatabaseMcpServer tool get_table_schema --table-name 'users' --config 'D:\config\databases.json'
-DatabaseMcpServer tool get_index_list --table-name 'users' --config 'D:\config\databases.json'
+DatabaseMcpServer tool get_table_schema --table-name 'users' --sections '["indexes"]' --config 'D:\config\databases.json'
 ```
 
 ### 9.3 先查再改
@@ -718,8 +635,10 @@ DatabaseMcpServer tool execute_command --sql 'update users set status=''active''
 
 ### 执行与配置更新补充
 
-- `tool` 查询及普通/批量写命令支持 Ctrl+C，取消退出码为 `130`。同步 schema、存储过程、GO 和完整多结果集路径仍需等待驱动返回；不承诺立即中断。
-- 每配置连接默认 `8` 个执行、`32` 个排队、`30` 秒排队超时。可在启动前设置 `DB_MAX_CONCURRENT`、`DB_MAX_QUEUED`、`DB_QUEUE_TIMEOUT_SECONDS`；队满/超时返回 `1009`。不同 CLI 进程各自计数，不是跨进程数据库总限额。
+- 异步查询、过程及普通/批量写命令支持 Ctrl+C，取消退出码为 `130`，返回前等待驱动与清理完成。同步 schema/GO 仍需等待驱动返回；不承诺立即中断。
+- 每连接默认 `8` 个执行、`32` 个排队；应用协调器总执行 `32`、总排队 `128`，单次排队超时 `30` 秒。启动前可设置 `DB_MAX_CONCURRENT`、`DB_MAX_QUEUED`、`DB_MAX_TOTAL_CONCURRENT`、`DB_MAX_TOTAL_QUEUED`、`DB_QUEUE_TIMEOUT_SECONDS`；两层额度同时满足才准入，队满/排队超时返回 `1009`。不同 CLI 进程各自计数。
+- `get_data_set_all` 和 `batch_sql_query` 省略预算时默认累计最多 1000 行、1 MiB；显式 `DB_QUERY_BOUNDED_DEFAULTS=false` 保留它们的旧行为。总 deadline、截断标志及同步命令超时区别见[执行策略](database-mcp-workflow.md)。
+- 帮助、版本和普通配置读取按需构建工具目录，SQL 扩展在首次创建客户端时初始化。
 - Web 编辑把重命名与属性修改合为一次 `PUT /api/databases/{原名}`（可选 `newName`），先校验完整候选再保存一次。旧 rename 接口仍保留。
 - 响应的 `saved`、`runtimeApplied`、`selectionPersisted` 分别表示配置保存、当前进程应用和选择状态保存；不是跨文件事务。`databaseName` 表示已保存的实际名称，部分成功后重试使用这个名称。
 - Dashboard 的 `currentDatabase` 来自实际运行时。`runtime.runtimeVersion` / `savedVersion` 是本进程观察到的单调版本号；`hasPendingChanges=true` 表示磁盘内容与运行快照不同，`null` 表示无法确认。版本号不包含连接串或内容哈希。配置被删除/损坏后，已有运行时保留最近有效目标。
@@ -729,3 +648,23 @@ DatabaseMcpServer tool execute_command --sql 'update users set status=''active''
 - [TOOLS.md](../TOOLS.md)
 - [DatabaseSetting/README.md](../DatabaseSetting/README.md)
 - [执行能力、性能与限制](execution-optimization.md)
+
+## 当前目录、类型化 DDL 与导出
+
+`DatabaseMcpServer tool get_database_capabilities --database-name 'reporting'` 离线查询当前 provider 的能力。使用 `test_connection` 检查实际连通性。
+
+JSON 工具目录在 `get_table_schema` 的输入 schema 中声明合法的 section 值。
+
+`tool list --json` 按全部配置连接的 provider 和权限过滤，`--all` 仅用于完整静态契约。full/analysis 都适用于 MCP、CLI 和 Web；列表里被隐藏的工具不可直接调用。
+
+`batch_sql_query --commands` 接受 1–5 项 `{sql,parameters?}`，不再接受 `--queries`。DDL 使用 `--columns` 数组或 `--column` 对象，字段为 name/dataType/length/precision/scale/nullable/primaryKey/identity/comment/defaultExpression；拒绝旧 SqlSugar 字段和未知字段。
+
+```powershell
+DatabaseMcpServer tool get_table_schema --table-names '["users","roles"]' --sections '["columns","foreignKeys"]' --max-rows 1000 --command-timeout-seconds 30
+DatabaseMcpServer export --sql 'SELECT id,name FROM users WHERE id>@id' `
+  --parameters '[{"name":"id","value":0}]' --format 'csv' `
+  --output 'D:\exports\users.csv' --database-name 'reporting' `
+  --max-rows 100000 --max-file-mib 256 --command-timeout-seconds 30
+```
+
+`export` 默认拒绝覆盖；显式 `--overwrite` 才替换。成功时 stdout 只返回路径、行数、字节和 limitReached。触及行数上限会发布部分数据并标记 limitReached；文件大小超限、SQL 失败或取消不发布部分文件。CSV 所有值使用引号转义，保留原值与公式前缀，NULL 为空；JSONL 保留类型。每行还受服务端最大响应字节限制。元数据、分页、存储过程、诊断和导出的总 deadline 包含排队、执行与读取。完整语义见[工具扩展](tool-evolution.md)。

@@ -27,6 +27,16 @@ internal sealed record CliCommandMetadata(
 
 internal static class CliBuiltinCommandCatalog
 {
+    public static CliCommandMetadata Export { get; } = new("export", "将只读 SQL 结果流式写入 CSV/JSONL，仅输出摘要。失败删除临时文件，默认拒绝覆盖。",
+        "DatabaseMcpServer export --sql <select> --output <path> [--format csv|jsonl] [--config path] [--overwrite]",
+        [new("sql", "只读单条 SQL。", typeof(string), true), new("output", "本地输出文件路径。", typeof(string), true),
+         new("format", "csv 或 jsonl。CSV 保留原始值（含公式字符），NULL 写为空字段。", typeof(string), false, "jsonl"),
+         new("parameters", "类型化输入参数 JSON 数组。", typeof(string), false), new("database-name", "连接名。", typeof(string), false),
+         new("max-rows", "最大导出行数，受服务端上限约束。", typeof(int), false, 100000),
+         new("max-file-mib", "文件上限 MiB，1-1024。", typeof(int), false, 256),
+         new("command-timeout-seconds", "包含排队与读取的总超时。", typeof(int), false, 30),
+         new("overwrite", "成功后原子替换已有目标。", typeof(bool), false, false)]);
+
     public static CliCommandMetadata Web { get; } = new(
         "-web",
         "启动本地 Web 配置管理页，并默认自动打开浏览器。",

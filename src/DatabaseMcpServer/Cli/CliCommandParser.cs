@@ -3,6 +3,9 @@ namespace DatabaseMcpServer.Cli;
 
 internal enum CliCommandKind
 {
+    Version,
+    ExportHelp,
+    ExportInvoke,
     RootHelp,
     WebHelp,
     WebInvoke,
@@ -41,7 +44,8 @@ internal sealed record CliParseResult(
     IReadOnlyDictionary<string, string?>? OptionValues = null,
     string? ConfigPath = null,
     bool ConfirmationAccepted = false,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    bool JsonOutput = false);
 
 internal sealed class CliCommandParser
 {
@@ -66,12 +70,14 @@ internal sealed class CliCommandParser
 
         return args[0] switch
         {
+            "--version" when args.Count == 1 => new CliParseResult(CliCommandKind.Version),
             "-web" or "--web" => ParseStandaloneCommand(
                 args.Skip(1).ToArray(),
                 CliBuiltinCommandCatalog.Web,
                 CliCommandKind.WebHelp,
                 CliCommandKind.WebInvoke),
             "tool" => ParseToolCommand(args.Skip(1).ToArray()),
+            "export" => ParseStandaloneCommand(args.Skip(1).ToArray(), CliBuiltinCommandCatalog.Export, CliCommandKind.ExportHelp, CliCommandKind.ExportInvoke),
             "init" => ParseStandaloneCommand(
                 args.Skip(1).ToArray(),
                 CliBuiltinCommandCatalog.Init,
@@ -147,13 +153,14 @@ internal sealed class CliCommandParser
 
     private CliParseResult ParseNoCommandOptions(IReadOnlyList<string> args, CliCommandKind kind)
     {
-        var parsedOptions = ParseOptions(args, []);
+        var parsedOptions = ParseOptions(args, [new("json", "输出机器可读目录。", typeof(bool), false, false), new("all", "列出完整静态契约用于文档；不代表当前配置可调用。", typeof(bool), false, false)]);
         if (parsedOptions.ErrorMessage != null)
         {
             return new CliParseResult(CliCommandKind.Error, ErrorMessage: parsedOptions.ErrorMessage);
         }
 
-        return new CliParseResult(kind, ConfigPath: parsedOptions.ConfigPath, ConfirmationAccepted: parsedOptions.YesAccepted);
+        return new CliParseResult(kind, OptionValues: parsedOptions.OptionValues, ConfigPath: parsedOptions.ConfigPath, ConfirmationAccepted: parsedOptions.YesAccepted,
+            JsonOutput: parsedOptions.OptionValues?.GetValueOrDefault("json") == "true");
     }
 
     private CliParseResult ParseToolHelpCommand(IReadOnlyList<string> args)
@@ -177,7 +184,7 @@ internal sealed class CliCommandParser
             return new CliParseResult(CliCommandKind.Error, ErrorMessage: $"未知 tool: '{args[0]}'。{suggestionText}");
         }
 
-        var parsedOptions = ParseOptions(args.Skip(1).ToArray(), []);
+        var parsedOptions = ParseOptions(args.Skip(1).ToArray(), [new("json", "输出机器可读工具契约。", typeof(bool), false, false)]);
         if (parsedOptions.ErrorMessage != null)
         {
             return new CliParseResult(CliCommandKind.Error, Tool: tool, ErrorMessage: parsedOptions.ErrorMessage);
@@ -187,7 +194,8 @@ internal sealed class CliCommandParser
             CliCommandKind.ToolHelp,
             Tool: tool,
             ConfigPath: parsedOptions.ConfigPath,
-            ConfirmationAccepted: parsedOptions.YesAccepted);
+            ConfirmationAccepted: parsedOptions.YesAccepted,
+            JsonOutput: parsedOptions.OptionValues?.GetValueOrDefault("json") == "true");
     }
 
     private CliParseResult ParseStandaloneCommand(

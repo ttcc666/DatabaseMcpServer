@@ -1,7 +1,11 @@
 # DatabaseMCP 数据库操作服务器
 
+当前源码默认对 batch/多结果集查询填充 1000 行、1 MiB 预算；兼容旧调用可显式设置 `DB_QUERY_BOUNDED_DEFAULTS=false`。执行准入同时限制单连接与应用总量，新增 `DB_MAX_TOTAL_CONCURRENT=32`、`DB_MAX_TOTAL_QUEUED=128`。升级时请检查截断标志和容量配置，见[执行策略](Doc/database-mcp-workflow.md)。
+
+当前源码静态目录有 **54 项**，对应[5.0.0](Doc/release-5.0.0.md)；安装版以实际 `tool list/help --json` 为准。MCP、CLI 与 Web 根据配置连接的数据库类型和权限筛选工具。表结构读取、分页、Mongo 聚合、CLI 流式导出和 4.0.0 升级说明见[当前工具契约](Doc/tool-evolution.md)。
+
 [![NuGet](https://img.shields.io/nuget/v/DatabaseMcpServer.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
-[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-4.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
+[![.NET Tool](https://img.shields.io/badge/.NET%20Tool-5.0.0-blue.svg)](https://www.nuget.org/packages/DatabaseMcpServer)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [🇺🇸 English](README_EN.md) | [🇨🇳 中文](README.md) | [🌐 官网](https://databasemcp.ttcc.online/)
@@ -15,14 +19,14 @@
 - 🔒 **安全防护** - 危险操作检测 + SQL 注入防护 + 敏感信息保护
 - ⚡ **执行隔离** - 独占 SqlSugarClient 租约 + 驱动物理连接池 + 数据库特定优化
 - 🔧 **灵活配置** - 支持 JSON 配置文件，轻松管理多数据库连接
-- 💾 **完整功能** - 62 个 MCP 工具，涵盖类型化查询、分页、MongoDB 集合、操作、架构管理和能力诊断；新部署推荐 .NET 10 LTS，见[数据库 MCP 工作流](Doc/database-mcp-workflow.md)
-- 🚀 **执行控制** - 支持批量操作、存储过程、权限与超时限制；批量写入不提供事务回滚
-- 📦 **.NET Global Tool** - 发布包要求 .NET 10；源码保留 .NET 9/10 构建与测试
+- 💾 **数据库工具** - 类型化查询、分页、MongoDB 集合、架构管理和离线能力查询，见[数据库 MCP 工作流](Doc/database-mcp-workflow.md)
+- 🚀 **执行控制** - 支持批量操作、存储过程、权限与超时限制，部分数据库的批量写入可显式启用事务
+- 📦 **.NET Global Tool** - 源码、测试和发布包统一使用 .NET 10 LTS
 - 🌐 **跨平台** - Windows、macOS、Linux 全面支持
 
 ## 🗄️ 支持的数据库类型
 
-HG/GBase/TDengine/DuckDB 扩展和 .NET 驱动已随包安装；GBase、TDengine 仍需部署原生客户端，详见[驱动清单](Doc/provider-drivers.md)。MongoDB 提供六个原生集合查询/写入工具，使用 Extended JSON v2，详见[集合契约](Doc/mongodb-collections.md)；通用 SQL 工具不适用。下列名称不代表所有功能均已验收。
+HG/GBase/TDengine/DuckDB 扩展和 .NET 驱动已随包安装；GBase、TDengine 仍需部署原生客户端，详见[驱动清单](Doc/provider-drivers.md)。MongoDB 提供六个基于 SqlSugar 内置 ADO 的集合工具，包含查询、只读聚合和写入；输入支持 Extended JSON v2，输出采用 provider 转换后的 JSON，详见[集合契约](Doc/mongodb-collections.md)；通用 SQL 工具不适用。下列名称不代表所有功能均已验收。
 
 ### 🔥 一线最常用
 - **MySQL** (默认)
@@ -53,13 +57,14 @@ HG/GBase/TDengine/DuckDB 扩展和 .NET 驱动已随包安装；GBase、TDengine
 
 ### 第一步：安装 .NET Global Tool
 
-发布工具要求 .NET 10 SDK（包含 .NET / ASP.NET Core 运行时）。源码仍保留 .NET 9/10 构建与测试；驱动与平台要求见[驱动清单](Doc/provider-drivers.md)。
+源码构建及发布工具要求 .NET 10 SDK（包含 .NET / ASP.NET Core 运行时）；驱动与平台要求见[驱动清单](Doc/provider-drivers.md)。
 
 ```bash
 # 安装最新版本
 dotnet tool install --global DatabaseMcpServer
 
-# 验证安装（CLI 本身没有 --version 参数；传入会得到退出码 2）
+# 验证实际执行程序版本（无需配置或数据库连接）
+DatabaseMcpServer --version
 dotnet tool list --global | Select-String databasemcpserver
 ```
 
@@ -286,27 +291,17 @@ dnx DatabaseMcpServer@3.6.5 --yes
 ```bash
 git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
-# .NET 9
-dotnet run --framework net9.0
-
-# .NET 10
-dotnet run --framework net10.0
+# .NET 10 LTS
+dotnet run --project 'src/DatabaseMcpServer/DatabaseMcpServer.csproj'
 ```
 
 **MCP 配置**：
 ```json
 {
   "mcpServers": {
-    "database-net9": {
-      "command": "dotnet",
-      "args": ["run", "--framework", "net9.0", "--project", "path/to/DatabaseMcpServer"],
-      "env": {
-        "DB_CONFIG_PATH": "D:\\config\\databases.json"
-      }
-    },
     "database-net10": {
       "command": "dotnet",
-      "args": ["run", "--framework", "net10.0", "--project", "path/to/DatabaseMcpServer"],
+      "args": ["run", "--project", "path/to/DatabaseMcpServer/src/DatabaseMcpServer/DatabaseMcpServer.csproj"],
       "env": {
         "DB_CONFIG_PATH": "D:\\config\\databases.json"
       }
@@ -400,11 +395,9 @@ DatabaseMcpServer 2.0.0 统一使用 JSON 配置文件管理数据库连接。
 - `list_databases` - 列出所有可用的数据库连接
 - `switch_database` - 切换到指定的数据库
 - `get_current_database` - 获取当前活动的数据库
-- `test_connection_by_name` - 测试指定数据库的连接
 
 **性能优化工具：**
 - `health_check` - 对所有数据库连接执行健康检查（响应时间、连接状态）
-- `test_connection_with_retry` - 带自动重试的连接测试（指数退避策略）
 
 ---
 
@@ -556,100 +549,9 @@ DatabaseMcpServer 2.0.0 移除了环境变量配置方式，统一使用 JSON �
 
 ---
 
-## 📋 完整功能清单（62 个工具）
+## 📋 完整功能清单（54 个工具）
 
-逐工具参数、返回行为、CLI 示例和 `--yes` 要求见 [TOOLS.md](TOOLS.md)。
-
-MongoDB：`mongo_list_collections`、`mongo_find`、`mongo_count`、`mongo_insert_one`、`mongo_update`、`mongo_delete`。默认 one 写入、有限查询、类型保真和危险操作保护见[集合契约](Doc/mongodb-collections.md)。
-
-### 🔌 一、连接与配置管理
-
-**基础连接管理**:
-- **test_connection** - 测试当前数据库连接
-- **test_connection_by_name** - 测试指定数据库的连接
-- **get_database_config** - 获取当前数据库配置信息
-- **validate_configuration** - 验证数据库配置是否正确
-- **reload_database_config** - 重新加载 `databases.json` 并刷新当前配置缓存
-
-**多数据库管理**:
-- **list_databases** - 列出所有可用的数据库连接
-- **switch_database** - 切换到指定的数据库
-- **get_current_database** - 获取当前活动的数据库
-
-**性能与健康检查**:
-- **health_check** - 对所有数据库连接执行健康检查（响应时间、连接状态）
-- **test_connection_with_retry** - 带自动重试的连接测试（指数退避策略）
-
-### 🔍 二、数据库架构查询
-
-- **get_data_base_list** - 获取所有数据库名称
-- **get_table_info_list** - 获取所有表名
-- **get_view_info_list** - 查询所有视图
-- **get_column_infos_by_table_name** - 根据表名获取字段信息
-- **get_table_schema** - 获取表的完整结构信息
-- **get_is_identities** - 获取自增列
-- **get_primaries** - 获取主键
-- **get_index_list** - 获取所有索引名字集合
-- **get_proc_list** - 获取存储过程名字集合
-- **get_func_list** - 获取函数集合
-- **get_trigger_names** - 根据表名获取触发器集合
-
-### 🔎 三、存在性检查
-
-- **is_any_table** - 判断表是否存在
-- **is_any_column** - 判断列是否存在
-- **is_any_constraint** - 判断约束是否存在
-- **is_any_table_remark** - 判断是否存在表描述
-
-### 📊 四、数据查询工具
-
-**基础查询：**
-- **query_database** - 类型化参数、IN 数组、命名目标和有界结构化结果
-- **query_table_page** - 按主键排序分页，不自动 COUNT
-- **sql_query_single** - 执行 SQL 查询并返回单条记录（可选超时）
-
-**高级查询：**
-- **get_data_set_all** - 获取多个结果集，支持一次执行多个查询（可选超时）
-- **batch_sql_query** - 顺序执行 1-5 条只读 SQL，并逐条返回成功结果或错误（可选超时作用于批内每条）
-
-**标量值查询：**
-- **get_scalar** - 获取首行首列的值（标量值，可选超时）
-
-### ✏️ 五、数据操作工具
-
-- **execute_command** - 执行 SQL 命令（INSERT、UPDATE、DELETE；可选 `commandTimeoutSeconds`）
-- **batch_execute_commands** - 批量执行 SQL 命令（性能优化；可选超时作用于批内每条）
-- **call_stored_procedure** - 通过类型化参数调用存储过程，支持输入/输出/InputOutput/ReturnValue（可选超时）
-- **execute_command_with_go** - 执行包含 GO 语句的 SQL Server 脚本（可选超时）
-
-### 🛠️ 六、数据库架构操作（高风险）
-
-**表操作：**
-- **create_table** - 创建表（使用列定义 JSON 数组）
-- **drop_table** - 删除表
-- **truncate_table** - 清空表
-- **backup_table** - 备份表
-- **rename_table** - 重命名表
-
-**列操作：**
-- **add_column** - 添加列
-- **update_column** - 更新列
-- **drop_column** - 删除列
-- **rename_column** - 重命名列
-
-**约束和索引：**
-- **add_primary_key** - 添加主键
-- **drop_constraint** - 删除约束
-- **create_index** - 创建索引或唯一约束
-
-**其他：**
-- **add_default_value** - 添加默认值
-- **add_table_remark** - 添加表描述
-- **add_column_remark** - 添加列描述
-- **delete_table_remark** - 删除表描述
-- **delete_column_remark** - 删除列描述
-
-*完整工具列表请参考 [.mcp/server.json](.mcp/server.json)*
+在终端运行 `DatabaseMcpServer tool list` 查看当前配置可用的工具，用 `tool help <name>` 查看参数。完整工具、参数和调用示例见[工具手册](TOOLS.md)，各数据库的差异见[能力矩阵](Doc/capabilities.generated.md)。
 
 ## 💡 使用示例
 
@@ -687,67 +589,10 @@ MongoDB：`mongo_list_collections`、`mongo_find`、`mongo_count`、`mongo_inser
 查询城市为"北京"、年龄在 20-30 之间、状态为活跃的用户
 ```
 
-### 示例 3：数据统计与分析
+### 示例 3：查看表结构
 
-**聚合查询**
-```
-统计 products 表中每个分类的商品数量和平均价格
-```
-
-**多结果集查询**
-```
-同时查询：1) 用户总数和活跃用户数量 2) 最近 7 天的订单数据
-```
-
-**标量值查询**
-```
-获取订单表中订单状态为"已完成"的总金额
-```
-
-### 示例 4：数据操作
-
-**插入新数据**
-```
-向 products 表插入新商品：名称为"MacBook Pro M3"，价格为 14999，库存为 50
-```
-
-**批量更新**
-```
-批量更新以下用户的VIP状态：用户ID 1,3,5,7,9 设置为VIP，其他设置为普通用户
-```
-
-**事务操作**
-```
-执行转账操作：从账户A(ID:1001)转账 500 元到账户B(ID:1002)
-```
-
-### 示例 5：架构查询
-
-**获取表结构**
-```
-获取 orders 表的完整结构信息：列、主键、索引、自增列等
-```
-
-**查询索引信息**
-```
-查询 users 表的所有索引信息
-```
-
-**检查表是否存在**
-```
-检查数据库中是否存在名为"user_logs"的表
-```
-
-### 示例 6：存储过程调用
-
-**简单存储过程**
-```
-调用存储过程 sp_monthly_report，传入参数年份 2025，月份 11
-```
-
-**带输出参数的存储过程**
-```
-调用存储过程 sp_user_statistics，传入用户ID 1001，获取该用户的订单总数和总金额
+```text
+查看 orders 表的列、主键和索引。
 ```
 
 ## 🔒 安全特性
@@ -776,10 +621,11 @@ MongoDB：`mongo_list_collections`、`mongo_find`、`mongo_count`、`mongo_inser
 ### SQL 命令超时
 查询与数据操作类工具支持可选参数 `commandTimeoutSeconds`（CLI：`--command-timeout-seconds`）：
 
-- 省略：使用 SqlSugar/驱动默认（通常 300 秒）
-- `0`：无限等待
-- 合法范围：`0–86400`
-- 批处理工具上的超时作用于整批
+- 异步查询与写命令省略时：默认 30 秒总 deadline，包含排队、执行和读取；可通过服务端策略调整
+- 同步 GO/DDL 省略时：保留 SqlSugar/驱动默认（通常 300 秒），受服务端超时上限限制
+- `0`：仅在 `DB_ALLOW_INFINITE_TIMEOUT=true` 时允许无限等待；原子批处理仍受独立总 deadline 限制
+- 合法范围：`0–86400`，且不能超过 `DB_COMMAND_MAX_TIMEOUT_SECONDS`
+- 异步批处理的总 deadline 作用于整批；完整策略见[执行工作流](Doc/database-mcp-workflow.md)
 
 ```json
 {
@@ -816,10 +662,7 @@ git clone https://github.com/ttcc666/DatabaseMcpServer.git
 cd DatabaseMcpServer
 
 # 创建配置文件 databases.json 后运行
-DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net9.0
-
-# 或使用 .NET 10
-DB_CONFIG_PATH="path/to/databases.json" dotnet run --framework net10.0
+DB_CONFIG_PATH="path/to/databases.json" dotnet run --project 'src/DatabaseMcpServer/DatabaseMcpServer.csproj'
 
 # 构建项目
 dotnet build 'DatabaseMcpServer.slnx'
@@ -828,7 +671,7 @@ dotnet build 'DatabaseMcpServer.slnx'
 dotnet test 'tests\DatabaseMcpServer.Tests\DatabaseMcpServer.Tests.csproj'
 
 # 打包发布
-dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
+dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'
 ```
 
 推荐的稳定验证方式：
@@ -839,12 +682,18 @@ dotnet pack 'src\DatabaseMcpServer\DatabaseMcpServer.csproj' -c Release '-p:Targ
 
 ## 🆕 版本发布
 
+- **5.0.0**
+  - 当前源码提供 54 项工具；新增表查询选列/筛选/排序、单行自增插入、删除索引及复合索引/主键支持
+  - MongoDB 统一通过 SqlSugar 内置 ADO，保留六个工具；更新/删除改为批量语义，移除旧入口，输出类型与 SRV 支持范围发生变化
+  - 新增 MCP Resources、Prompts、连接名补全和健康检查进度；源码与测试统一为 .NET 10
+  - 完整新增能力、破坏性变更和验证命令见[5.0.0 说明](Doc/release-5.0.0.md)；以下为历史发布记录
+
 - **4.0.0**
   - 升级工具契约：使用 `query_database`、类型化参数、命名连接、查询预算、分页和离线能力诊断；移除旧查询与输出参数入口，升级后须刷新工具清单
   - 新增六个 MongoDB 原生集合工具，明确 Extended JSON、写入确认、批量及空过滤保护
   - 拆分 Host / Core / Infrastructure 并按功能组织模块；统一执行准入、配置保存与运行时状态，更新 CLI 使用技能
   - 升级 MCP 2.4.0、SqlSugarCore 5.1.4.221，补齐数据库驱动；修复只读保护、数值精度和 MCP 错误标志
-  - 发布包仅支持 .NET 10，源码与测试保留双框架；迁移步骤和限制见 [4.0.0 发布说明](Doc/release-4.0.0.md)
+  - 发布包使用 .NET 10；当时源码和测试保留 .NET 9 / 10，后续已统一到 .NET 10。历史迁移步骤见 [4.0.0 发布说明](Doc/release-4.0.0.md)
 
 - **3.7.0**
   - 新增可选配置文件监听，长驻 MCP stdio / `-web` 可在默认库变化时自动切换当前连接；优先级为启动参数 `--enable-monitor-config` > 环境变量 `ENABLE_MONITOR_CONFIG` > 配置字段 `enableMonitorConfig`，默认关闭
@@ -983,9 +832,9 @@ Data Access Layer (SqlSugar ORM)
 
 ## 🛠️ 技术栈
 
-- **.NET 9.0** - 最新的 .NET 平台
-- **ModelContextProtocol 1.0.0** - MCP 协议 C# SDK
-- **SqlSugarCore 5.1.4** - 轻量级高性能 ORM
+- **.NET 10 LTS** - 源码、测试、基准和发布工具的唯一目标框架
+- **ModelContextProtocol 2.4.0** - MCP 协议 C# SDK
+- **SqlSugarCore 5.1.4.221** - ORM 与 SQL provider 适配
 - **Serilog** - 结构化日志框架
 - **Microsoft.Extensions.Hosting** - 依赖注入和托管
 

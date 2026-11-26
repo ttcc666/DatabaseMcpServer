@@ -47,9 +47,8 @@ GoldenDB 兼容 MySQL 协议，但官方建议禁用连接池（`Pooling=false`�
 
 ## 🚀 自动性能优化
 
-- 使用 `GoldenDbOptimizationStrategy`，保持 `DisableNvarchar=false`（遵循 MySQL 兼容）。
-- 若未显式设置 `disablePooling=true`，策略会发出警告，提醒在连接字符串关闭连接池。
-- 记录 `maxPoolSize` 便于日志与调优。
+- 使用 `GoldenDbOptimizationStrategy`，默认 `DisableNvarchar=false`，可通过 `optimizationSettings.disableNvarchar` 按需关闭。
+- 请在连接字符串显式设置 `Pooling=false`。
 
 ### 客户端示例（必须禁用连接池）
 
@@ -74,10 +73,11 @@ var db = new SqlSugarClient(new ConnectionConfig
 
 ## 🔧 可选优化配置项（optimizationSettings）
 
-| 配置键 | 类型 | 说明 |
+| 配置键 | 类型 | 状态/说明 |
 |--------|------|------|
-| `disablePooling` | bool | 建议设为 `true`，与连接串 `Pooling=false` 保持一致 |
-| `maxPoolSize` | int | 记录连接池上限，便于监控与日志 |
+| `disableNvarchar` | bool | `mapped`：映射到 `ConnMoreSettings.DisableNvarchar` |
+| `disablePooling` | bool | `advisory`：请在连接串设置 `Pooling=false` |
+| `maxPoolSize` | int | `advisory`：请在连接串配置连接池大小 |
 
 ---
 

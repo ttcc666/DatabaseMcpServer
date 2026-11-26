@@ -1,11 +1,13 @@
-# Requires PowerShell 7, Docker with Linux containers, .NET 9/10 SDKs and Node.js.
+# Requires PowerShell 7, Docker Linux containers and .NET 10 SDK.
 [CmdletBinding()]
 param(
-    [ValidateSet('net9.0', 'net10.0')]
+    [ValidateSet('net10.0')]
     [ValidateNotNullOrEmpty()]
-    [string[]] $Framework = @('net9.0', 'net10.0'),
+    [string[]] $Framework = @('net10.0'),
     [ValidateSet('Debug', 'Release')]
-    [string] $Configuration = 'Release'
+    [string] $Configuration = 'Release',
+    [string] $Filter = 'Category=Integration',
+    [string] $ResultsOutput = 'TestResults/integration'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -91,9 +93,9 @@ try {
     Set-TestEnvironment 'DBMCP_RUN_INTEGRATION' '1'
     foreach ($target in $Framework) {
         Write-Host ('Running provider integration tests: ' + $target)
-        $resultsDirectory = 'TestResults/integration/' + $target
+        $resultsDirectory = Join-Path $ResultsOutput $target
         $reportName = $runId + '.trx'
-        & dotnet test 'tests/DatabaseMcpServer.Tests/DatabaseMcpServer.Tests.csproj' -c $Configuration -f $target --filter 'Category=Integration' --logger ('trx;LogFileName=' + $reportName) --results-directory $resultsDirectory --blame-hang --blame-hang-timeout '3min'
+        & dotnet test 'tests/DatabaseMcpServer.Tests/DatabaseMcpServer.Tests.csproj' -c $Configuration -f $target --filter $Filter --logger ('trx;LogFileName=' + $reportName) --results-directory $resultsDirectory --blame-hang --blame-hang-timeout '3min'
         if ($LASTEXITCODE -ne 0) { throw ('Provider integration tests failed: ' + $target) }
         [xml] $report = Get-Content -LiteralPath (Join-Path $resultsDirectory $reportName) -Raw
         $counts = $report.TestRun.ResultSummary.Counters

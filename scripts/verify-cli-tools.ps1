@@ -1,5 +1,5 @@
 param(
-    [string]$Framework = 'net9.0',
+    [ValidateSet('net10.0')][string]$Framework = 'net10.0',
     [string]$Configuration = 'Debug'
 )
 
@@ -15,6 +15,7 @@ try {
     $exePath = Join-Path $buildOutput 'DatabaseMcpServer.exe'
 
     dotnet build $projectPath --framework $Framework --configuration $Configuration | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'CLI build failed.' }
 
     $reportRoot = Join-Path $root 'artifacts\cli-tool-verify'
     $sessionName = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -168,10 +169,10 @@ try {
 
         $persisted = Invoke-DatabaseTool `
             -ConfigPath $Environment.ConfigPath `
-            -ToolArgs @('get_scalar', '--sql', "select cast(age as text) || ':' || (select status from users where id = 2) from users where id = 1")
+            -ToolArgs @('query_database', '--sql', "select cast(age as text) || ':' || (select status from users where id = 2) as value from users where id = 1")
         Assert-InvocationSucceeded -Invocation $persisted -Context 'batch_execute_commands persistence check'
 
-        if ([string]$persisted.ParsedJson.value -ne '29:active') {
+        if ([string]$persisted.ParsedJson.data[0].value -ne '29:active') {
             throw "batch_execute_commands unexpectedly rolled back successful commands. stdout: $($persisted.Stdout)"
         }
     }
@@ -362,7 +363,6 @@ INSERT INTO index_target (index_col, value_col) VALUES
 
     $cases = @(
         @{ Tool = 'test_connection'; Args = @() },
-        @{ Tool = 'test_connection_by_name'; Args = @('--database-name', 'secondary') },
         @{ Tool = 'get_database_config'; Args = @() },
         @{ Tool = 'validate_configuration'; Args = @() },
         @{ Tool = 'reload_database_config'; Args = @() },
@@ -370,50 +370,40 @@ INSERT INTO index_target (index_col, value_col) VALUES
         @{ Tool = 'switch_database'; Args = @('--database-name', 'secondary') },
         @{ Tool = 'get_current_database'; Args = @() },
         @{ Tool = 'health_check'; Args = @() },
-        @{ Tool = 'test_connection_with_retry'; Args = @('--max-retries', '1', '--initial-delay-ms', '10') },
         @{ Tool = 'get_data_base_list'; Args = @() },
-        @{ Tool = 'get_view_info_list'; Args = @() },
-        @{ Tool = 'get_table_info_list'; Args = @() },
-        @{ Tool = 'get_column_infos_by_table_name'; Args = @('--table-name', 'users') },
-        @{ Tool = 'get_is_identities'; Args = @('--table-name', 'users') },
-        @{ Tool = 'get_primaries'; Args = @('--table-name', 'users') },
         @{ Tool = 'is_any_table'; Args = @('--table-name', 'users') },
         @{ Tool = 'is_any_column'; Args = @('--table-name', 'users', '--column-name', 'name') },
         @{ Tool = 'is_any_constraint'; Args = @('--constraint-name', 'uq_constraint_target_name') },
-        @{ Tool = 'create_table'; Args = @('--table-name', 'created_table', '--columns-info', '[{"DbColumnName":"id","DataType":"INTEGER","IsPrimarykey":true,"IsIdentity":true,"IsNullable":false},{"DbColumnName":"name","DataType":"nvarchar","Length":100,"IsNullable":false}]', '--yes'); Assert = { param($invocation, $environment) Assert-InvocationSucceeded -Invocation $invocation -Context 'create_table' } },
+        @{ Tool = 'create_table'; Args = @('--table-name', 'created_table', '--columns', '[{"name":"id","dataType":"INTEGER","primaryKey":true,"identity":true,"nullable":false},{"name":"name","dataType":"nvarchar","length":100,"nullable":false}]', '--yes'); Assert = { param($invocation, $environment) Assert-InvocationSucceeded -Invocation $invocation -Context 'create_table' } },
         @{ Tool = 'drop_table'; Args = @('--table-name', 'rename_source', '--yes') },
         @{ Tool = 'truncate_table'; Args = @('--table-name', 'truncate_target', '--yes') },
         @{ Tool = 'backup_table'; Args = @('--old-table-name', 'backup_source', '--new-table-name', 'backup_source_copy', '--yes') },
         @{ Tool = 'rename_table'; Args = @('--old-table-name', 'rename_source', '--new-table-name', 'rename_source_done', '--yes') },
-        @{ Tool = 'add_column'; Args = @('--table-name', 'column_ops', '--column-info', '{"DbColumnName":"added_col","DataType":"nvarchar","Length":50,"IsNullable":true}', '--yes') },
-        @{ Tool = 'update_column'; Args = @('--table-name', 'column_ops', '--column-info', '{"DbColumnName":"modify_me","DataType":"nvarchar","Length":120,"IsNullable":true}', '--yes') },
+        @{ Tool = 'add_column'; Args = @('--table-name', 'column_ops', '--column', '{"name":"added_col","dataType":"nvarchar","length":50,"nullable":true}', '--yes') },
+        @{ Tool = 'update_column'; Args = @('--table-name', 'column_ops', '--column', '{"name":"modify_me","dataType":"nvarchar","length":120,"nullable":true}', '--yes') },
         @{ Tool = 'drop_column'; Args = @('--table-name', 'column_ops', '--column-name', 'drop_me', '--yes') },
         @{ Tool = 'rename_column'; Args = @('--table-name', 'column_ops', '--old-column-name', 'rename_me', '--new-column-name', 'renamed_col', '--yes') },
         @{ Tool = 'add_primary_key'; Args = @('--table-name', 'pk_target', '--column-name', 'code', '--yes') },
         @{ Tool = 'drop_constraint'; Args = @('--table-name', 'constraint_target', '--constraint-name', 'uq_constraint_target_name', '--yes') },
         @{ Tool = 'create_index'; Args = @('--table-name', 'index_target', '--index-name', 'ix_index_target_value', '--column-name', 'value_col', '--yes') },
-        @{ Tool = 'get_index_list'; Args = @('--table-name', 'index_target') },
+        @{ Tool = 'drop_index'; Args = @('--table-name', 'index_target', '--index-name', 'ux_drop_constraint_target', '--yes') },
         @{ Tool = 'add_default_value'; Args = @('--table-name', 'column_ops', '--column-name', 'default_target', '--default-value', '''N/A''', '--yes') },
         @{ Tool = 'add_table_remark'; Args = @('--table-name', 'remark_target', '--description', 'remark text', '--yes') },
         @{ Tool = 'is_any_table_remark'; Args = @('--table-name', 'remark_target') },
         @{ Tool = 'delete_table_remark'; Args = @('--table-name', 'remark_target', '--yes') },
         @{ Tool = 'add_column_remark'; Args = @('--table-name', 'remark_target', '--column-name', 'title', '--description', 'title remark', '--yes') },
         @{ Tool = 'delete_column_remark'; Args = @('--table-name', 'remark_target', '--column-name', 'title', '--yes') },
-        @{ Tool = 'get_proc_list'; Args = @() },
-        @{ Tool = 'get_func_list'; Args = @() },
         @{ Tool = 'drop_view'; Args = @('--view-name', 'view_to_drop', '--yes') },
         @{ Tool = 'drop_func'; Args = @('--function-name', 'fn_demo', '--yes') },
         @{ Tool = 'drop_proc'; Args = @('--procedure-name', 'sp_demo', '--yes') },
-        @{ Tool = 'get_trigger_names'; Args = @('--table-name', 'users') },
         @{ Tool = 'get_table_schema'; Args = @('--table-name', 'users') },
         @{ Tool = 'query_database'; Args = @('--sql', 'select @v as value', '--parameters', '[{"name":"v","dbType":"Int64","value":"9007199254740993"}]') },
-        @{ Tool = 'query_table_page'; Args = @('--table-name', 'users', '--page', '1', '--page-size', '2') },
+        @{ Tool = 'query_table_page'; Args = @('--table-name', 'users', '--page', '1', '--page-size', '2', '--columns', '["name","age"]', '--filters', '[{"column":"status","op":"eq","value":"active"}]', '--order-by', '[{"column":"age","direction":"desc"}]') },
         @{ Tool = 'get_database_capabilities'; Args = @() },
-        @{ Tool = 'sql_query_single'; Args = @('--sql', 'select * from "users" order by "id" limit 1') },
         @{ Tool = 'get_data_set_all'; Args = @('--sql', 'select * from "users"; select * from "orders"') },
-        @{ Tool = 'get_scalar'; Args = @('--sql', 'select count(*) from "users"') },
-        @{ Tool = 'batch_sql_query'; Args = @('--queries', '["select count(*) from users","select count(*) from orders"]'); Assert = { param($invocation, $environment) Assert-BatchSqlQueryResult -Invocation $invocation } },
+        @{ Tool = 'batch_sql_query'; Args = @('--commands', '[{"sql":"select count(*) from users"},{"sql":"select count(*) from orders"}]'); Assert = { param($invocation, $environment) Assert-BatchSqlQueryResult -Invocation $invocation } },
         @{ Tool = 'execute_command'; Args = @('--sql', 'insert into "users" ("name","email","age","status") values (''cli-user'',''cli@example.com'',28,''active'')', '--yes') },
+        @{ Tool = 'insert_row'; Args = @('--table-name', 'users', '--row', '{"name":"insert-row","age":25,"email":null}', '--yes') },
         @{ Tool = 'call_stored_procedure'; Args = @('--procedure-name', 'sp_demo', '--yes') },
         @{ Tool = 'execute_command_with_go'; Args = @('--sql', "UPDATE ""users"" SET ""age"" = 31 WHERE ""id"" = 1`nGO", '--yes') },
         @{ Tool = 'batch_execute_commands'; Args = @('--commands', '[{"sql":"update users set age = @age where id = 1","parameters":[{"name":"age","value":29}]},{"sql":"update missing_table set value_text = ''failed''"},{"sql":"update users set status = ''active'' where id = 2"}]', '--yes'); Assert = { param($invocation, $environment) Assert-BatchCommandPartialSuccess -Invocation $invocation -Environment $environment } }
@@ -421,19 +411,20 @@ INSERT INTO index_target (index_col, value_col) VALUES
 
     $mongoUnsupported = {
         param($invocation, $environment)
-        $payload = $invocation.Stdout | ConvertFrom-Json
-        if ($invocation.ExitCode -eq 0 -or $payload.errorCode -ne 1012) { throw 'Mongo tools must reject the SQLite connection with 1012.' }
+        if ($invocation.ExitCode -ne 2 -or $invocation.Stderr -notmatch '未在当前配置') { throw 'Mongo tools must be hidden and reject CLI calls for a SQLite-only configuration.' }
     }
     $cases += @(
-        @{ Tool = 'mongo_list_collections'; Args = @(); Assert = $mongoUnsupported },
         @{ Tool = 'mongo_find'; Args = @('--collection', 'docs', '--filter', '{}'); Assert = $mongoUnsupported },
-        @{ Tool = 'mongo_count'; Args = @('--collection', 'docs'); Assert = $mongoUnsupported },
-        @{ Tool = 'mongo_insert_one'; Args = @('--collection', 'docs', '--document', '{"x":1}', '--yes'); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_aggregate'; Args = @('--collection', 'docs', '--pipeline', '[{"$match":{}}]'); Assert = $mongoUnsupported },
+        @{ Tool = 'list_objects'; Args = @('--kind', 'table') },
+        @{ Tool = 'get_object_definition'; Args = @('--kind', 'table', '--name', 'users') },
+        @{ Tool = 'explain_query'; Args = @('--sql', 'SELECT * FROM users') },
+        @{ Tool = 'mongo_insert_many'; Args = @('--collection', 'docs', '--documents', '[{"x":1}]', '--yes'); Assert = $mongoUnsupported },
         @{ Tool = 'mongo_update'; Args = @('--collection', 'docs', '--filter', '{"x":1}', '--update', '{"$set":{"x":2}}', '--yes'); Assert = $mongoUnsupported },
-        @{ Tool = 'mongo_delete'; Args = @('--collection', 'docs', '--filter', '{"x":1}', '--yes'); Assert = $mongoUnsupported }
+        @{ Tool = 'mongo_delete'; Args = @('--collection', 'docs', '--filter', '{"x":1}', '--yes'); Assert = $mongoUnsupported },
+        @{ Tool = 'mongo_truncate'; Args = @('--collection', 'docs', '--yes'); Assert = $mongoUnsupported }
     )
-    $expectedToolCount = 62
-    $catalogInvocation = Invoke-DatabaseTool -ConfigPath $null -ToolArgs @('list')
+    $catalogInvocation = Invoke-DatabaseTool -ConfigPath $null -ToolArgs @('list', '--all')
     if ($catalogInvocation.ExitCode -ne 0) {
         throw "tool list failed with exit code $($catalogInvocation.ExitCode). stderr: $($catalogInvocation.Stderr)"
     }
@@ -447,12 +438,12 @@ INSERT INTO index_target (index_col, value_col) VALUES
             }
     )
     $caseNames = @($cases | ForEach-Object Tool)
-    $missingToolCases = @($catalogNames | Where-Object { $_ -notin $caseNames })
-    $unknownToolCases = @($caseNames | Where-Object { $_ -notin $catalogNames })
+    $missingToolCases = @($catalogNames | Where-Object { $_ -cnotin $caseNames })
+    $unknownToolCases = @($caseNames | Where-Object { $_ -cnotin $catalogNames })
     $duplicateToolCases = @($caseNames | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
 
-    if ($catalogNames.Count -ne $expectedToolCount -or
-        $caseNames.Count -ne $expectedToolCount -or
+    if ($catalogNames.Count -eq 0 -or
+        $catalogNames.Count -ne $caseNames.Count -or
         $missingToolCases.Count -ne 0 -or
         $unknownToolCases.Count -ne 0 -or
         $duplicateToolCases.Count -ne 0) {
@@ -475,6 +466,16 @@ INSERT INTO index_target (index_col, value_col) VALUES
 
         if ($case.ContainsKey('Assert')) {
             & $case.Assert $invocation $environment
+        }
+        if ($name -in @('call_stored_procedure', 'execute_command_with_go', 'drop_func', 'drop_proc',
+            'get_data_base_list', 'is_any_constraint', 'rename_column', 'add_primary_key', 'drop_constraint', 'add_default_value',
+            'add_table_remark', 'is_any_table_remark', 'delete_table_remark', 'add_column_remark', 'delete_column_remark')) {
+            if ($invocation.ExitCode -ne 2 -or $invocation.Stderr -notmatch '未在当前配置') {
+                throw ('Provider-specific tool was not hidden for SQLite: ' + $name)
+            }
+        }
+        elseif ($name -notlike 'mongo_*' -and ($invocation.ExitCode -ne 0 -or $invocation.JsonSuccess -eq $false)) {
+            throw ('Expected successful SQLite CLI invocation: ' + $name)
         }
 
         [pscustomobject]@{

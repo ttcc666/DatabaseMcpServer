@@ -2,6 +2,8 @@
 
 本文档详细说明达梦数据库（DM Database）的配置方法和性能优化策略，涵盖表名大小写、Schema、Docker/MySQL 模式兼容、Clob 优化及驱动/版本提示。
 
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
+
 ---
 
 ## 📋 配置方式
@@ -21,7 +23,6 @@
       "isDefault": true,
       "optimizationSettings": {
         "lowercaseTables": "false",
-        "clobOptimization": "true",
         "dockerMysqlMode": "false"
       }
     }
@@ -78,160 +79,16 @@
 
 ---
 
-## 🚀 自动性能优化
+## 驱动与优化配置
 
-DatabaseMcpServer 自动为达梦数据库应用以下优化：
+| optimizationSettings 键 | 状态 | 作用 |
+| --- | --- | --- |
+| lowercaseTables | mapped，默认 false | 映射 IsAutoToUpper 的反值；影响 ORM 生成路径，不改写原始 SQL |
+| dockerMysqlMode | mapped | true 时设置 DatabaseModel=MySql，需与服务端实际模式匹配；不会自动识别或修改服务端 |
+| schema / maxPoolSize | advisory | 使用原生连接字符串配置 |
+| clobOptimization | not-applicable | 当前无对应 MCP 开关实现 |
 
-| 优化项 | 说明 | 效果 |
-|--------|------|------|
-| 智能表名处理 | 默认转大写，可配置小写 | 兼容不同命名规范 |
-| Docker 模式兼容 | 自动识别 MySQL 兼容模式 | 解决 Docker 部署问题 |
-| Clob 类型优化 | 大文本字段优化 | 避免插入空白问题 |
-| Schema 支持 | 多租户隔离 | 提高安全性和组织性 |
-| 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
-| 连接串兼容提示 | 支持新旧格式 | 降低迁移成本 |
-
----
-
-## 🔧 优化配置选项
-
-以下配置选项在 databases.json 的 optimizationSettings 中设置。
-
-### lowercaseTables
-
-**说明**: 使用小写表名
-
-**类型**: `boolean`
-
-**默认值**: `false`（使用大写）
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "dm-main",
-      "optimizationSettings": {
-        "lowercaseTables": "false"
-      }
-    }
-  ]
-}
-```
-
-**效果**:
-- `false`: 表名自动转大写（默认）
-- `true`: 使用小写表名
-
----
-
-### dockerMysqlMode
-
-**说明**: Docker MySQL 兼容模式
-
-**类型**: `boolean`
-
-**默认值**: `false`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "dm-main",
-      "optimizationSettings": {
-        "dockerMysqlMode": "true"
-      }
-    }
-  ]
-}
-```
-
-**效果**:
-- `true`: 启用 MySQL 兼容模式（解决 Docker 部署分页等问题）
-- `false`: 使用标准达梦模式
-
-**提示**: 对应 `ConnMoreSettings.DatabaseModel = DbType.MySql`，需 SqlSugarCore 5.1.4.157-preview09+。
-
----
-
-### schema
-
-**说明**: 指定 Schema 名称
-
-**类型**: `string`
-
-**默认值**: 无
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "dm-main",
-      "optimizationSettings": {
-        "schema": "myschema"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 多租户隔离，提高安全性
-
----
-
-### clobOptimization
-
-**说明**: 启用 Clob 类型优化
-
-**类型**: `boolean`
-
-**默认值**: `false`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "dm-main",
-      "optimizationSettings": {
-        "clobOptimization": "true"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 解决大文本字段插入空白问题（需要 SqlSugarCore.Dm 1.3.0+）
-
----
-
-### maxPoolSize
-
-**说明**: 连接池最大连接数
-
-**类型**: `integer`
-
-**默认值**: `100`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "dm-main",
-      "optimizationSettings": {
-        "maxPoolSize": "200"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 高并发场景下提高性能
-
----
+每次操作使用独立 SqlSugarClient，物理连接由驱动池复用。Clob 行为取决于驱动和类型化参数；实体属性上的 NClobPropertyConvert 示例不是 MCP 参数能力。
 
 ## 📝 完整配置示例
 
@@ -247,9 +104,6 @@ DatabaseMcpServer 自动为达梦数据库应用以下优化：
       "description": "达梦数据库生产环境（高并发配置）",
       "isDefault": true,
       "optimizationSettings": {
-        "clobOptimization": "true",
-        "maxPoolSize": "200",
-        "schema": "prod_schema",
         "dockerMysqlMode": "false"
       }
     }
@@ -398,16 +252,7 @@ Table 'user' doesn't exist
 
 **原因**: 驱动版本过旧
 
-**解决方案**:
-1. 升级到 `SqlSugarCore.Dm 1.3.0+`
-2. 启用 Clob 优化:
-```json
-{
-  "optimizationSettings": {
-    "clobOptimization": "true"
-  }
-}
-```
+**解决方案**: 核对已打包驱动版本、字段类型及绑定值。clobOptimization 不改变执行行为；通过最小参数化 SQL 复现，不能用该开关替代驱动验证。
 
 ---
 
@@ -415,7 +260,7 @@ Table 'user' doesn't exist
 
 **错误**: 分页查询返回错误结果
 
-**原因**: Docker 安装默认使用 MySQL 模式
+**原因**: ORM 方言与服务端实际兼容模式可能不一致；先检查服务器配置，不能仅凭 Docker 部署方式判断。
 
 **解决方案**:
 ```json
@@ -507,7 +352,7 @@ CREATE TABLE USER_INFO (
 
 使用 Clob 字段时:
 1. 确保驱动版本 >= 1.3.0
-2. 启用 Clob 优化
+2. 核对实际参数和字段类型；clobOptimization 开关不生效
 3. 使用 `NClobPropertyConvert` 特性
 
 ```csharp
@@ -555,7 +400,7 @@ Server=localhost:5236;User Id=SYSDBA;PWD=SYSDBA;SCHEMA=myschema;DATABASE=DAMENG
 
 ## 📚 相关文档
 
-- [达梦数据库 .NET 操作](../Doc/donet5_dm.md)
+- [ORM 配置与作用范围](../Doc/orm-configuration.md)
 - [扩展数据库优化策略](../Doc/extending-database-optimization.md)
 - [主 README](../README.md)
 
@@ -566,7 +411,7 @@ Server=localhost:5236;User Id=SYSDBA;PWD=SYSDBA;SCHEMA=myschema;DATABASE=DAMENG
 1. **表名规范**: 统一使用大写或小写，避免混用
 2. **Schema 隔离**: 生产环境使用 Schema 进行多租户隔离
 3. **连接池**: 根据并发量合理配置连接池大小
-4. **Clob 优化**: 大文本字段启用 Clob 优化
+4. **Clob 字段**: 用实际驱动和类型化参数验证，不依赖 clobOptimization 开关
 5. **Docker 部署**: 注意 MySQL 兼容模式配置
 6. **驱动版本**: 使用最新版本驱动（SqlSugarCore.Dm 1.3.0+）
 7. **Schema 创建**: 使用 `db.DbMaintenance.CreateDatabase()` 仅创建 Schema，数据库需已存在（5.1.4.199-preview30+）
@@ -574,4 +419,4 @@ Server=localhost:5236;User Id=SYSDBA;PWD=SYSDBA;SCHEMA=myschema;DATABASE=DAMENG
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2026-11-26

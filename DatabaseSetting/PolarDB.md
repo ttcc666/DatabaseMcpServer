@@ -2,6 +2,8 @@
 
 PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
+
 ---
 
 ## 📋 配置方式
@@ -18,9 +20,6 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
       "description": "阿里云 PolarDB（MySQL 兼容）",
       "isDefault": false,
       "optimizationSettings": {
-        "enableBulkCopy": "true",
-        "maxPoolSize": "100",
-        "charset": "utf8mb4",
         "disableNvarchar": "false"
       }
     }
@@ -47,8 +46,8 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 
 ## 🚀 自动性能优化
 
-- 复用 `MySqlOptimizationStrategy`：字符集/池化/BulkCopy/SSL/用户变量提示。
-- 若需 BulkCopy，连接串需 `AllowLoadLocalInfile=true`。
+- 复用 MySQL 协议驱动，每次操作独占客户端租约；能力按 PolarDB 产品声明判断。
+- 池化、TLS、字符集使用连接字符串配置；MCP 没有 BulkCopy 执行入口。
 - 若出现 `Unsupported command`，可在连接串设置 `Pooling=false`（禁用连接池）。
 - 少数兼容场景可选 `disableNvarchar=true` 规避 `N''` 相关语法/索引问题。
 
@@ -64,11 +63,11 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 
 | 配置键 | 类型 | 说明 |
 |--------|------|------|
-| `enableBulkCopy` | bool | 启用 BulkCopy（需连接串 AllowLoadLocalInfile=true） |
-| `maxPoolSize` | int | 连接池上限 |
-| `charset` | string | 字符集，默认 utf8mb4 |
-| `enableSsl` | bool | 启用 SSL |
-| `allowUserVariables` | bool | 允许用户变量 |
+| `enableBulkCopy` | bool | not-applicable；不启用 BulkCopy |
+| `maxPoolSize` | int | advisory；使用连接串 Max Pool Size |
+| `charset` | string | advisory；使用连接串 Charset |
+| `enableSsl` | bool | advisory；使用连接串 SslMode |
+| `allowUserVariables` | bool | advisory；使用连接串 Allow User Variables |
 | `disableNvarchar` | bool | 特殊环境禁用 `N''` 前缀时设为 `true` |
 
 ---
@@ -79,4 +78,4 @@ PolarDB 兼容 MySQL 协议，复用 MySQL 策略。
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2026-11-26

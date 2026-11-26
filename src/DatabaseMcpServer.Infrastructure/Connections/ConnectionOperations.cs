@@ -22,61 +22,18 @@ internal class ConnectionOperations : DatabaseOperationExecutor
         _settings = settings;
     }
 
-    public object GetDatabaseCapabilities(
-        string? databaseName = null)
-        => Execute(() =>
+    public Task<object> GetDatabaseCapabilities(string? databaseName = null, CancellationToken cancellationToken = default)
+        => ExecuteAsync(async () =>
         {
             using var reservation = DatabaseConfig.ReserveConnection(databaseName);
-            using var lease = reservation.Acquire();
+            using var lease = await reservation.AcquireAsync(cancellationToken);
             DatabaseAccessPolicy.EnsureAllowed(lease.Context, DatabaseToolAccess.Read, ExecutionOptions.Access);
             return DatabaseCapabilities.Describe(lease.Context, ExecutionOptions, _settings.Create(lease.Context.ToConnection()));
-        });
-
-    public Task<object> TestConnection(CancellationToken cancellationToken = default)
-    {
-        Logger.LogInformation("开始测试数据库连接");
-
-        return ExecuteAsync(async () =>
-        {
-            using var reservation = DatabaseConfig.ReserveConnection();
-            using var lease = await reservation.AcquireAsync(cancellationToken);
-            var context = lease.Context;
-            await _probe.CheckAsync(context, cancellationToken);
-
-            Logger.LogInformation("数据库连接测试完成");
-
-            return new
-            {
-                success = true,
-                message = "连接成功",
-                connected = true,
-                currentDatabase = context.DatabaseName,
-                databaseType = context.DatabaseType
-            };
         }, cancellationToken);
-    }
 
-    public Task<object> TestConnectionByName(string databaseName, CancellationToken cancellationToken = default)
-    {
-        Logger.LogInformation("开始测试指定数据库连接: {Name}", databaseName);
-
-        return ExecuteAsync(async () =>
-        {
-            using var reservation = DatabaseConfig.ReserveConnection(databaseName);
-            using var lease = await reservation.AcquireAsync(cancellationToken);
-            await _probe.CheckAsync(lease.Context, cancellationToken);
-
-            Logger.LogInformation("数据库 '{Name}' 连接测试完成", databaseName);
-
-            return new
-            {
-                success = true,
-                message = $"数据库 '{databaseName}' 连接成功",
-                connected = true,
-                databaseName
-            };
-        }, cancellationToken);
-    }
+    public Task<object> TestConnection(CancellationToken cancellationToken = default, string? databaseName = null,
+        int maxRetries = 0, int initialDelayMs = 1000, int totalTimeoutSeconds = 30)
+        => TestConnectionCore(databaseName, maxRetries, initialDelayMs, totalTimeoutSeconds, cancellationToken);
 
     public object GetDatabaseConfig()
     {
@@ -117,9 +74,9 @@ internal class ConnectionOperations : DatabaseOperationExecutor
     {
         return Execute(() =>
         {
-            var currentDb = DatabaseConfig.GetCurrentDatabaseName();
-            var databases = DatabaseConfig
-                .GetAllConnections()
+            var connections = DatabaseConfig.GetAllConnections();
+            var currentDb = connections.Count == 0 ? null : DatabaseConfig.GetCurrentDatabaseName();
+            var databases = connections
                 .Select(conn => new
                 {
                     name = conn.Name,
@@ -172,7 +129,8 @@ internal class ConnectionOperations : DatabaseOperationExecutor
         });
     }
 
-    public Task<object> HealthCheck(CancellationToken cancellationToken = default)
+    public Task<object> HealthCheck(CancellationToken cancellationToken = default,
+        Action<int, int, string>? onProgress = null)
     {
         Logger.LogInformation("开始执行数据库连接健康检查");
 
@@ -180,9 +138,11 @@ internal class ConnectionOperations : DatabaseOperationExecutor
         {
             var connections = DatabaseConfig.GetAllConnections();
             var healthResults = new List<HealthCheckResult>();
+            var total = connections.Count;
 
-            foreach (var connection in connections)
+            for (var i = 0; i < connections.Count; i++)
             {
+                var connection = connections[i];
                 var stopwatch = Stopwatch.StartNew();
                 var checkedAt = DateTime.UtcNow;
 
@@ -215,6 +175,8 @@ internal class ConnectionOperations : DatabaseOperationExecutor
                         CheckedAt = checkedAt
                     });
                 }
+
+                onProgress?.Invoke(i + 1, total, $"Checked {connection.Name} ({i + 1}/{total})");
             }
 
             var healthyConnections = healthResults.Count(item => item.IsHealthy);
@@ -232,12 +194,9 @@ internal class ConnectionOperations : DatabaseOperationExecutor
         }, cancellationToken);
     }
 
-    public Task<object> TestConnectionWithRetry(
-        int maxRetries = 3,
-        int initialDelayMs = 1000,
-        CancellationToken cancellationToken = default)
-    {
-        return ExecuteAsync(async () =>
+    private Task<object> TestConnectionCore(string? databaseName, int maxRetries, int initialDelayMs,
+        int totalTimeoutSeconds, CancellationToken cancellationToken)
+        => ExecuteAsync(async () =>
         {
             if (maxRetries is < 0 or > 10)
             {
@@ -249,29 +208,26 @@ internal class ConnectionOperations : DatabaseOperationExecutor
                 throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "initialDelayMs 必须在 1-60000 之间");
             }
 
-            Logger.LogInformation("开始测试数据库连接（带重试机制）: 最大重试次数={MaxRetries}", maxRetries);
-
+            if (totalTimeoutSeconds is <= 0 or > 300 || totalTimeoutSeconds > ExecutionOptions.MaxCommandTimeoutSeconds)
+                throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "totalTimeoutSeconds 必须在 1-300 之间且符合服务端上限。");
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(totalTimeoutSeconds));
             var attempts = 0;
             var currentDelay = initialDelayMs;
-            Exception? lastException = null;
-            DatabaseOperationLease? lease = null;
-
             try
             {
-                // Admission captures the target once. Busy admission is not a connection failure to retry.
-                using var reservation = DatabaseConfig.ReserveConnection();
-                lease = await reservation.AcquireAsync(cancellationToken);
-                while (attempts <= maxRetries)
+                using var snapshot = DatabaseConfig.ReserveConnection(databaseName);
+                while (true)
                 {
+                    using var attempt = snapshot.CreateAttempt();
+                    // Admission failures never enter the retry handler.
+                    var lease = await attempt.AcquireAsync(deadline.Token);
+                    Exception? failure = null;
                     try
                     {
                         attempts++;
-                        Logger.LogDebug("连接尝试 {Attempt}/{MaxAttempts}", attempts, maxRetries + 1);
-
                         var context = lease.Context;
-                        await _probe.CheckAsync(context, cancellationToken);
-
-                        Logger.LogInformation("数据库连接成功（第 {Attempt} 次尝试）", attempts);
+                        await _probe.CheckAsync(context, deadline.Token);
                         return new
                         {
                             success = true,
@@ -282,36 +238,28 @@ internal class ConnectionOperations : DatabaseOperationExecutor
                             databaseType = context.DatabaseType
                         };
                     }
-                    catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OperationCanceledException)
+                    catch (Exception ex) when (!deadline.IsCancellationRequested && ex is not OperationCanceledException)
                     {
-                        lastException = ex;
-                        Logger.LogWarning(ex, "连接尝试 {Attempt} 失败", attempts);
-
-                        if (attempts <= maxRetries)
-                        {
-                            Logger.LogInformation("等待 {Delay}ms 后重试...", currentDelay);
-                            await Task.Delay(currentDelay, cancellationToken);
-                            currentDelay *= 2;
-                        }
+                        if (maxRetries == 0) throw;
+                        failure = ex;
                     }
+                    finally { lease.Dispose(); }
+                    if (attempts > maxRetries || !DatabaseConnectionProbe.IsTransient(failure!))
+                    {
+                        var error = ApiResult<object>.CreateError("连接失败；请检查网络、认证和数据库权限。", DatabaseErrorCode.ConnectionFailed);
+                        return new { success = false, connected = false, attempts,
+                            message = $"连接失败，已尝试 {attempts} 次", errorMessage = error.ErrorMessage,
+                            errorCode = error.ErrorCode, retryable = error.Retryable, phase = error.Phase, hint = error.Hint };
+                    }
+                    await Task.Delay(currentDelay, deadline.Token);
+                    currentDelay = Math.Min(currentDelay * 2, 60000);
                 }
-
-                Logger.LogError(lastException, "数据库连接失败，已达到最大重试次数 {MaxRetries}", maxRetries);
-                return new
-                {
-                    success = false,
-                    message = $"连接失败，已尝试 {attempts} 次",
-                    connected = false,
-                    attempts,
-                    error = lastException?.Message ?? "未知错误"
-                };
             }
-            finally
+            catch (Exception) when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
             {
-                lease?.Dispose();
+                throw new DatabaseMcpException(DatabaseErrorCode.CommandTimeout, "连接测试超过总截止时间。");
             }
         }, cancellationToken);
-    }
 
     private sealed class HealthCheckResult
     {

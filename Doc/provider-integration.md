@@ -1,5 +1,7 @@
 # SqlSugar 官方用法对齐与容器回归
 
+> 本文记录 2026-11-20 的实现与回归过程，旧参数形状、目标框架和测试数量仅代表当时状态。现行类型化参数、异步读取与取消契约见[工具契约](tool-evolution.md)，当前发布检查见[5.0.0 说明](release-5.0.0.md)。
+
 ## 本轮改变
 
 `SqlSugarClientFactory` 每个租约新建、独占并释放 `SqlSugarClient`，保留 `IsAutoCloseConnection=true`，物理连接由底层驱动池化。取消或异常后的 ADO/AOP 状态不会进入下一次请求。已删除共享 `CreateClient` / `SqlSugarScope` 入口；配置快照、准入队列、重命名身份语义保留。
@@ -20,7 +22,7 @@ JSON 数字转换原先的 `long : double` 条件表达式会先提升为 double
 
 ## 复现
 
-在仓库根目录，安装 PowerShell 7、Docker Linux containers、.NET 9/10 SDK 和 Node.js。三个容器合计内存上限 4.5 GiB，宿主还需预留测试进程内存。
+在仓库根目录，安装 PowerShell 7、Docker Linux containers、.NET 10 SDK 和 Node.js。三个容器合计内存上限 4.5 GiB，宿主还需预留测试进程内存。
 
 ```powershell
 pwsh -NoProfile -File 'scripts/test-integration.ps1'

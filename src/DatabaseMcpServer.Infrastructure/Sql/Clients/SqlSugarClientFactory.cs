@@ -66,16 +66,26 @@ internal sealed class SqlSugarClientFactory : ISqlSugarClientFactory, IDisposabl
 
     private void DisposeClient(ISqlSugarClient client)
     {
-        // Mongo leases never open SqlSugar ADO. Its Dispose can construct the legacy static
-        // Mongo connection cache; native clients are owned and disposed by MongoClientRegistry.
-        if (client.CurrentConnectionConfig.DbType == DbType.MongoDb) return;
         try { client.Dispose(); }
-        catch (Exception ex) { _logger.LogWarning(ex, "释放失效数据库客户端失败"); }
+        catch (Exception ex)
+        {
+            if (client.CurrentConnectionConfig.DbType == DbType.MongoDb)
+                _logger.LogWarning("释放 MongoDB 客户端失败: {Message}", MongoError.Sanitize(ex).Message);
+            else
+                _logger.LogWarning(ex, "释放失效数据库客户端失败");
+        }
     }
 
     private void ConfigureAop(SqlSugarClient db)
     {
         db.Aop.OnLogExecuted = (_, _) => DatabaseTelemetry.SqlMs.Record(db.Ado.SqlExecutionTime.TotalMilliseconds);
+        if (db.CurrentConnectionConfig.DbType == DbType.MongoDb)
+        {
+            // Mongo commands embed document values, so SQL text/exception logging is unsafe.
+            db.Aop.OnLogExecuting = (_, _) => _logger.LogInformation("执行 MongoDB ADO 命令");
+            db.Aop.OnError = error => _logger.LogError("MongoDB ADO 命令失败: {Message}", MongoError.Sanitize(error).Message);
+            return;
+        }
         db.Aop.OnLogExecuting = (sql, pars) =>
         {
             if (!_logger.IsEnabled(LogLevel.Information))

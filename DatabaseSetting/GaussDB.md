@@ -53,12 +53,13 @@ Npgsql 连接 OpenGauss 时改用 `dbType=OpenGauss`。按官方文档核对服�
 
 | 选项 | 实际行为 |
 | --- | --- |
+| autoToLower / autoToLowerCodeFirst / disableNvarchar | GaussDB/OpenGauss（Npgsql）：映射到 ConnMoreSettings |
 | databaseModel / isOpenGauss | 仅 GaussDBNative：设置 ConnMoreSettings.DatabaseModel |
 | nativeDriver | 旧配置保留，advisory；驱动只由 dbType 选择 |
 | schema / maxPoolSize / noResetOnClose | advisory，不修改连接字符串 |
 | typeMapping / batchSize | not-applicable，没有对应 MCP 执行实现 |
 
-optimizationSettings 支持字符串、布尔值及数字标量；保存时统一为字符串。未知键保留并标为 unknown。Gauss 系策略默认 DisableNvarchar=true，该设置不会重写原始 SQL。
+optimizationSettings 支持字符串、布尔值及数字标量；保存时统一为字符串。未知键保留并标为 unknown。Gauss 系策略默认 DisableNvarchar=true（Npgsql 路径支持显式覆盖），该设置不会重写原始 SQL。
 
 Schema 使用驱动支持的 Search Path，或在 SQL 中显式限定对象。连接池、TLS、认证和会话选项放在原生连接字符串。Npgsql 的 No Reset On Close 按官方对应模式配置；它保留会话状态，不应被泛化为所有驱动的性能开关。
 

@@ -101,6 +101,11 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
         ApplyMonitoredFileChange();
     }
 
+    internal bool ScheduleApplyForTests(string fullPath)
+    {
+        return ScheduleApply(fullPath);
+    }
+
     private void StartMonitor(string configPath)
     {
         if (string.IsNullOrWhiteSpace(configPath))
@@ -194,11 +199,11 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
         ScheduleApply(e.FullPath);
     }
 
-    private void ScheduleApply(string fullPath)
+    private bool ScheduleApply(string fullPath)
     {
         if (_disposed)
         {
-            return;
+            return false;
         }
 
         string? monitoredPath;
@@ -207,16 +212,17 @@ internal sealed class DatabaseConfigFileMonitorService : IHostedService, IDispos
             monitoredPath = _monitoredPath;
             if (_debounceTimer == null || string.IsNullOrEmpty(monitoredPath))
             {
-                return;
+                return false;
             }
 
             if (!string.Equals(Path.GetFileName(fullPath), Path.GetFileName(monitoredPath), StringComparison.OrdinalIgnoreCase))
             {
-                return;
+                return false;
             }
 
             _debounceTimer.Stop();
             _debounceTimer.Start();
+            return true;
         }
     }
 

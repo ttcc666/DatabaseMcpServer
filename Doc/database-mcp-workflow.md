@@ -1,27 +1,32 @@
 # 数据库 MCP 工作流与执行策略
 
-当前工具契约见[兼容清理记录](compatibility-cleanup.md)。agent 升级后重新读取 tools/list；配置文件无需迁移。
+当前源码契约与迁移见[工具契约](tool-evolution.md)和[5.0.0 说明](release-5.0.0.md)。agent 升级后重新读取 tools/list，并核对调用参数；Mongo 的 SRV URI 需改为显式主机 URI，更新/删除需按批量语义检查权限和筛选范围。
 
-本轮基于 MCP SDK 2.4.0、SqlSugarCore 5.1.4.221，源码目标框架为 .NET 9 / .NET 10，发布工具仅 .NET 10。工具目录为 62 项，包含六个 [MongoDB 集合工具](mongodb-collections.md)，运行 `DatabaseMcpServer tool list` 查看当前安装包的目录。
+源码、测试和发布工具使用 .NET 10 LTS。静态目录有 54 项，包含六个基于 SqlSugar 内置 ADO 的 [MongoDB 集合工具](mongodb-collections.md)。使用 `tool list --json` 查看配置和权限允许的工具，`--all` 查看完整目录。元数据、执行计划和导出见[工具契约](tool-evolution.md)。
 
 ## 推荐工作流
 
 ```mermaid
 flowchart LR
     A[list_databases] --> B[get_database_capabilities]
-    B --> C[get_table_schema]
+    B --> O[list_objects]
+    O --> C[get_table_schema sections]
     C --> D[query_database / query_table_page]
-    C --> E[execute_command / schema tools]
+    C --> E[insert_row / execute_command / schema tools]
     D --> F[固定目标、预算、参数绑定、独占租约]
     E --> F
-    F --> G[SqlSugar Ado / DbMaintenance / SqlQueryable]
+    F --> G[异步 reader / 原生元数据 / DbMaintenance DDL]
 ```
 
 1. 发现连接与能力，再读取目标表结构。不要根据 provider 名称假定所有工具都支持。
 2. 每次查询、写入、schema 操作显式传 `databaseName`；CLI 对应 `--database-name`。省略时捕获当时的 currentDatabase；显式名称无效时失败，不回退。指定名称不切换或持久化全局选择。
 3. 推荐 `query_database`：类型化参数、明确 outputSchema、相同内容的 text/structuredContent、实际数据库名和配置版本。默认最多 1000 行、1 MiB 工具 JSON、30 秒命令超时。
-4. 单表逐页读取使用 `query_table_page`。SqlSugar `SqlQueryable<object>` + 外置 `OrderBy` + `ToDataTablePageAsync`，按全部主键列升序，无隐式 COUNT。无主键表、未实现分页的 provider、非法页码拒绝执行；兼容驱动可用性与产品验证程度分别诊断。复杂 SQL 使用查询工具自行表达。
-5. 写入按需要使用参数化 command 或专用 schema 工具。没有跨调用事务状态，也不自动重试写操作。分页受数据库当前隔离级别影响，不提供跨页快照；并发写入可能导致重复或遗漏。
+4. 单表逐页读取使用 `query_table_page`。未指定 columns/filters/orderBy 时，按非空复合主键定义顺序生成参数化 SQL，逐行施加预算，优先使用 nextCursor 续页；相同配置内容/路径、工作目录、目标库及查询条件下可跨 CLI 进程使用。指定任意新增选项时，直接调用 SqlSugar `ToOffsetDataTablePageAsync(page, pageSize)` 按页码读取，排序末尾追加缺失主键，整页读取后检查最终响应字节预算；该预算不限制读取期间内存。两种路径均无隐式 COUNT。cursor 不与新增选项或 page>1 同用；无主键、可空主键、能力不支持或非法页码拒绝执行。旧版本令牌需从第一页重新获取。复杂 SQL 使用查询工具自行表达。
+5. SQL Server/MySQL/SQLite 单行自增插入可用 `insert_row`，其他写入按需要使用参数化 command 或专用 schema 工具。`insert_row` 要求普通表名和唯一整数自增列，SQLite 需要 AUTOINCREMENT，返回字符串 identity；row 只接受标量/null，不能指定自增列。没有跨调用事务状态，也不自动重试写操作。分页不提供跨页快照；并发写入可能导致重复或遗漏。
+
+Mongo 使用 `mongo_find` / `mongo_aggregate` 读取已知集合，`mongo_insert_many` 插入文档数组，`mongo_update` / `mongo_delete` 批量修改，`mongo_truncate` 清空集合。没有集合发现或独立 count 工具；计数可在已知集合上使用只读 `$count` pipeline。写入确认和数据类型转换见[Mongo 契约](mongodb-collections.md)。
+
+MCP 客户端也可读取 `db://connections`、`db://capabilities/{databaseName}` 和 `db://schema/{databaseName}/{tableName}`；调用 `analyze_slow_query` 或 `safe_schema_migration` 获取指导步骤。Prompt 不自动执行数据库操作，连接名支持补全，健康检查支持客户端请求的进度通知。
 
 ```powershell
 DatabaseMcpServer tool get_database_capabilities --database-name 'reporting'
@@ -36,7 +41,11 @@ DatabaseMcpServer tool query_table_page --database-name 'reporting' --table-name
 
 | 环境变量 | 默认值 | 含义 |
 | --- | --- | --- |
-| `DB_QUERY_BOUNDED_DEFAULTS` | `false` | 保留配置语义：控制 batch、多结果集、single/scalar 和过程的省略预算默认值 |
+| `DB_MCP_TOOL_PROFILE` | `full` | full/analysis 均筛选配置 provider/权限并集，MCP/CLI/Web 一致；analysis 进一步限分析工具 |
+| `DB_QUERY_BOUNDED_DEFAULTS` | `true` | batch、多结果集省略预算时填充默认值；显式 false 保留旧行为；分页、过程和元数据始终有界 |
+| `DB_MAX_CONCURRENT` / `DB_MAX_QUEUED` | `8` / `32` | 每连接执行/等待上限 |
+| `DB_MAX_TOTAL_CONCURRENT` / `DB_MAX_TOTAL_QUEUED` | `32` / `128` | 应用协调器所有连接共享的执行/等待上限，范围 1–1024 / 0–10000 |
+| `DB_QUEUE_TIMEOUT_SECONDS` | `30` | 一次准入的总排队时限，不会按两层额度重复计时 |
 | `DB_QUERY_DEFAULT_ROWS` | `1000` | 默认返回行数 |
 | `DB_QUERY_DEFAULT_BYTES` | `1048576` | 默认工具 JSON 字节数 |
 | `DB_QUERY_DEFAULT_TIMEOUT_SECONDS` | `30` | 有界查询默认命令超时 |
@@ -48,7 +57,9 @@ DatabaseMcpServer tool query_table_page --database-name 'reporting' --table-name
 | `DB_METADATA_CACHE_SECONDS` | `30` | schema 缓存 TTL；`0` 关闭 |
 | `DB_METADATA_CACHE_ENTRIES` | `128` | schema 缓存项数上限，每项最多 1 MiB（同时服从服务端字节上限） |
 
-服务端行数/字节上限约束显式请求；未开启默认预算时，batch/多结果集允许省略行数和字节预算，但仍走同一 reader 执行路径。若要填充这些工具的默认预算，应启用 `DB_QUERY_BOUNDED_DEFAULTS=true`。`query_database` 始终填充默认预算，最小字节预算 1024。`sql_query_single` / `get_scalar` 支持 `maxResponseBytes`；超限返回 1013，不截断单值。存储过程也支持响应字节限制，但仍先通过同步 DataTable 读取；超限错误不会撤销已经发生的过程副作用。
+服务端行数/字节上限约束显式请求；batch/多结果集默认填充 1000 行、1 MiB，预算跨查询或结果集累计。升级后省略预算的调用可能返回更少的行，必须检查 `limitReached` / `truncated`。显式设置 `DB_QUERY_BOUNDED_DEFAULTS=false` 可保留这两个入口省略预算的旧行为；`query_database` 始终填充默认预算，最小字节预算 1024。单行/标量也用 `query_database`，首行可指定 `maxRows=1`。MySQL/SQL Server 存储过程使用异步 reader，达到预算时取消命令并返回 1013，不返回不完整输出参数；超限不会撤销已经发生的副作用。元数据、分页、过程、诊断和导出总 deadline 包含排队、执行与读取。
+
+全局与单连接额度联合分配；已满连接的等待者不会占用全局执行名额或阻塞其他可运行连接，同一连接按入队顺序准入。SQL/Mongo 共用额度，驱动清理完成后才归还。独立 CLI 进程和独立 Host 各自计数。队满/排队超时返回 `1009`；外层请求 deadline 先到期时保持请求超时语义。查询默认预算与命令超时策略分离：同步 GO/DDL 省略 timeout 时保留驱动默认，并受 `DB_COMMAND_MAX_TIMEOUT_SECONDS` 限制。原子事务沿用独立总 deadline，每条命令受剩余时间及显式命令 timeout 约束。
 
 行数限制到达后立即停读，不为判断后续是否存在而读第 N+1 行。`limitReached=true,truncated=null` 表示尚未确认后续行；字节不足导致丢弃完整行时为 `truncated=true`。不得把返回行数解释为总行数。
 
@@ -76,41 +87,24 @@ DateTimeOffset 目前允许 SQL Server/PostgreSQL；PostgreSQL 转 UTC 保留同
 
 错误码：1001 连接失败、1002 执行失败、1003 危险 SQL、1004 参数错误、1005 配置错误、1009 队列繁忙、1010 能力被拒绝、1011 命令超时、1012 不支持的能力、1013 响应超限。按驱动错误码/异常类型分类；缺乏可靠分类的 provider 保持执行失败，不用英文错误文本猜测。MCP 的错误同时设置 `isError=true`。
 
-## 元数据、诊断与观测
+## 元数据、能力与观测
 
-`get_table_schema` 复用一次 `GetColumnInfosByTableName(table,false)` 的列结果生成主键和自增列，避免重复查列；应用缓存包含连接稳定身份、配置版本、表名（可含 schema），合并同项并发加载。DDL、过程和通用命令完成后保守失效目标连接；部分失败/取消也失效。`refresh=true` 绕过缓存；外部 DDL 用 refresh 或等待 TTL。重命名后完成的旧写入仍能失效新名称下的缓存。
+`get_table_schema` 按连接、配置版本、表名和 section 缓存结果。SQLite、MySQL、PostgreSQL、SQL Server 和 DuckDB 使用原生异步读取，其他 SQL provider 的基础 section 由 SqlSugar 驱动提供。单次可查 1–50 张表，结果和缓存命中共享行数与字节预算。等待者取消不终止正在加载缓存的请求，加载失败或取消时不写缓存。DDL、存储过程和通用命令会使目标连接的缓存失效。外部 DDL 后可用 `refresh=true` 绕过缓存。
 
 `get_database_capabilities` 分开返回配置产品、实际 provider、工具可用性和产品验证状态。四库的有界多结果集和分页已验证；TiDB/Vastbase 等即使复用相同驱动，也不会继承产品验收。旧 maxPoolSize/charset/enableSsl/allowUserVariables 为 advisory，enableBulkCopy 为 not-applicable，均不修改驱动连接字符串。驱动选项显示允许公开的有效值与来源；显式连接字符串优先，随后是驱动默认。未知或非法优化项隐藏值，具体规则见 [ORM 配置约定](orm-configuration.md)。
 
-`DatabaseMcpServer.Execution` Meter 包含 active/queued/rejected/cancelled、queue/sql/read/request/serialize duration 和 response bytes，无 SQL、参数值、连接串标签。SqlSugar AOP 的 SqlExecutionTime 与完整读取耗时分开；读取指标包含映射和有界行编码。同步过程/GO 不承诺执行中立即取消。
+`DatabaseMcpServer.Execution` Meter 记录执行与排队数量、拒绝原因、超时和取消、请求与读取耗时、响应大小及元数据缓存命中。取消完成耗时包含资源清理。通过同名 ActivitySource 或日志里的 `TraceId` 关联请求，指标和 span 标签均不包含 SQL、参数或连接串。同步 GO/DDL 在驱动返回后才检查取消的路径仍受驱动限制。
 
 ## 验证和发布
 
 ```powershell
-dotnet test 'DatabaseMcpServer.slnx' -c 'Release' --filter 'Category!=Integration'
+dotnet test 'DatabaseMcpServer.slnx' -c 'Release' --filter 'Category!=Integration&Category!=MongoIntegration'
 pwsh -NoProfile -File 'scripts/test-integration.ps1'
+pwsh -NoProfile -File 'scripts/test-mongodb-integration.ps1'
 pwsh -NoProfile -File 'scripts/test-package.ps1'
 dotnet list 'DatabaseMcpServer.slnx' package --vulnerable --include-transitive
 ```
 
-包测试使用临时 prerelease 版本，本地 pack → tool-path 安装 → CLI/stdio，不发布、不全局安装；CI net10 job 已加入该流程。正式版本 3.7.0 未改动。共享 CreateClient API 和接口默认兜底已删除。MCP resources、MongoDB 实库扩展仍不在本轮范围。
+包测试使用临时 prerelease 版本，将包安装到独立 tool-path 后验证 CLI 和 stdio。
 
 官方依据：[MCP SDK tools](https://github.com/modelcontextprotocol/csharp-sdk/blob/v2.4.0/docs/concepts/tools/tools.md)、[SqlSugar ADO](https://www.donet5.com/Home/Doc?typeId=1198)、[SQL 分页](https://www.donet5.com/Home/Doc?typeId=1197)、[库表管理缓存](https://www.donet5.com/Home/Doc?typeId=1203)、[AOP](https://www.donet5.com/Home/Doc?typeId=1204)。
-
-## 前一轮验收证据（清理前基线）
-
-Windows 本机 net9/net10 **各 349 项常规测试通过**；Docker MySQL 8.4/PostgreSQL 17/SQL Server 2022 **各 TFM 38 项集成测试通过**。构建 0 warning/error；NuGet 含传递依赖审计未报告已知漏洞。没有使用子代理，没有提交、暂存或发布本轮改动。
-
-| Requirement | Evidence |
-| --- | --- |
-| 命名读写/schema 不改变全局选择，队列捕获版本和权限 | `NamedRequests_ReadWriteAndSchemaStayOnTargetWithoutChangingSelection`、`NamedQueuedRequest_KeepsVersionAndPolicyAcrossRenameAndReload`、`ExplicitInvalidTarget_DoesNotFallBack` |
-| 服务端预算、单值超限、实际 UTF-8 | `Budgets_ApplyDefaultsCapsAndSingleValueLimit`、`StructuredQuery_CliBindingTypedNullAndBoundedUnicode` |
-| 共同权限层，read-write 不能绕过 DDL 限制 | `ReadOnlyPolicy_BlocksAllMutationPathsButAllowsQueries`（含 CLI/Web）、`ReadWritePolicy_RejectsDdlEvenWhenDangerousOperationsEnabled`、`Tools_PublishCurrentSchemasAndQueryPayloadsOverProtocol`（含 MCP） |
-| 类型化参数精度、NULL、类型和时区 | `Binder_PreservesExactClrTypeAndValue`、`Binder_RejectsRoundingOverflowAndAmbiguousDates`、`Binder_ValidatesNullOutputSizePrecisionAndProviderCapabilities`；三库 `TypedQueryAndCommand_PreserveNullNumericDateAndArrayValues`、`TypedOffset_PreservesInstantAcrossProviderTimezoneRules` |
-| 真实输出/InputOutput、有界多结果集、取消结束 | `TypedProcedure_PreservesOutputAndInputOutputTypes`、`BoundedMultiple_MatchesNativeDataSetMappingsAndStopsAtBudget`、`StructuredQueryCancellation_StopsServerActivityAndReleasesLease` |
-| schema 缓存隔离/刷新/失效/TTL/容量/并发合并 | `SchemaCache_IsolatesTargetsRefreshesAndInvalidatesAfterDdl`、`MetadataCache_CoalescesLoadsExpiresBoundsCapacityAndDoesNotResurrectInvalidation` |
-| 分页与配置真实性 | `TablePagination_UsesUniqueOrderRejectsMissingKeyAndAvoidsImplicitCount`、`CapabilityDiagnostics_ReportActualDriverOptionsAndRedactSecrets` |
-| 错误分类、观测指标 | `Errors_ClassifyUnsupportedInvalidJsonAndProviderCodesWithoutMessageMatching`、`Telemetry_RecordsBalancedLeasesReadingAndPayloadBytesWithoutSqlTags` |
-| 安装包与旧入口兼容 | `scripts/test-package.ps1`：临时安装成功、stdio 59 tools、CLI 失败退出码 1；`scripts/verify-cli-tools.ps1`：目录覆盖 59/59，SQLite 45 成功/14 不支持操作，三个新增工具均成功 |
-
-故障注入：临时移除显式数值转换的 round-trip 校验，Single 精度丢失、Double 大整数舍入、Decimal 极小数归零三个用例均失败；恢复后 20 项类型化参数用例通过，随后全量常规测试通过。完整 stdio 测量为 213 字节工具 JSON / 667 字节响应行，含两份数据和封装。并发测量见[执行优化记录](execution-optimization.md)。远端 CI 已配置，未把本地运行描述为远端 CI 已通过。

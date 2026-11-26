@@ -4,6 +4,8 @@
 
 Trusted Publishing 使用 GitHub OIDC token 换取短期 NuGet API key，不需要在 GitHub Secrets 中保存长期 `NUGET_API_KEY`。
 
+当前源码的发布范围见[5.0.0 说明](release-5.0.0.md)。4.0.0 已发布，本轮包含工具删除及 Mongo 批量语义变更，已将 PackageVersion、MCP 清单和发布文档同步为待发布的 5.0.0。下文 3.5.6 等版本只演示流程；操作前替换为实际新版本，不能复用旧标签或依赖 `--skip-duplicate` 覆盖旧包。发布标签必须包含全部目标变更，暂存区内容不会自动进入 GitHub Actions。
+
 ---
 
 ## 1. 当前仓库配置
@@ -179,7 +181,7 @@ git merge --ff-only 'origin/main'
 至少检查以下文件：
 
 - `src/DatabaseMcpServer/DatabaseMcpServer.csproj` 中的 `PackageVersion`
-- `.mcp/server.json` 中的包版本
+- `.mcp/server.json` 中的顶层版本和包版本
 - `mcp.json.example` 中的示例版本
 - `README.md` / `README_EN.md` 的版本徽章和发布记录
 
@@ -191,7 +193,9 @@ git merge --ff-only 'origin/main'
 
 ### 5.3 本地验证
 
-当前发布仅打包 .NET 10，源码测试保留双框架。DuckDB 多平台原生库在双框架包中重复，会超过 NuGet.org 大小上限；详见[驱动清单](provider-drivers.md)。
+源码、测试和发布包统一使用 .NET 10 LTS。DuckDB 多平台原生库仅打包一份，并检查 NuGet.org 大小上限；详见[驱动清单](provider-drivers.md)。
+
+本轮还需按[5.0.0 说明](release-5.0.0.md)执行工具清单、SQL/Mongo 实库集成及安装包冒烟检查；`verify.ps1` 通过不代表这些独立检查已完成。
 
 ```powershell
 powershell -ExecutionPolicy 'Bypass' -File 'scripts\verify.ps1'
@@ -199,7 +203,7 @@ powershell -ExecutionPolicy 'Bypass' -File 'scripts\verify.ps1'
 dotnet pack `
   'src\DatabaseMcpServer\DatabaseMcpServer.csproj' `
   '--configuration' 'Release' `
-  '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' `
+  '-p:BuildWebsite=true' `
   '--artifacts-path' 'artifacts/package-build' `
   '--output' 'artifacts\release'
 ```
@@ -338,13 +342,13 @@ DatabaseMcpServer tool list
 
 Workflow 明确限制手动运行必须从默认分支启动。从 `dev` 或其他 branch 启动时，publish job 会被跳过。
 
-### 6.1 当前 3.5.5 的特殊情况
+### 6.1 历史案例：3.5.5
 
 `3.5.5` GitHub Release 早于 Trusted Publishing workflow，因此不会自动重新触发。
 
 - 如果 `3.5.5` 尚未上传 NuGet.org，可从 `main` 手动运行，tag 输入 `3.5.5`。
 - 如果 `3.5.5` 已上传，NuGet 版本不可覆盖；workflow 使用 `--skip-duplicate`，不会替换已存在的包。
-- 第一次完整的新版本发布建议使用下一个未发布版本，例如 `3.5.6`。
+- 当时第一次完整的新版本发布建议使用下一个未发布版本，例如 `3.5.6`；现在应选择当前尚未发布的新版本。
 
 ---
 

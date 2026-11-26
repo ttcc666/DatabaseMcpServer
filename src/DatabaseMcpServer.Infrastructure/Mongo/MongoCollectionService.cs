@@ -1,151 +1,211 @@
+using System.Text;
 using System.Text.Json;
 using DatabaseMcpServer.Helpers;
-using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using MongoDB.Bson;
-using MongoDB.Driver;
 
 namespace DatabaseMcpServer.Services;
 
-internal sealed class MongoCollectionService(IDatabaseConfigService databases, MongoClientRegistry clients, DatabaseExecutionOptions options)
+internal sealed class MongoCollectionService(SqlDatabaseSessions sessions, DatabaseExecutionOptions options)
 {
     public async Task<MongoCollectionResult> ExecuteAsync(MongoCollectionRequest request, CancellationToken cancellationToken)
     {
         using var measurement = DatabaseTelemetry.MeasureRequest();
         var result = new MongoCollectionResult { WriteOutcome = request.IsWrite ? "not-executed" : null };
-        var maximum = Math.Min(options.DefaultResponseBytes, options.MaxResponseBytes);
         var dispatched = false;
         CancellationToken operationToken = default;
         try
         {
             var limits = options.ResolveQuery(request.MaxRows, request.MaxResponseBytes, request.CommandTimeoutSeconds, bounded: true);
-            maximum = limits.Bytes!.Value;
-            if (maximum < 1024) throw MongoDocumentContract.Invalid("Mongo 响应至少需要 1024 字节预算。");
+            var maxResponseBytes = limits.Bytes!.Value;
+            if (maxResponseBytes < 1024) throw MongoDocumentContract.Invalid("Mongo 响应至少需要 1024 字节预算。");
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var cancellation = DatabaseTelemetry.MeasureCancellation(deadline.Token);
             var timeout = limits.TimeoutSeconds > 0 ? TimeSpan.FromSeconds(limits.TimeoutSeconds.Value) : Timeout.InfiniteTimeSpan;
             if (timeout != Timeout.InfiniteTimeSpan) deadline.CancelAfter(timeout);
             var token = deadline.Token;
             operationToken = token;
-            using var reservation = databases.ReserveConnection(request.DatabaseName);
-            using var lease = await reservation.AcquireAsync(token);
+
+            using var lease = await (request.DatabaseName == null
+                ? sessions.AcquireClientAsync(token)
+                : sessions.AcquireClientAsync(request.DatabaseName, token)).ConfigureAwait(false);
             var context = lease.Context;
-            DatabaseAccessPolicy.EnsureAllowed(context, request.IsWrite ? DatabaseToolAccess.Write : DatabaseToolAccess.Read, options.Access);
+            var requiredAccess = request.Operation switch
+            {
+                MongoOperation.Truncate => DatabaseToolAccess.Schema,
+                _ when request.IsWrite => DatabaseToolAccess.Write,
+                _ => DatabaseToolAccess.Read
+            };
+            DatabaseAccessPolicy.EnsureAllowed(context, requiredAccess, options.Access);
             if (DatabaseProviderCatalog.Parse(context.DatabaseType) != SqlSugar.DbType.MongoDb)
                 throw new DatabaseMcpException(DatabaseErrorCode.UnsupportedCapability, "Mongo 集合工具只支持 MongoDb 连接。");
+
             result.DatabaseName = context.DatabaseName;
             result.ConfigurationVersion = context.ConfigurationVersion;
-            if (request.Operation != MongoOperation.List) MongoDocumentContract.ValidateCollection(request.Collection);
+
+            MongoDocumentContract.ValidateCollection(request.Collection);
             if (request.Skip is < 0 or > 100000) throw MongoDocumentContract.Invalid("skip 必须在 0–100000 之间。");
-            var inputBytes = request.NamePrefix == null ? 0 : System.Text.Encoding.UTF8.GetByteCount(request.NamePrefix);
-            if (inputBytes > MongoDocumentContract.MaxInputBytes) throw MongoDocumentContract.Invalid("Mongo 输入超过 4 MiB。");
+
+            var inputBytes = 0;
             var filter = MongoDocumentContract.Parse(request.Filter, ref inputBytes, request.Operation is MongoOperation.Update or MongoOperation.Delete);
             var projection = MongoDocumentContract.Parse(request.Projection, ref inputBytes);
             var sort = MongoDocumentContract.Parse(request.Sort, ref inputBytes);
-            var document = MongoDocumentContract.Parse(request.Document, ref inputBytes, request.Operation == MongoOperation.Insert);
             var update = MongoDocumentContract.Parse(request.Update, ref inputBytes, request.Operation == MongoOperation.Update);
+            var documents = request.Operation == MongoOperation.InsertMany ? MongoDocumentContract.ParseMany(request.Documents, ref inputBytes) : null;
+
             MongoDocumentContract.ValidateFilter(filter);
             MongoDocumentContract.ValidateProjection(projection);
             MongoDocumentContract.ValidateSort(sort);
+            BsonDocument[]? pipeline = request.Operation == MongoOperation.Aggregate ? MongoPipelineContract.Parse(request.Pipeline, ref inputBytes) : null;
+
             if (request.Operation == MongoOperation.Update) MongoDocumentContract.ValidateUpdate(update);
             if (request.Operation is MongoOperation.Update or MongoOperation.Delete)
-                MongoDocumentContract.EnsureMutationAllowed(filter, request.Many, request.Upsert, request.AllowAll, context.EnableDangerousOperations);
-            var uri = MongoClientRegistry.ValidateUri(context.ConnectionString);
-            if (request.Collection != null && System.Text.Encoding.UTF8.GetByteCount(uri.DatabaseName + "." + request.Collection) > 255)
+                MongoDocumentContract.EnsureBatchMutationAllowed(filter, request.AllowAll, context.EnableDangerousOperations);
+            if (request.Operation == MongoOperation.Truncate && !context.EnableDangerousOperations)
+                throw new DatabaseMcpException(DatabaseErrorCode.AccessDenied, "mongo_truncate 需要 enableDangerousOperations=true。");
+
+            var uri = MongoDocumentContract.ValidateUri(context.ConnectionString);
+            if (Encoding.UTF8.GetByteCount(uri.DatabaseName + "." + request.Collection) > 255)
                 throw MongoDocumentContract.Invalid("数据库名与集合名组成的 namespace 超过 255 UTF-8 字节。");
-            if (request.IsWrite && new WriteConcern(uri.W).IsAcknowledged == false)
+            if (request.IsWrite && new MongoDB.Driver.WriteConcern(uri.W).IsAcknowledged == false)
                 throw MongoDocumentContract.Invalid("集合写入不支持 w=0；请配置 acknowledged write concern。");
-            if (request.Operation == MongoOperation.Insert)
+
+            EnsureFits(result, maxResponseBytes, 128);
+            var driverTimeout = limits.TimeoutSeconds is > 0 ? limits.TimeoutSeconds + 1 : limits.TimeoutSeconds;
+
+            await SqlCommandTimeout.WithTimeoutAsync(lease.Client, driverTimeout, token, async db =>
             {
-                if (!document.Contains("_id")) document.InsertAt(0, new BsonElement("_id", ObjectId.GenerateNewId()));
-                result.InsertedId = MongoDocumentContract.IdToJson(document["_id"]);
-            }
-            EnsureFits(result, maximum, 128);
-            using var mongo = await clients.AcquireAsync(context, token);
-            var collection = request.Collection == null ? null : mongo.Database.GetCollection<BsonDocument>(request.Collection);
-            if (request.IsWrite && !collection!.Settings.WriteConcern.IsAcknowledged)
-                throw MongoDocumentContract.Invalid("集合写入不支持 unacknowledged write concern。");
-            token.ThrowIfCancellationRequested();
-            switch (request.Operation)
+                switch (request.Operation)
+                {
+                    case MongoOperation.Find:
+                    {
+                        var stages = BuildFindPipeline(filter, sort, request.Skip, limits.Rows!.Value, projection);
+                        await ReadAggregateAsync(db, request.Collection!, stages, result, limits.Rows.Value, maxResponseBytes, token).ConfigureAwait(false);
+                        break;
+                    }
+                    case MongoOperation.Aggregate:
+                        await ReadAggregateAsync(db, request.Collection!, pipeline!, result, limits.Rows!.Value, maxResponseBytes, token).ConfigureAwait(false);
+                        break;
+                    case MongoOperation.InsertMany:
+                    {
+                        dispatched = true;
+                        var json = new BsonArray(documents!).ToJson(MongoDocumentContract.Canonical);
+                        result.InsertedCount = await db.Ado.ExecuteCommandAsync($"insertMany {request.Collection} {json}").ConfigureAwait(false);
+                        break;
+                    }
+                    case MongoOperation.Update:
+                    {
+                        dispatched = true;
+                        var payload = new BsonArray([new BsonDocument { { "filter", filter }, { "update", update } }]).ToJson(MongoDocumentContract.Canonical);
+                        result.ModifiedCount = await db.Ado.ExecuteCommandAsync($"updateMany {request.Collection} {payload}").ConfigureAwait(false);
+                        break;
+                    }
+                    case MongoOperation.Delete:
+                    {
+                        dispatched = true;
+                        var payload = new BsonArray([new BsonDocument("filter", filter)]).ToJson(MongoDocumentContract.Canonical);
+                        result.DeletedCount = await db.Ado.ExecuteCommandAsync($"deleteMany {request.Collection} {payload}").ConfigureAwait(false);
+                        break;
+                    }
+                    case MongoOperation.Truncate:
+                        dispatched = true;
+                        await db.Ado.ExecuteCommandAsync($"deleteMany {request.Collection} [{{\"filter\":{{}}}}]").ConfigureAwait(false);
+                        break;
+                }
+                return true;
+            }).ConfigureAwait(false);
+
+            if (request.IsWrite)
             {
-                case MongoOperation.List:
-                    BsonDocument? names = request.NamePrefix == null ? null : new("name", new BsonRegularExpression("^" + System.Text.RegularExpressions.Regex.Escape(request.NamePrefix)));
-                    using (var cursor = await mongo.Database.ListCollectionsAsync(new ListCollectionsOptions
-                    { Filter = names, BatchSize = Math.Min(64, limits.Rows!.Value) }, token))
-                    {
-                        result.Collections = [];
-                        await ReadCursorAsync(cursor, result, result.Collections, limits.Rows!.Value, maximum, token,
-                            value => new BsonDocument { { "name", value["name"] }, { "type", value.GetValue("type", "collection") } });
-                    }
-                    break;
-                case MongoOperation.Find:
-                    using (var cursor = await collection!.FindAsync(filter, new FindOptions<BsonDocument>
-                    { Projection = projection.ElementCount == 0 ? null : projection, Sort = sort, Skip = request.Skip,
-                        Limit = limits.Rows, BatchSize = Math.Min(64, limits.Rows!.Value),
-                        MaxTime = timeout == Timeout.InfiniteTimeSpan ? null : timeout }, token))
-                    {
-                        result.Documents = [];
-                        await ReadCursorAsync(cursor, result, result.Documents, limits.Rows!.Value, maximum, token);
-                    }
-                    break;
-                case MongoOperation.Count:
-                    result.MatchedCount = await collection!.CountDocumentsAsync(filter, new CountOptions
-                    { MaxTime = timeout == Timeout.InfiniteTimeSpan ? null : timeout }, token);
-                    break;
-                case MongoOperation.Insert:
-                    dispatched = true;
-                    await collection!.InsertOneAsync(document, cancellationToken: token);
-                    break;
-                case MongoOperation.Update:
-                    dispatched = true;
-                    var updateOptions = new UpdateOptions { IsUpsert = request.Upsert };
-                    var updated = request.Many ? await collection!.UpdateManyAsync(filter, update, updateOptions, token)
-                        : await collection!.UpdateOneAsync(filter, update, updateOptions, token);
-                    result.MatchedCount = updated.MatchedCount;
-                    result.ModifiedCount = updated.ModifiedCount;
-                    if (updated.UpsertedId != null) result.UpsertedId = MongoDocumentContract.IdToJson(updated.UpsertedId);
-                    break;
-                case MongoOperation.Delete:
-                    dispatched = true;
-                    var deleteOptions = new DeleteOptions();
-                    var deleted = request.Many ? await collection!.DeleteManyAsync(filter, deleteOptions, token)
-                        : await collection!.DeleteOneAsync(filter, deleteOptions, token);
-                    result.DeletedCount = deleted.DeletedCount;
-                    break;
+                result.Acknowledged = true;
+                result.WriteOutcome = "acknowledged";
             }
-            if (request.IsWrite) { result.Acknowledged = true; result.WriteOutcome = "acknowledged"; }
-            EnsureFits(result, maximum);
+            EnsureFits(result, maxResponseBytes);
         }
         catch (Exception) when (cancellationToken.IsCancellationRequested)
-        { DatabaseTelemetry.Cancelled.Add(1); cancellationToken.ThrowIfCancellationRequested(); throw; }
+        {
+            DatabaseTelemetry.Cancelled.Add(1);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw;
+        }
         catch (Exception ex)
         {
+            if (operationToken.IsCancellationRequested)
+            {
+                DatabaseTelemetry.Cancelled.Add(1);
+                DatabaseTelemetry.RequestTimeouts.Add(1);
+            }
             var error = MongoError.Sanitize(ex, operationToken.IsCancellationRequested);
-            result = new MongoCollectionResult { Success = false, ErrorCode = (int)error.ErrorCode, ErrorMessage = error.Message,
-                WriteOutcome = request.IsWrite ? result.WriteOutcome == "acknowledged" ? "acknowledged" : dispatched ? "unknown" : "not-executed" : null,
-                Acknowledged = result.WriteOutcome == "acknowledged" ? true : null };
+            var details = ApiResult<object>.CreateError(error.Message, error.ErrorCode);
+            var acknowledged = result.WriteOutcome == "acknowledged";
+            string? writeOutcome = null;
+            if (request.IsWrite)
+            {
+                if (acknowledged) writeOutcome = "acknowledged";
+                else writeOutcome = dispatched ? "unknown" : "not-executed";
+            }
+            result = new MongoCollectionResult
+            {
+                Success = false, ErrorCode = (int)error.ErrorCode, ErrorMessage = error.Message,
+                Retryable = details.Retryable, Phase = error.Phase ?? details.Phase, Capability = error.Capability, Hint = details.Hint,
+                WriteOutcome = writeOutcome,
+                Acknowledged = acknowledged ? true : null
+            };
         }
         return result;
     }
 
-    private static async Task ReadCursorAsync(IAsyncCursor<BsonDocument> cursor, MongoCollectionResult result,
-        List<JsonElement> values, int maxRows, int maxBytes, CancellationToken token, Func<BsonDocument, BsonDocument>? select = null)
+    private static BsonDocument[] BuildFindPipeline(BsonDocument filter, BsonDocument sort, int skip, int limit, BsonDocument projection)
     {
-        // Reserve the largest possible row count and state. Each document is encoded exactly once.
+        var stages = new List<BsonDocument>();
+        if (filter.ElementCount > 0) stages.Add(new BsonDocument("$match", filter));
+        stages.Add(new BsonDocument("$sort", sort));
+        if (skip > 0) stages.Add(new BsonDocument("$skip", skip));
+        stages.Add(new BsonDocument("$limit", limit));
+        if (projection.ElementCount > 0) stages.Add(new BsonDocument("$project", projection));
+        return [.. stages];
+    }
+
+    private static async Task ReadAggregateAsync(SqlSugar.ISqlSugarClient db, string collection, IEnumerable<BsonDocument> pipeline,
+        MongoCollectionResult result, int maxRows, int maxBytes, CancellationToken token)
+    {
+        using var measurement = DatabaseTelemetry.MeasureRead();
+        var stages = pipeline.Append(new BsonDocument("$limit", maxRows));
+        var command = $"aggregate {collection} {new BsonArray(stages).ToJson(MongoDocumentContract.Canonical)}";
+        using var reader = await db.Ado.GetDataReaderAsync(command).ConfigureAwait(false);
+        result.Documents = [];
         result.ReturnedCount = maxRows;
         var bytes = JsonSerializer.SerializeToUtf8Bytes(result, JsonSerializationDefaults.CompactCamelCase).Length;
         result.ReturnedCount = 0;
-        while (await cursor.MoveNextAsync(token))
+
+        while (await QueryReader.ReadAsync(reader, token).ConfigureAwait(false))
         {
-            foreach (var document in cursor.Current)
+            var fields = new Dictionary<string, object?>();
+            for (var i = 0; i < reader.FieldCount; i++)
             {
-                token.ThrowIfCancellationRequested();
-                var value = MongoDocumentContract.ToJson(select == null ? document : select(document));
-                var added = JsonSerializer.SerializeToUtf8Bytes(value, JsonSerializationDefaults.CompactCamelCase).Length + (values.Count > 0 ? 1 : 0);
-                if (bytes + added > maxBytes) { result.LimitReached = true; result.Truncated = true; return; }
-                values.Add(value);
-                bytes += added;
-                result.ReturnedCount = values.Count;
-                if (values.Count == maxRows) { result.LimitReached = true; result.Truncated = null; return; }
+                fields.Add(reader.GetName(i), reader.GetValue(i) switch
+                {
+                    DBNull => null,
+                    BsonValue bson => MongoDocumentContract.ToJson(bson),
+                    var field => field
+                });
+            }
+            var value = JsonSerializer.SerializeToElement(fields, JsonSerializationDefaults.CompactCamelCase);
+            var added = JsonSerializer.SerializeToUtf8Bytes(value, JsonSerializationDefaults.CompactCamelCase).Length + (result.Documents.Count > 0 ? 1 : 0);
+            if (bytes + added > maxBytes)
+            {
+                result.LimitReached = true;
+                result.Truncated = true;
+                return;
+            }
+            result.Documents.Add(value);
+            bytes += added;
+            result.ReturnedCount = result.Documents.Count;
+            if (result.Documents.Count == maxRows)
+            {
+                result.LimitReached = true;
+                result.Truncated = null;
+                return;
             }
         }
     }
@@ -153,7 +213,6 @@ internal sealed class MongoCollectionService(IDatabaseConfigService databases, M
     private static void EnsureFits(MongoCollectionResult result, int bytes, int reserve = 0)
     {
         if (JsonSerializer.SerializeToUtf8Bytes(result, JsonSerializationDefaults.CompactCamelCase).Length + reserve > bytes)
-            throw new DatabaseMcpException(DatabaseErrorCode.ResponseLimitExceeded, "Mongo 响应元数据或 ID 超出字节预算，请增加预算。");
+            throw new DatabaseMcpException(DatabaseErrorCode.ResponseLimitExceeded, "Mongo 响应元数据超出字节预算，请增加预算。");
     }
-
 }

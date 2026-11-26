@@ -3,12 +3,42 @@ using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Strategies.DBSetting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using SqlSugar;
 
 namespace DatabaseMcpServer.Tests;
 
 public class SqlSugarClientFactoryTests
 {
+    [Fact]
+    public void MongoAop_LogsExecutionAndErrorsWithoutDocumentValues()
+    {
+        var logger = new CaptureLogger();
+        using var factory = new SqlSugarClientFactory(logger, new DatabaseOptimizationStrategyFactory(), new DatabaseExecutionOptions());
+        using var lease = factory.AcquireClient(new DatabaseConnection
+        { Name = "mongo", DbType = "MongoDb", ConnectionString = "mongodb://localhost:1/test" });
+        const string command = "insertMany users [{\"password\":\"private-document-value\"}";
+        Assert.ThrowsAny<Exception>(() => lease.Client.Ado.ExecuteCommand(command));
+
+        Assert.Equal(new[] { LogLevel.Information, LogLevel.Error }, logger.Entries.Select(entry => entry.Level));
+        Assert.All(logger.Entries, entry =>
+        {
+            Assert.Contains("MongoDB", entry.Message);
+            Assert.DoesNotContain("private-", entry.Message);
+            Assert.DoesNotContain("password", entry.Message);
+            Assert.Null(entry.Exception);
+        });
+    }
+
+    private sealed class CaptureLogger : ILogger<SqlSugarClientFactory>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Entries.Add((level, formatter(state, exception), exception));
+    }
+
     [Fact]
     public void UpdateConnections_PreservesIdentityAndCapturesNewConfiguration()
     {

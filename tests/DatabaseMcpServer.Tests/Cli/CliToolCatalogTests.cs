@@ -9,6 +9,22 @@ namespace DatabaseMcpServer.Tests;
 public class CliToolCatalogTests
 {
     [Fact]
+    public async Task RemovedTools_AreNotDiscoverableOrCallableThroughCli()
+    {
+        var catalog = new ToolCatalog();
+        Assert.Equal(ToolContract.Names, catalog.Tools.Select(t => t.Name));
+        foreach (var name in ToolContract.RemovedNames)
+        {
+            Assert.False(catalog.TryGetTool(name, out _));
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+            Assert.Equal(2, await new CliRunner().RunAsync(["tool", name], output, error));
+            Assert.Empty(output.ToString());
+            Assert.Contains(name, error.ToString());
+        }
+    }
+
+    [Fact]
     public void ToolCatalog_ShouldExposeAllMcpTools_WithSnakeCaseAndKebabCaseNames()
     {
         var catalog = new ToolCatalog();

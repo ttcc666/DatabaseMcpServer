@@ -1,17 +1,17 @@
-using DatabaseMcpServer.Configuration;
 using System.Reflection;
-using System.Text.Json;
 using System.Net;
-using DatabaseMcpServer.Cli;
+using System.Text.Json;
+using DatabaseMcpServer.Configuration;
 using DatabaseMcpServer.Extensions;
 using DatabaseMcpServer.Hosting;
 using DatabaseMcpServer.Interfaces;
+using DatabaseMcpServer.Operations;
 using DatabaseMcpServer.Services;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -85,22 +85,7 @@ internal sealed class CliWebHost : ICliWebHost
 
         builder.Logging.ClearProviders();
 
-        var logger = DatabaseHostBuilderFactory.CreateLogger(silentLogs: true);
-        builder.Services.AddSerilog(logger);
-        SqlSugarProviderWarmup.Warmup(logger);
-        builder.Services.AddDatabaseMcpApplicationServices(
-            cliToolMode: true,
-            currentDatabaseStateFilePath: _currentDatabaseStateFilePath,
-            enableMonitorConfig: options.EnableMonitorConfig,
-            configPath: configContext.ConfigPath);
-        builder.Services.AddDatabaseMcpToolServices();
-        builder.Services.AddSingleton(configContext);
-        builder.Services.AddSingleton<ConfigurationFileStore>();
-        builder.Services.AddSingleton(services => new ConfigurationCommands(
-            services.GetRequiredService<ConfigurationFileStore>(),
-            services.GetRequiredService<ISqlSugarClientFactory>(), services.GetRequiredService<DatabaseConnectionProbe>(),
-            services.GetRequiredService<DatabaseExecutionCoordinator>()));
-        builder.Services.AddSingleton<CliWebApiService>();
+        AddServices(builder.Services, configContext, _currentDatabaseStateFilePath, options.EnableMonitorConfig);
         builder.WebHost.ConfigureKestrel(optionsBuilder =>
         {
             if (options.Port is > 0)
@@ -137,9 +122,7 @@ internal sealed class CliWebHost : ICliWebHost
         app.Use(async (context, next) =>
         {
             var request = context.Request;
-            if (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
-                && (HttpMethods.IsPost(request.Method) || HttpMethods.IsPut(request.Method)
-                    || HttpMethods.IsPatch(request.Method) || HttpMethods.IsDelete(request.Method)))
+            if (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
             {
                 var error = LocalWebRequestGuard.Validate(request);
                 if (error != null)
@@ -159,93 +142,8 @@ internal sealed class CliWebHost : ICliWebHost
             Assembly.GetExecutingAssembly(),
             "DatabaseMcpServer.website.dist");
 
-        app.MapGet("/api/context", (CliWebApiService service) => Results.Json(service.GetContext()));
-        app.MapGet("/api/dashboard", (CliWebApiService service) => Results.Json(service.GetDashboard()));
-        app.MapGet("/api/presets", (CliWebApiService service) => Results.Json(service.GetPresets()));
-        app.MapGet("/api/presets/{dbType}", (CliWebApiService service, string dbType) => Results.Json(service.GetPreset(dbType)));
-        app.MapGet("/api/connection-string-profiles/{dbType}", (CliWebApiService service, string dbType) => Results.Json(service.GetConnectionStringProfile(dbType)));
-        app.MapGet("/api/databases/{name}", (CliWebApiService service, string name) => Results.Json(service.GetDatabase(name)));
-        app.MapGet("/api/tools", (CliWebToolService service) => Results.Json(service.GetTools()));
-
-        app.MapPost("/api/config/init", (CliWebApiService service, CliWebInitializeRequest request) =>
-            JsonPayload(service.Initialize(request.Force)));
-        app.MapPost("/api/config/validate", (CliWebApiService service) =>
-            JsonPayload(service.Validate()));
-        app.MapPost("/api/config/doctor", async (CliWebApiService service, CliWebDoctorRequest request, CancellationToken cancellationToken) =>
-            JsonPayload(await service.DoctorAsync(request, cancellationToken)));
-        app.MapGet("/api/config/export", (CliWebApiService service) =>
-        {
-            var export = service.Export();
-            return Results.File(export.Contents, "application/json", export.DownloadName);
-        });
-        app.MapPost("/api/config/import", async (HttpRequest request, CliWebApiService service, CancellationToken cancellationToken) =>
-        {
-            var form = await request.ReadFormAsync(cancellationToken);
-            var file = form.Files["file"];
-            if (file == null || file.Length == 0)
-            {
-                return JsonPayload(JsonSerializer.Serialize(new
-                {
-                    success = false,
-                    message = "请选择要导入的 JSON 文件。"
-                }));
-            }
-
-            var force = bool.TryParse(form["force"], out var forceValue) && forceValue;
-            await using var fileStream = file.OpenReadStream();
-            return JsonPayload(await service.ImportAsync(fileStream, force, cancellationToken));
-        });
-
-        app.MapPost("/api/databases/from-preset", (CliWebApiService service, CliWebCreateFromPresetRequest request) =>
-            JsonPayload(service.CreateFromPreset(request)));
-        app.MapPost("/api/databases", (CliWebApiService service, CliWebAddDatabaseRequest request) =>
-            JsonPayload(service.AddDatabase(request)));
-        app.MapPost("/api/databases/{name}/rename", (CliWebApiService service, string name, CliWebRenameDatabaseRequest request) =>
-            JsonPayload(service.RenameDatabase(name, request)));
-        app.MapPut("/api/databases/{name}", (CliWebApiService service, string name, CliWebUpdateDatabaseRequest request) =>
-            JsonPayload(service.UpdateDatabase(name, request)));
-        app.MapPost("/api/databases/{name}/clone", (CliWebApiService service, string name, CliWebCloneDatabaseRequest request) =>
-            JsonPayload(service.CloneDatabase(name, request)));
-        app.MapDelete("/api/databases/{name}", (CliWebApiService service, string name) =>
-            JsonPayload(service.RemoveDatabase(name)));
-        app.MapPost("/api/databases/{name}/set-default", (CliWebApiService service, string name) =>
-            JsonPayload(service.SetDefaultDatabase(name)));
-        app.MapPost("/api/databases/{name}/test", async (CliWebApiService service, string name, CancellationToken cancellationToken) =>
-            JsonPayload(await service.TestConnectionAsync(name, cancellationToken)));
-        app.MapPost("/api/databases/health-check", async (CliWebApiService service, CancellationToken cancellationToken) =>
-            JsonPayload(await service.HealthCheckAsync(cancellationToken)));
-        app.MapPost("/api/current-database/switch", (CliWebApiService service, CliWebSwitchCurrentDatabaseRequest request) =>
-            JsonPayload(service.SwitchCurrentDatabase(request.DatabaseName)));
-        app.MapPost("/api/tools/{toolName}/invoke", async (HttpRequest request, CliWebToolService service, string toolName, CancellationToken cancellationToken) =>
-        {
-            var requestError = ValidateToolInvocationRequest(request);
-            if (requestError != null)
-            {
-                return requestError;
-            }
-
-            try
-            {
-                var payload = await ReadToolInvocationRequestAsync(request, cancellationToken);
-                return Results.Json(await service.InvokeAsync(toolName, payload, cancellationToken));
-            }
-            catch (ToolRequestBodyTooLargeException ex)
-            {
-                return Results.Json(new { success = false, message = ex.Message }, statusCode: StatusCodes.Status413PayloadTooLarge);
-            }
-            catch (JsonException ex)
-            {
-                return Results.Json(new { success = false, message = $"Tool 请求 JSON 无效: {ex.Message}" }, statusCode: StatusCodes.Status400BadRequest);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return Results.Json(new { success = false, message = ex.Message }, statusCode: StatusCodes.Status404NotFound);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.Json(new { success = false, message = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
-            }
-        });
+        app.MapCliWebConfigurationEndpoints();
+        app.MapCliWebToolEndpoints();
 
         app.UseDefaultFiles(new DefaultFilesOptions
         {
@@ -283,54 +181,40 @@ internal sealed class CliWebHost : ICliWebHost
         });
     }
 
-    private static IResult JsonPayload(string payload)
+    private static void AddServices(
+        IServiceCollection services,
+        CliWebConfigContext configContext,
+        string? currentDatabaseStateFilePath,
+        bool? enableMonitorConfig)
     {
-        return Results.Content(payload, "application/json; charset=utf-8");
-    }
-
-    private static IResult? ValidateToolInvocationRequest(HttpRequest request)
-    {
-        if (request.ContentLength is > 1024 * 1024)
-        {
-            return Results.Json(new { success = false, message = "Tool 请求体不能超过 1 MiB。" }, statusCode: StatusCodes.Status413PayloadTooLarge);
-        }
-
-        if (!request.HasJsonContentType())
-        {
-            return Results.Json(new { success = false, message = "Tool 请求必须使用 application/json。" }, statusCode: StatusCodes.Status415UnsupportedMediaType);
-        }
-
-        return null;
-    }
-
-    private static async Task<CliWebToolInvocationRequest> ReadToolInvocationRequestAsync(
-        HttpRequest request,
-        CancellationToken cancellationToken)
-    {
-        const int maximumBodySize = 1024 * 1024;
-        await using var body = new MemoryStream();
-        var buffer = new byte[64 * 1024];
-
-        while (true)
-        {
-            var bytesRead = await request.Body.ReadAsync(buffer, cancellationToken);
-            if (bytesRead == 0)
-            {
-                break;
-            }
-
-            if (body.Length + bytesRead > maximumBodySize)
-            {
-                throw new ToolRequestBodyTooLargeException("Tool 请求体不能超过 1 MiB。");
-            }
-
-            await body.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-        }
-
-        var payload = JsonSerializer.Deserialize<CliWebToolInvocationRequest>(
-            body.GetBuffer().AsSpan(0, checked((int)body.Length)),
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        return payload ?? throw new JsonException("请求体不能为空。");
+        var logger = DatabaseHostBuilderFactory.CreateLogger(silentLogs: true);
+        services.AddSerilog(logger);
+        services.AddDatabaseMcpApplicationServices(
+            cliToolMode: true,
+            currentDatabaseStateFilePath: currentDatabaseStateFilePath,
+            enableMonitorConfig: enableMonitorConfig,
+            configPath: configContext.ConfigPath);
+        services.AddDatabaseMcpToolServices();
+        services.AddSingleton(configContext);
+        services.AddSingleton<ConfigurationFileStore>();
+        services.AddSingleton(services => new ConfigurationCommands(
+            services.GetRequiredService<ConfigurationFileStore>(),
+            services.GetRequiredService<ISqlSugarClientFactory>(), services.GetRequiredService<DatabaseConnectionProbe>(),
+            services.GetRequiredService<DatabaseExecutionCoordinator>()));
+        // Resolve runtime services only when requested so missing or invalid configuration remains editable.
+        services.AddSingleton(services => new CliWebConfigurationQueries(
+            configContext,
+            services.GetRequiredService<ConfigurationFileStore>(),
+            services.GetRequiredService<ICurrentDatabaseStateStore>(),
+            () => services.GetService<IDatabaseConfigService>()));
+        services.AddSingleton(services => new CliWebApiService(
+            configContext,
+            services.GetRequiredService<ConfigurationCommands>(),
+            services.GetRequiredService<ConnectionStringBuilder>(),
+            services.GetRequiredService<CliWebConfigurationQueries>(),
+            services.GetRequiredService<ConfigurationRuntimeApplier>(),
+            () => services.GetRequiredService<IDatabaseConfigService>(),
+            () => services.GetRequiredService<ConnectionOperations>()));
     }
 
     private static Uri ResolveBaseAddress(WebApplication app)
@@ -384,7 +268,4 @@ internal sealed class CliWebHost : ICliWebHost
             }
         }
     }
-
-    private sealed class ToolRequestBodyTooLargeException(string message) : Exception(message);
-
 }

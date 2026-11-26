@@ -2,6 +2,8 @@
 
 本文档详细说明 Oracle 数据库的配置方法，并补充新版驱动（5.1.4.197+ 真异步）与表名大小写、原生自增、Nvarchar 兼容等注意事项。
 
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
+
 ---
 
 ## 📋 配置方式
@@ -82,7 +84,7 @@ Data Source=(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=150.158.57.1
 
 ### 驱动/版本提示
 
-- **真异步驱动**: 5.1.4.197+ 引入最新 Oracle 驱动，支持真异步；请确保线程安全，推荐使用 `SqlSugarScope` 单例。
+- **真异步驱动**: 5.1.4.197+ 引入最新 Oracle 驱动，支持真异步；本服务每次操作独占 `SqlSugarClient` 租约以保证线程安全。
 - **连接串格式**: 简单格式和完整描述符均可；简单格式连不上可尝试完整描述符。
 
 ### 可选参数
@@ -503,10 +505,7 @@ Min Pool Size=20;Max Pool Size=200;
 db.Insertable(List<实体>).UseParameter().ExecuteCommand();
 ```
 
-**性能对比**:
-- 普通插入: 100 条/秒
-- 参数化插入: 1,000 条/秒
-- BulkCopy: 10,000 条/秒
+以上为应用直接使用 SqlSugar 的示例；MCP 没有 BulkCopy 工具，不承诺固定吞吐量。
 
 ### 3. 序列 vs Identity
 
@@ -566,4 +565,4 @@ db.Ado.ExecuteCommand("EXEC sp_name @cursor", param);
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2026-11-26

@@ -30,8 +30,11 @@ internal sealed class ProviderFixture : IDisposable
     public QueryTools Query => _host.Services.GetRequiredService<QueryTools>();
     public CommandTools Command => _host.Services.GetRequiredService<CommandTools>();
     public DatabaseQueryTools StructuredQuery => _host.Services.GetRequiredService<DatabaseQueryTools>();
+    public T Tool<T>() where T : notnull => _host.Services.GetRequiredService<T>();
+    public static JsonDocument Success(ModelContextProtocol.Protocol.CallToolResult result)
+        => Success(((ModelContextProtocol.Protocol.TextContentBlock)Assert.Single(result.Content)).Text);
 
-    public ProviderFixture(string provider)
+    public ProviderFixture(string provider, Action<ISqlSugarClient>? observeClient = null, Action<IServiceCollection>? configureServices = null)
     {
         Provider = provider;
         var connectionString = Environment.GetEnvironmentVariable("DBMCP_TEST_" + provider.ToUpperInvariant());
@@ -51,6 +54,8 @@ internal sealed class ProviderFixture : IDisposable
             // A single slot makes the successful follow-up also prove admission was released.
             builder.Services.AddSingleton(new DatabaseExecutionOptions { MaxConcurrent = 1, MaxQueued = 1, QueueTimeoutSeconds = 2 });
             builder.Services.AddDatabaseMcpToolServices();
+            if (observeClient != null) ObservedClientFactory.Register(builder.Services, observeClient);
+            configureServices?.Invoke(builder.Services);
             _host = builder.Build();
             Observer = new SqlSugarClient(new ConnectionConfig
             {
@@ -107,8 +112,8 @@ internal sealed class ProviderFixture : IDisposable
 
     public async Task AssertUsable()
     {
-        using var result = Success(await Query.GetScalar("SELECT 17"));
-        Assert.Equal(17, result.RootElement.GetProperty("value").GetInt32());
+        using var result = Success(await StructuredQuery.QueryDatabase("SELECT 17 AS value", maxRows: 1));
+        Assert.Equal(17, result.RootElement.GetProperty("data")[0].GetProperty("value").GetInt32());
     }
 
     public void Dispose()

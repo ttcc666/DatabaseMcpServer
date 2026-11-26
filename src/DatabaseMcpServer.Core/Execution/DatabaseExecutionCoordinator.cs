@@ -12,6 +12,8 @@ internal sealed class DatabaseExecutionCoordinator : IDisposable
     private (string Previous, string New)? _pendingRename;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly DatabaseExecutionOptions _options;
+    private readonly LinkedList<Waiter> _waiting = new();
+    private int _active;
     private bool _disposed;
 
     public DatabaseExecutionCoordinator(DatabaseExecutionOptions options)
@@ -26,24 +28,33 @@ internal sealed class DatabaseExecutionCoordinator : IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (!_admissions.TryGetValue(connection.Name, out var admission))
-                _admissions[connection.Name] = admission = new Admission(connection.Name, _options);
-            var snapshot = connection.Copy();
+                _admissions[connection.Name] = admission = new Admission(connection.Name);
+            return ReserveSnapshot(admission, connection.Copy());
+        }
+    }
+
+    private DatabaseOperationReservation ReserveSnapshot(Admission admission, DatabaseConnection snapshot)
+    {
+        lock (_poolLock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             admission.References++;
             return new(token => Acquire(admission, snapshot, token),
-                token => AcquireAsync(admission, snapshot, token), () => ReleaseReference(admission));
+                token => AcquireAsync(admission, snapshot, token), () => ReleaseReference(admission),
+                () => ReserveSnapshot(admission, snapshot));
         }
     }
 
     private DatabaseOperationLease Acquire(Admission admission, DatabaseConnection connection, CancellationToken token)
     {
-        try { admission.Enter(token, _shutdown.Token); }
+        try { EnterAsync(admission, token).AsTask().GetAwaiter().GetResult(); }
         catch { ReleaseReference(admission); throw; }
         return CreateLease(admission, connection);
     }
 
     private async ValueTask<DatabaseOperationLease> AcquireAsync(Admission admission, DatabaseConnection connection, CancellationToken token)
     {
-        try { await admission.EnterAsync(token, _shutdown.Token).ConfigureAwait(false); }
+        try { await EnterAsync(admission, token).ConfigureAwait(false); }
         catch { ReleaseReference(admission); throw; }
         return CreateLease(admission, connection);
     }
@@ -54,9 +65,9 @@ internal sealed class DatabaseExecutionCoordinator : IDisposable
         {
             lock (_poolLock) ObjectDisposedException.ThrowIf(_disposed, this);
             var context = new DatabaseOperationContext(connection, admission.Identity);
-            return new(context, () => { admission.Exit(); ReleaseReference(admission); });
+            return new(context, () => { Exit(admission); ReleaseReference(admission); });
         }
-        catch { admission.Exit(); ReleaseReference(admission); throw; }
+        catch { Exit(admission); ReleaseReference(admission); throw; }
     }
 
     private void ReleaseReference(Admission admission)
@@ -106,7 +117,7 @@ internal sealed class DatabaseExecutionCoordinator : IDisposable
             _configuredNames.UnionWith(connections.Keys);
             // Keep admission identities across configuration versions.
             foreach (var name in connections.Keys)
-                if (!_admissions.ContainsKey(name)) _admissions[name] = new Admission(name, _options);
+                if (!_admissions.ContainsKey(name)) _admissions[name] = new Admission(name);
             foreach (var (name, admission) in _admissions)
                 if (admission.References == 0 && !connections.ContainsKey(name)) _admissions.Remove(name);
         }
@@ -124,62 +135,131 @@ internal sealed class DatabaseExecutionCoordinator : IDisposable
         _shutdown.Cancel();
     }
 
-    private sealed class Admission(string name, DatabaseExecutionOptions options)
+    private async ValueTask EnterAsync(Admission admission, CancellationToken token)
     {
-        public string Identity { get; } = Guid.NewGuid().ToString("N");
-        private readonly SemaphoreSlim _slots = new(options.MaxConcurrent, options.MaxConcurrent);
-        private int _waiting;
-        public int References { get; set; }
-
-        public void Enter(CancellationToken token, CancellationToken shutdown)
+        using var activity = DatabaseTelemetry.StartAdmission();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _shutdown.Token);
+        linked.Token.ThrowIfCancellationRequested();
+        Waiter? waiter = null;
+        Rejection? rejection = null;
+        lock (_poolLock)
         {
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, shutdown);
+            ObjectDisposedException.ThrowIf(_disposed, this);
             linked.Token.ThrowIfCancellationRequested();
-            if (_slots.Wait(0)) { DatabaseTelemetry.Active.Add(1); return; }
-            StartWaiting();
-            var started = Stopwatch.GetTimestamp();
+            if (admission.Queued == 0 && CanEnter(admission))
+            {
+                Grant(admission);
+            }
+            else if (_waiting.Count >= _options.MaxTotalQueued) rejection = Rejection.TotalQueue;
+            else if (admission.Queued >= _options.MaxQueued) rejection = Rejection.ConnectionQueue;
+            else
+            {
+                waiter = new(admission);
+                waiter.Node = _waiting.AddLast(waiter);
+                admission.Queued++;
+            }
+        }
+        if (rejection != null) throw Busy(admission, rejection.Value);
+        if (waiter != null)
+        {
+            DatabaseTelemetry.Queued.Add(1);
             try
             {
-                if (!_slots.Wait(TimeSpan.FromSeconds(options.QueueTimeoutSeconds), linked.Token)) throw Busy();
-                DatabaseTelemetry.Active.Add(1);
+                var remaining = TimeSpan.FromSeconds(_options.QueueTimeoutSeconds) - Stopwatch.GetElapsedTime(waiter.Started);
+                if (remaining <= TimeSpan.Zero) throw new TimeoutException();
+                await waiter.Completion.Task.WaitAsync(remaining, linked.Token).ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
             }
-            finally { EndWaiting(started); }
-        }
-
-        public async ValueTask EnterAsync(CancellationToken token, CancellationToken shutdown)
-        {
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, shutdown);
-            linked.Token.ThrowIfCancellationRequested();
-            if (_slots.Wait(0)) { DatabaseTelemetry.Active.Add(1); return; }
-            StartWaiting();
-            var started = Stopwatch.GetTimestamp();
-            try
+            catch (Exception ex)
             {
-                if (!await _slots.WaitAsync(TimeSpan.FromSeconds(options.QueueTimeoutSeconds), linked.Token).ConfigureAwait(false)) throw Busy();
-                DatabaseTelemetry.Active.Add(1);
+                var granted = false;
+                lock (_poolLock)
+                {
+                    granted = waiter.Node == null;
+                    if (!granted) RemoveWaiter(waiter);
+                }
+                // A release can grant the slot just as WaitAsync cancels. Return that grant exactly once.
+                if (granted) Exit(admission, recordActive: false);
+                if (ex is TimeoutException) throw Busy(admission, Rejection.Timeout);
+                throw;
             }
-            finally { EndWaiting(started); }
+            finally
+            {
+                DatabaseTelemetry.Queued.Add(-1);
+                DatabaseTelemetry.QueueMs.Record(Stopwatch.GetElapsedTime(waiter.Started).TotalMilliseconds);
+            }
         }
-
-        private void StartWaiting()
-        {
-            if (Interlocked.Increment(ref _waiting) <= options.MaxQueued)
-            { DatabaseTelemetry.Queued.Add(1); return; }
-            Interlocked.Decrement(ref _waiting);
-            throw Busy();
-        }
-        private void EndWaiting(long started)
-        {
-            Interlocked.Decrement(ref _waiting);
-            DatabaseTelemetry.Queued.Add(-1);
-            DatabaseTelemetry.QueueMs.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        }
-        private DatabaseMcpException Busy()
-        {
-            DatabaseTelemetry.Rejected.Add(1);
-            return new(DatabaseErrorCode.DatabaseBusy, $"数据库 '{name}' 繁忙：队列已满或等待超时，请稍后重试。");
-        }
-        public void Exit() { _slots.Release(); DatabaseTelemetry.Active.Add(-1); }
+        DatabaseTelemetry.Active.Add(1);
     }
 
+    private bool CanEnter(Admission admission)
+        => _active < _options.MaxTotalConcurrent && admission.Active < _options.MaxConcurrent;
+
+    // Called under _poolLock, including grants that race with cancellation.
+    private void Grant(Admission admission)
+    {
+        admission.Active++;
+        _active++;
+    }
+
+    private void RemoveWaiter(Waiter waiter)
+    {
+        _waiting.Remove(waiter.Node!);
+        waiter.Node = null;
+        waiter.Admission.Queued--;
+    }
+
+    private void Exit(Admission admission, bool recordActive = true)
+    {
+        if (recordActive) DatabaseTelemetry.Active.Add(-1);
+        List<Waiter>? ready = null;
+        lock (_poolLock)
+        {
+            admission.Active--;
+            _active--;
+            var node = _waiting.First;
+            while (!_disposed && node != null && _active < _options.MaxTotalConcurrent)
+            {
+                var waiter = node.Value;
+                node = node.Next;
+                if (!CanEnter(waiter.Admission)) continue;
+                RemoveWaiter(waiter);
+                Grant(waiter.Admission);
+                (ready ??= []).Add(waiter);
+            }
+        }
+        if (ready != null)
+            foreach (var waiter in ready) waiter.Completion.TrySetResult();
+    }
+
+    private static DatabaseMcpException Busy(Admission admission, Rejection reason)
+    {
+        var (tag, message) = reason switch
+        {
+            Rejection.TotalQueue => ("total_queue_full", "应用总等待队列已满"),
+            Rejection.ConnectionQueue => ("connection_queue_full", "连接等待队列已满"),
+            _ => ("queue_timeout", "等待超时")
+        };
+        DatabaseTelemetry.Rejected.Add(1, new KeyValuePair<string, object?>("reason", tag));
+        return new(DatabaseErrorCode.DatabaseBusy, $"数据库 '{admission.Name}' 繁忙：{message}，请稍后重试。");
+    }
+
+    private enum Rejection { TotalQueue, ConnectionQueue, Timeout }
+
+    private sealed class Admission(string name)
+    {
+        public string Name { get; } = name;
+        public string Identity { get; } = Guid.NewGuid().ToString("N");
+        public int References { get; set; }
+        public int Active { get; set; }
+        public int Queued { get; set; }
+    }
+
+    private sealed class Waiter(Admission admission)
+    {
+        public Admission Admission { get; } = admission;
+        public long Started { get; } = Stopwatch.GetTimestamp();
+        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public LinkedListNode<Waiter>? Node { get; set; }
+    }
 }

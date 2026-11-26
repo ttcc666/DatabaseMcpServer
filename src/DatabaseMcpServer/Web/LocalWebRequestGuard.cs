@@ -12,9 +12,17 @@ internal static class LocalWebRequestGuard
             && !(IPAddress.TryParse(host, out var address) && IPAddress.IsLoopback(address)))
             return "拒绝非本地 Host。";
 
-        if (!request.Headers.TryGetValue("X-DatabaseMcp-Web", out var marker)
-            || marker.Count != 1 || marker[0] != "1")
+        var requiresMarker = HttpMethods.IsPost(request.Method) || HttpMethods.IsPut(request.Method)
+            || HttpMethods.IsPatch(request.Method) || HttpMethods.IsDelete(request.Method);
+        if (requiresMarker && (!request.Headers.TryGetValue("X-DatabaseMcp-Web", out var marker)
+            || marker.Count != 1 || marker[0] != "1"))
             return "缺少本地 Web 请求标记。";
+
+        // Native downloads cannot add the custom header. Browser fetch metadata still
+        // distinguishes same-origin downloads from links initiated by another site.
+        if (request.Headers.TryGetValue("Sec-Fetch-Site", out var sites)
+            && (sites.Count != 1 || sites[0] is not ("same-origin" or "none")))
+            return "拒绝跨来源请求。";
 
         if (request.Headers.TryGetValue("Origin", out var origins))
         {

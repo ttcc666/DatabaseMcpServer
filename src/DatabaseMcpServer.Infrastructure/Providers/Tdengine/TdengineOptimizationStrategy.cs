@@ -17,13 +17,20 @@ public class TdengineOptimizationStrategy : IDatabaseOptimizationStrategy
 
     public void ApplyOptimizations(ConnMoreSettings settings, Dictionary<string, string>? optimizationSettings)
     {
-        // 默认配置即可，TDengine 主要依赖驱动/连接串选项（TsType、InstanceFactory 预热）。
-        _logger?.LogDebug("应用 TDengine 配置：建议预热 InstanceFactory、检查 TsType（ms/us/ns）和 SDK 版本匹配");
-
-        if (optimizationSettings is { Count: > 0 })
+        settings.PgSqlIsAutoToLower = true;
+        if (optimizationSettings == null)
         {
-            _logger?.LogDebug("TDengine 当前无可调 optimizationSettings，已忽略传入配置: {Keys}", string.Join(", ", optimizationSettings.Keys));
+            _logger?.LogDebug("应用 TDengine 默认配置");
+            return;
         }
+
+        if (optimizationSettings.TryGetValue("autoToLower", out var autoToLowerStr) &&
+            bool.TryParse(autoToLowerStr, out var autoToLower))
+            settings.PgSqlIsAutoToLower = autoToLower;
+
+        if (optimizationSettings.TryGetValue("autoToLowerCodeFirst", out var autoToLowerCodeFirstStr) &&
+            bool.TryParse(autoToLowerCodeFirstStr, out var autoToLowerCodeFirst))
+            settings.PgSqlIsAutoToLowerCodeFirst = autoToLowerCodeFirst;
     }
 
     public string GetDescription()

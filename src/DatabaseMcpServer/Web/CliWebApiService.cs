@@ -1,228 +1,52 @@
-using DatabaseMcpServer.Configuration;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using DatabaseMcpServer.Cli;
+using DatabaseMcpServer.Configuration;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
-using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Operations;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using DatabaseMcpServer.Services;
 
 namespace DatabaseMcpServer.Web;
 
 internal sealed class CliWebApiService
 {
     private readonly CliWebConfigContext _context;
-    private readonly ConfigurationFileStore _configFileService;
     private readonly ConfigurationCommands _configCommandHandler;
-    private readonly ICurrentDatabaseStateStore _currentDatabaseStateStore;
     private readonly ConnectionStringBuilder _connectionStringBuilder;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly CliWebConfigurationQueries _queries;
+    private readonly ConfigurationRuntimeApplier _runtimeApplier;
+    private readonly Func<IDatabaseConfigService> _resolveRuntime;
+    private readonly Func<ConnectionOperations> _resolveConnectionOperations;
 
     public CliWebApiService(
         CliWebConfigContext context,
-        ConfigurationFileStore configFileService,
         ConfigurationCommands configCommandHandler,
-        ICurrentDatabaseStateStore currentDatabaseStateStore,
         ConnectionStringBuilder connectionStringBuilder,
-        IServiceProvider serviceProvider)
+        CliWebConfigurationQueries queries,
+        ConfigurationRuntimeApplier runtimeApplier,
+        Func<IDatabaseConfigService> resolveRuntime,
+        Func<ConnectionOperations> resolveConnectionOperations)
     {
         _context = context;
-        _configFileService = configFileService;
         _configCommandHandler = configCommandHandler;
-        _currentDatabaseStateStore = currentDatabaseStateStore;
         _connectionStringBuilder = connectionStringBuilder;
-        _serviceProvider = serviceProvider;
+        _queries = queries;
+        _runtimeApplier = runtimeApplier;
+        _resolveRuntime = resolveRuntime;
+        _resolveConnectionOperations = resolveConnectionOperations;
     }
 
-    public object GetContext()
-    {
-        return new
-        {
-            success = true,
-            configPath = _context.ConfigPath,
-            configSource = _context.Source,
-            configExists = _context.ConfigExists
-        };
-    }
+    public object GetContext() => _queries.GetContext();
 
-    public object GetDashboard()
-    {
-        DatabaseRuntimeStatus? runtime = null;
-        string? runtimeError = null;
-        try { runtime = _serviceProvider.GetService<IDatabaseConfigService>()?.GetRuntimeStatus(); }
-        catch (Exception ex) { runtimeError = ex.Message; }
-        if (!_context.ConfigExists)
-        {
-            return new
-            {
-                success = true,
-                configPath = _context.ConfigPath,
-                configSource = _context.Source,
-                configExists = false,
-                totalDatabases = 0,
-                currentDefaultDatabase = (string?)null,
-                currentDatabase = runtime?.CurrentDatabase,
-                runtime,
-                runtimeError,
-                databases = Array.Empty<object>(),
-                message = "配置文件不存在，可以先初始化。"
-            };
-        }
+    public object GetDashboard() => _queries.GetDashboard();
 
-        try
-        {
-            var config = _configFileService.Load(_context.ConfigPath);
-            var currentDefaultDatabase = ConfigurationFileStore.GetCurrentDefaultDatabaseName(config);
-            var currentDatabase = runtime?.CurrentDatabase;
+    public object GetDatabase(string name) => _queries.GetDatabase(name);
 
-            return new
-            {
-                success = true,
-                configPath = _context.ConfigPath,
-                configSource = _context.Source,
-                configExists = true,
-                totalDatabases = config.Databases.Count,
-                currentDefaultDatabase,
-                currentDatabase,
-                runtime,
-                runtimeError,
-                persistedCurrentDatabase = ResolveCurrentDatabaseName(config, currentDefaultDatabase),
-                databases = config.Databases.Select(db => new
-                {
-                    name = db.Name,
-                    dbType = db.DbType,
-                    description = db.Description,
-                    connectionString = ConnectionStringMasker.Mask(db.ConnectionString),
-                    isDefault = db.IsDefault,
-                    enableDangerousOperations = db.EnableDangerousOperations,
-                    isCurrent = string.Equals(db.Name, currentDatabase, StringComparison.Ordinal),
-                    optimizationSettings = db.OptimizationSettings
-                }).ToArray()
-            };
-        }
-        catch (Exception ex)
-        {
-            return new
-            {
-                success = false,
-                configPath = _context.ConfigPath,
-                configSource = _context.Source,
-                configExists = true,
-                totalDatabases = 0,
-                currentDefaultDatabase = (string?)null,
-                currentDatabase = runtime?.CurrentDatabase,
-                runtime,
-                runtimeError,
-                databases = Array.Empty<object>(),
-                message = ex.Message
-            };
-        }
-    }
+    public object GetPresets() => _queries.GetPresets();
 
-    public object GetDatabase(string name)
-    {
-        if (!_context.ConfigExists)
-        {
-            return new
-            {
-                success = false,
-                configPath = _context.ConfigPath,
-                message = "配置文件不存在，请先初始化。"
-            };
-        }
+    public object GetPreset(string dbType) => _queries.GetPreset(dbType);
 
-        try
-        {
-            var config = _configFileService.Load(_context.ConfigPath);
-            var database = config.Databases.FirstOrDefault(db => string.Equals(db.Name, name, StringComparison.Ordinal));
-            if (database == null)
-            {
-                return new
-                {
-                    success = false,
-                    configPath = _context.ConfigPath,
-                    databaseName = name,
-                    message = $"数据库连接 '{name}' 不存在。"
-                };
-            }
-
-            return new
-            {
-                success = true,
-                configPath = _context.ConfigPath,
-                database = ConfigurationFileStore.ToMaskedConnection(database)
-            };
-        }
-        catch (Exception ex)
-        {
-            return new
-            {
-                success = false,
-                configPath = _context.ConfigPath,
-                databaseName = name,
-                message = ex.Message
-            };
-        }
-    }
-
-    public object GetPresets()
-    {
-        return new
-        {
-            success = true,
-            totalPresets = DatabasePresetCatalog.Presets.Count,
-            presets = DatabasePresetCatalog.Presets
-                .OrderBy(item => item.DbType, StringComparer.OrdinalIgnoreCase)
-                .Select(item => new
-                {
-                    dbType = item.DbType,
-                    exampleName = item.ExampleName,
-                    availability = item.Availability,
-                    unavailableReason = item.UnavailableReason,
-                    description = item.Description
-                })
-                .ToArray()
-        };
-    }
-
-    public object GetPreset(string dbType)
-    {
-        if (!DatabasePresetCatalog.TryGet(dbType, out var preset))
-        {
-            return new
-            {
-                success = false,
-                dbType,
-                message = $"未找到数据库类型 '{dbType}' 的内置模板。"
-            };
-        }
-
-        return new
-        {
-            success = true,
-            preset = new
-            {
-                dbType = preset.DbType,
-                exampleName = preset.ExampleName,
-                availability = preset.Availability,
-                unavailableReason = preset.UnavailableReason,
-                exampleConnectionString = preset.ExampleConnectionString,
-                description = preset.Description
-            }
-        };
-    }
-
-    public object GetConnectionStringProfile(string dbType)
-    {
-        return new
-        {
-            success = true,
-            profile = ConnectionStringProfileCatalog.Get(dbType)
-        };
-    }
+    public object GetConnectionStringProfile(string dbType) => _queries.GetConnectionStringProfile(dbType);
 
     public string Initialize(bool force)
     {
@@ -287,7 +111,7 @@ internal sealed class CliWebApiService
     {
         try
         {
-            var result = _serviceProvider.GetRequiredService<IDatabaseConfigService>().RenameDatabase(name, request.NewName);
+            var result = _resolveRuntime().RenameDatabase(name, request.NewName);
             return JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         }
         catch (Exception ex)
@@ -300,7 +124,7 @@ internal sealed class CliWebApiService
     {
         try
         {
-            var result = _serviceProvider.GetRequiredService<IDatabaseConfigService>().UpdateDatabase(name, new DatabaseConnectionUpdate
+            var result = _resolveRuntime().UpdateDatabase(name, new DatabaseConnectionUpdate
             {
                 NewName = request.NewName, DbType = request.DbType, ConnectionString = request.ConnectionString,
                 Description = request.Description, ClearDescription = request.ClearDescription, SetDefault = request.SetDefault,
@@ -337,7 +161,7 @@ internal sealed class CliWebApiService
     {
         try
         {
-            var tool = _serviceProvider.GetRequiredService<ConnectionOperations>();
+            var tool = _resolveConnectionOperations();
             return Encode(tool.SwitchDatabase(databaseName));
         }
         catch (Exception ex)
@@ -355,7 +179,7 @@ internal sealed class CliWebApiService
     {
         try
         {
-            return Encode(await _serviceProvider.GetRequiredService<ConnectionOperations>().HealthCheck(cancellationToken));
+            return Encode(await _resolveConnectionOperations().HealthCheck(cancellationToken));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
@@ -387,7 +211,6 @@ internal sealed class CliWebApiService
     public async Task<string> ImportAsync(Stream stream, bool force, CancellationToken cancellationToken)
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"dbmcp-web-import-{Guid.NewGuid():N}.json");
-
         try
         {
             await using (var tempStream = File.Create(tempPath))
@@ -395,8 +218,7 @@ internal sealed class CliWebApiService
                 await stream.CopyToAsync(tempStream, cancellationToken);
             }
 
-            var payload = _configCommandHandler.Import(_context.ConfigPath, tempPath, force);
-            return ApplySavedConfiguration(payload);
+            return ApplySavedConfiguration(_configCommandHandler.Import(_context.ConfigPath, tempPath, force));
         }
         finally
         {
@@ -408,6 +230,7 @@ internal sealed class CliWebApiService
                 }
                 catch (IOException)
                 {
+                    // Preserve the import result if an external process temporarily locks the file.
                 }
             }
         }
@@ -426,18 +249,6 @@ internal sealed class CliWebApiService
         var contents = new byte[checked((int)stream.Length)];
         stream.ReadExactly(contents);
         return (contents, $"{fileName}-{timestamp}.json");
-    }
-
-    private string? ResolveCurrentDatabaseName(DatabasesConfig config, string? currentDefaultDatabase)
-    {
-        var persistedCurrentDatabase = _currentDatabaseStateStore.GetCurrentDatabaseName(_context.ConfigPath);
-        if (!string.IsNullOrWhiteSpace(persistedCurrentDatabase) &&
-            config.Databases.Any(db => string.Equals(db.Name, persistedCurrentDatabase, StringComparison.Ordinal)))
-        {
-            return persistedCurrentDatabase;
-        }
-
-        return currentDefaultDatabase ?? config.Databases.FirstOrDefault()?.Name;
     }
 
     private string? ResolveConnectionString(
@@ -459,7 +270,7 @@ internal sealed class CliWebApiService
     }
 
     private string ApplySavedConfiguration(ConfigurationCommandResult result, bool allowEmptyInitialization = false)
-        => Encode(_serviceProvider.GetRequiredService<ConfigurationRuntimeApplier>()
+        => Encode(_runtimeApplier
             .Apply(_context.ConfigPath, result, allowEmptyInitialization));
 
     private static string Encode(object result)

@@ -4,9 +4,20 @@ namespace DatabaseMcpServer.Models;
 public sealed class DatabaseOperationReservation(
     Func<CancellationToken, DatabaseOperationLease> acquire,
     Func<CancellationToken, ValueTask<DatabaseOperationLease>> acquireAsync,
-    Action abandon) : IDisposable
+    Action abandon,
+    Func<DatabaseOperationReservation>? createAttempt = null) : IDisposable
 {
+    private readonly object _gate = new();
     private int _claimed;
+    /// <summary>Reserve another attempt against this pinned snapshot without occupying an execution slot.</summary>
+    public DatabaseOperationReservation CreateAttempt()
+    {
+        lock (_gate)
+        {
+            if (_claimed != 0) throw new ObjectDisposedException(nameof(DatabaseOperationReservation));
+            return createAttempt?.Invoke() ?? throw new NotSupportedException("此预留不支持重复尝试。");
+        }
+    }
     public DatabaseOperationLease Acquire(CancellationToken cancellationToken = default)
     {
         Claim();
@@ -19,10 +30,19 @@ public sealed class DatabaseOperationReservation(
     }
     private void Claim()
     {
-        if (Interlocked.Exchange(ref _claimed, 1) != 0) throw new InvalidOperationException("连接预留只能使用一次。");
+        lock (_gate)
+        {
+            if (_claimed != 0) throw new InvalidOperationException("连接预留只能使用一次。");
+            _claimed = 1;
+        }
     }
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _claimed, 1) == 0) abandon();
+        lock (_gate)
+        {
+            if (_claimed != 0) return;
+            _claimed = 1;
+            abandon();
+        }
     }
 }

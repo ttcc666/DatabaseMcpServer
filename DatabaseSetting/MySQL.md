@@ -2,6 +2,8 @@
 
 本文档详细说明 MySQL 系列数据库（MySQL、MariaDB、TiDB、PolarDB 等兼容 MySQL 协议产品）的配置方法，并给出常见性能/兼容性选项（含禁用 Nvarchar）。
 
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
+
 ---
 
 ## 📋 配置方式
@@ -20,8 +22,6 @@
       "description": "MySQL 主库（性能优化配置）",
       "isDefault": true,
       "optimizationSettings": {
-        "enableBulkCopy": "true",
-        "maxPoolSize": "100",
         "disableNvarchar": "false"
       }
     }
@@ -63,8 +63,8 @@
 | 参数 | 说明 | 推荐值 | 性能影响 |
 |------|------|--------|---------|
 | `Charset` | 字符集 | `utf8mb4` | 支持完整 Unicode（包括 emoji） |
-| `AllowLoadLocalInfile` | 启用批量导入 | `true` | 批量导入性能提升 **10-50 倍** |
-| `Pooling` | 启用连接池 | `true` | 连接复用，减少 **95%** 连接开销 |
+| `AllowLoadLocalInfile` | 原生 LOAD DATA LOCAL 选项 | 按需配置 | 不开启 MCP BulkCopy |
+| `Pooling` | 启用连接池 | `true` | 驱动复用物理连接；效果需实测 |
 | `Min Pool Size` | 最小连接数 | `1` | 保持最小连接，快速响应 |
 | `Max Pool Size` | 最大连接数 | `100` | 防止连接耗尽 |
 | `Allow User Variables` | 支持用户变量 | `True` | 复杂查询性能优化 |
@@ -85,197 +85,17 @@
 
 ---
 
-## 🚀 自动性能优化
+## 驱动与优化配置
 
-DatabaseMcpServer 自动为 MySQL 应用以下优化：
+每次操作独占 SqlSugarClient，物理连接由 MySqlConnector 的连接池复用。字符集、池大小、TLS 和用户变量应使用连接字符串配置，optimizationSettings 不覆盖驱动选项。
 
-| 优化项 | 说明 | 效果 |
-|--------|------|------|
-| 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
-| 字符集支持 | 自动识别 utf8mb4 | 避免乱码，支持 emoji |
-| 批量操作 | 支持 BulkCopy | 大数据导入性能提升 10-50 倍 |
+| optimizationSettings 键 | 状态 | 作用 |
+| --- | --- | --- |
+| disableNvarchar | mapped，默认 false | 映射到 ConnMoreSettings.DisableNvarchar，作用于相应 ORM 生成路径，不改写原始 SQL |
+| maxPoolSize / charset / enableSsl / allowUserVariables | advisory | 保留用于诊断；分别使用连接串 Max Pool Size、Charset、SslMode、Allow User Variables |
+| enableBulkCopy | not-applicable | MCP 没有 BulkCopy 工具，开关不改变插入行为 |
 
----
-
-## 🔧 优化配置选项
-
-以下配置选项在 databases.json 的 optimizationSettings 中设置。
-
-### enableBulkCopy
-
-**说明**: 启用批量导入优化
-
-**类型**: `boolean`
-
-**默认值**: `false`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "enableBulkCopy": "true"
-      }
-    }
-  ]
-}
-```
-
-**效果**:
-- `true`: 启用 BulkCopy，大数据导入性能提升 10-50 倍
-- `false`: 使用普通插入
-
-**注意**: 需要在连接字符串中添加 `AllowLoadLocalInfile=true`，并在服务器执行 `SET GLOBAL local_infile=1`
-
----
-
-### disableNvarchar
-
-**说明**: 某些改造版 MySQL / 兼容库不支持 `N''` 语法，可选择禁用 Nvarchar 写入。
-
-**类型**: `boolean`
-
-**默认值**: `false`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "disableNvarchar": "true"
-      }
-    }
-  ]
-}
-```
-
-**效果**:
-- `true`: 禁用 `N''` 前缀，避免特殊服务器报错
-- `false`: 保持默认写入
-
----
-
-### maxPoolSize
-
-**说明**: 连接池最大连接数
-
-**类型**: `integer`
-
-**默认值**: `100`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "maxPoolSize": "200"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 高并发场景下提高性能
-
-**推荐值**:
-- 低并发 (< 100 QPS): `50`
-- 中并发 (100-1000 QPS): `100`
-- 高并发 (> 1000 QPS): `200`
-
----
-
-### charset
-
-**说明**: 字符集配置
-
-**类型**: `string`
-
-**默认值**: `utf8mb4`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "charset": "utf8mb4"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 支持完整 Unicode（包括 emoji）
-
-**可选值**:
-- `utf8mb4`: 完整 Unicode 支持（推荐）
-- `utf8`: 基本 Unicode 支持
-- `latin1`: 西欧字符集
-
----
-
-### enableSsl
-
-**说明**: 启用 SSL 安全连接
-
-**类型**: `boolean`
-
-**默认值**: `false`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "enableSsl": "true"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 加密数据传输，提高安全性
-
-**注意**: 需要在连接字符串中添加 `SslMode=Required`
-
----
-
-### allowUserVariables
-
-**说明**: 允许用户变量
-
-**类型**: `boolean`
-
-**默认值**: `false`
-
-**示例**:
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "allowUserVariables": "true"
-      }
-    }
-  ]
-}
-```
-
-**效果**: 支持复杂查询和存储过程中的用户变量
-
-**注意**: 需要在连接字符串中添加 `Allow User Variables=True`
-
----
+单行整数自增插入使用 insert_row；多条 DML 使用 execute_command 或 batch_execute_commands，并检查逐项结果。MySQL 当前不支持 atomic=true，不能将命令批次视为事务。连接串 AllowLoadLocalInfile 不会开启 MCP BulkCopy。
 
 ## 📝 完整配置示例
 
@@ -291,11 +111,6 @@ DatabaseMcpServer 自动为 MySQL 应用以下优化：
       "description": "MySQL 生产环境（高并发配置）",
       "isDefault": true,
       "optimizationSettings": {
-        "enableBulkCopy": "true",
-        "maxPoolSize": "200",
-        "charset": "utf8mb4",
-        "enableSsl": "true",
-        "allowUserVariables": "true",
         "disableNvarchar": "false"
       }
     }
@@ -335,11 +150,7 @@ DatabaseMcpServer 自动为 MySQL 应用以下优化：
       "connectionString": "Server=localhost;Port=3306;Database=dev_db;User=root;Password=123456;Charset=utf8mb4;Min Pool Size=1;Max Pool Size=50;Pooling=true;",
       "dbType": "MySql",
       "description": "MySQL 开发环境",
-      "isDefault": true,
-      "optimizationSettings": {
-        "maxPoolSize": "50",
-        "charset": "utf8mb4"
-      }
+      "isDefault": true
     }
   ]
 }
@@ -376,10 +187,7 @@ DatabaseMcpServer 自动为 MySQL 应用以下优化：
       "connectionString": "Server=localhost;Port=3306;Database=test_db;User=test_user;Password=test123;Charset=utf8mb4;Pooling=true;",
       "dbType": "MySql",
       "description": "MySQL 测试环境",
-      "isDefault": true,
-      "optimizationSettings": {
-        "charset": "utf8mb4"
-      }
+      "isDefault": true
     }
   ]
 }
@@ -419,19 +227,7 @@ Incorrect string value: '\xF0\x9F\x98\x80' for column 'content'
 "connectionString": "...;Charset=utf8mb4;..."
 ```
 
-**方案 2**: 在优化配置中设置
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "charset": "utf8mb4"
-      }
-    }
-  ]
-}
-```
+optimizationSettings.charset 仅保留为 advisory，不会改变连接或服务端字符集。
 
 同时确保数据库和表使用 `utf8mb4`:
 ```sql
@@ -439,40 +235,9 @@ ALTER DATABASE mydb CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci;
 ALTER TABLE mytable CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
 
-### 问题 2: BulkCopy 失败
+### 问题 2: enableBulkCopy 为什么没有效果
 
-**错误**:
-```
-The used command is not allowed with this MySQL version
-```
-
-**原因**: 未启用 `AllowLoadLocalInfile`
-
-**解决方案**:
-
-**步骤 1**: 在连接字符串中添加
-```json
-"connectionString": "...;AllowLoadLocalInfile=true;..."
-```
-
-**步骤 2**: 在优化配置中启用
-```json
-{
-  "databases": [
-    {
-      "name": "mysql-main",
-      "optimizationSettings": {
-        "enableBulkCopy": "true"
-      }
-    }
-  ]
-}
-```
-
-**步骤 3**: 在服务器执行
-```sql
-SET GLOBAL local_infile=1;
-```
+该键是 not-applicable，当前没有 BulkCopy 执行路径。单行自增插入使用 insert_row，其他 DML 使用命令工具。需要原生批量导入时，使用数据库管理工具并按其要求配置客户端与服务端。
 
 ### 问题 3: 连接超时
 
@@ -508,10 +273,7 @@ SSL connection error
   "databases": [
     {
       "name": "mysql-main",
-      "connectionString": "...;SslMode=Required;...",
-      "optimizationSettings": {
-        "enableSsl": "true"
-      }
+      "connectionString": "...;SslMode=Required;..."
     }
   ]
 }
@@ -538,17 +300,9 @@ Min Pool Size=5;Max Pool Size=100;
 Min Pool Size=10;Max Pool Size=200;
 ```
 
-### 2. 批量操作优化
+### 2. 批量操作
 
-使用 BulkCopy 进行大数据导入:
-```csharp
-// 确保连接字符串包含
-AllowLoadLocalInfile=true
-```
-
-性能对比:
-- 普通插入: 1000 条/秒
-- BulkCopy: 10,000-50,000 条/秒
+batch_execute_commands 逐条执行参数化命令；非原子批次的 commandTimeoutSeconds 覆盖整个批次，包含排队、执行和读取。失败时检查逐项结果，不能把已成功命令自动重放。此工具不使用 BulkCopy。
 
 ### 3. 查询优化
 
@@ -575,4 +329,4 @@ AllowLoadLocalInfile=true
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2026-11-26

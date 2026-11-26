@@ -5,12 +5,12 @@
       "id": 1,
       "name": "version-discovery",
       "prompt": "I just installed DatabaseMcpServer via `dotnet tool install --global DatabaseMcpServer`. How do I confirm which version is actually running on this machine right now? Please actually run the check and tell me the version number.",
-      "expected_output": "Uses `dotnet tool list --global` (or an equivalent that actually works). Notices `DatabaseMcpServer --version` exits 2 (unknown command) and does NOT mislead the user. Must report an actual version number.",
+      "expected_output": "Checks the actual executable with --version; for an older installation without that flag, uses dotnet tool list --global or --tool-path. Reports the observed version without changing configuration.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Reports the actual version number shown by the installed global-tool manifest instead of assuming a hard-coded version"},
-        {"id": "a2", "text": "Uses or recommends `dotnet tool list --global` (the working approach) rather than leaving the user with a broken method"},
-        {"id": "a3", "text": "Either avoids `DatabaseMcpServer --version` or flags that it fails with exit code 2 (unknown command). Does NOT claim it returns the version."},
+        {"id": "a1", "text": "Reports the observed executable version rather than a hard-coded version."},
+        {"id": "a2", "text": "Uses --version on the selected executable and falls back to dotnet tool list for older installations."},
+        {"id": "a3", "text": "Does not claim every version supports or rejects --version without checking the executable."},
         {"id": "a4", "text": "Does not modify the user's real ~/.database-mcp/ configuration or cli-state"}
       ]
     },
@@ -87,13 +87,13 @@
       "id": 7,
       "name": "exit1-vs-exit2",
       "prompt": "query_database exits 1 with `{\"success\":false,\"errorMessage\":\"object name 'customers' not found\"}`. CLI bug? Reinstall?",
-      "expected_output": "Backend/tool failure (not CLI bug, not install). Customers table missing. Diagnose with is_any_table, get_table_info_list, get_current_database.",
+      "expected_output": "Backend/tool failure (not CLI bug, not install). Customers table missing. Diagnose with is_any_table, list_objects, get_current_database.",
       "files": [],
       "assertions": [
         {"id": "a1", "text": "Classifies this as backend/tool failure (exit 1 + `success:false`), NOT a CLI bug, NOT an install problem"},
         {"id": "a2", "text": "Explicitly tells the user they do NOT need to reinstall DatabaseMcpServer"},
         {"id": "a3", "text": "Identifies that the root cause is the `customers` table not existing in the current database"},
-        {"id": "a4", "text": "Suggests read-only diagnostic tools: `is_any_table`, `get_table_info_list`, and/or `get_current_database` to pinpoint the cause"},
+        {"id": "a4", "text": "Suggests read-only diagnostic tools: `is_any_table`, `list_objects`, and/or `get_current_database` to pinpoint the cause"},
         {"id": "a5", "text": "Distinguishes exit 1 (backend) from exit 2 (CLI usage) somewhere in the response"}
       ]
     },
@@ -117,11 +117,11 @@
       "id": 9,
       "name": "batch-query-limit-and-cli-quoting",
       "prompt": "CLI 下我想一次执行 6 条只读查询。请给我 batch_sql_query 的 PowerShell 命令，要不要 --yes？如果其中一条失败应该怎么看结果？",
-      "expected_output": "Explains the 1-5 limit, splits or reduces the batch, uses --queries with one single-quoted JSON array, does not add --yes, and tells the user to inspect every results[] item.",
+      "expected_output": "Explains the 1-5 limit, splits or reduces the batch, uses --commands with one single-quoted JSON object array, does not add --yes, and tells the user to inspect every results[] item.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "States that batch_sql_query accepts at most 5 read-only SQL strings per invocation"},
-        {"id": "a2", "text": "Uses `--queries` with one JSON string array wrapped in PowerShell single quotes"},
+        {"id": "a1", "text": "States that batch_sql_query accepts at most 5 read-only command objects per invocation"},
+        {"id": "a2", "text": "Uses `--commands` with one JSON array of {sql,parameters?} objects wrapped in PowerShell single quotes"},
         {"id": "a3", "text": "Does not require or recommend `--yes` for batch_sql_query"},
         {"id": "a4", "text": "Suggests splitting six queries into multiple invocations or otherwise staying within the five-item limit"},
         {"id": "a5", "text": "Explains that top-level success does not guarantee every item succeeded and instructs checking each results[] entry"}
@@ -129,13 +129,13 @@
     },
     {
       "id": 10,
-      "name": "batch-command-is-not-transactional",
+      "name": "batch-command-explicit-atomic-mode",
       "prompt": "Can I use batch_execute_commands for three updates and rely on automatic rollback if the third update fails? Show the CLI shape with per-command parameters.",
-      "expected_output": "Says no: batch_execute_commands is sequential and non-transactional, earlier writes may persist, --yes is required, and each commands object embeds its typed parameters array.",
+      "expected_output": "Explains the default partial-commit behavior and explicit --atomic true for SQLite/SQL Server/PostgreSQL ordinary DML. Requires --yes and per-command typed parameters; unknown outcome must be verified before retry.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Explicitly states that batch_execute_commands is not transactional and does not guarantee rollback"},
-        {"id": "a2", "text": "Warns that earlier successful writes can remain committed after a later failure"},
+        {"id": "a1", "text": "Distinguishes default non-transactional behavior from explicit atomic=true and its supported providers."},
+        {"id": "a2", "text": "Explains that earlier writes may persist in default mode and unknown atomic outcomes require verification."},
         {"id": "a3", "text": "Requires `--yes` because this is a write-class tool"},
         {"id": "a4", "text": "Shows --commands as one single-quoted JSON array of {sql, parameters?} objects; each parameters value is an array of named typed parameters, without --parameters-array"},
         {"id": "a5", "text": "Instructs the caller to inspect per-command results rather than only top-level success"}
@@ -197,10 +197,10 @@
       "id": 15,
       "name": "mongo-empty-filter-guards",
       "prompt": "请给我删除 Mongo orders 所有文档的 CLI 命令。已确认清空测试库；连接 enableDangerousOperations=true，权限 read-write。",
-      "expected_output": "Uses mongo_delete with explicit collection, empty object filter, many=true, allow-all=true, target connection/config and --yes, explaining that all guards are required and multi-document deletion is not transactional.",
+      "expected_output": "Uses mongo_delete with explicit collection, empty object filter, allow-all=true, target connection/config and --yes. Explains that delete always affects all matches, many/upsert were removed, all guards are required and deletion is not transactional. Does not substitute mongo_truncate because the supplied access is read-write rather than schema-admin.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Uses --filter '{}' --many true --allow-all true --yes with mongo_delete"},
+        {"id": "a1", "text": "Uses --filter '{}' --allow-all true --yes with mongo_delete, without --many or --upsert"},
         {"id": "a2", "text": "Does not ask again for already granted deletion authorization"},
         {"id": "a3", "text": "Does not replace collection operations with SQL or runCommand"}
       ]
@@ -233,12 +233,12 @@
       "id": 18,
       "name": "batch-timeout-and-server-policy",
       "prompt": "三条 batch_sql_query 都设 command-timeout-seconds=10，是不是整个批次十秒内一定结束？把超时设 0 能绕过服务器上限吗？",
-      "expected_output": "Explains that the SQL timeout applies to each database command and is not a whole-batch deadline; server caps and AllowInfiniteTimeout still apply.",
+      "expected_output": "Explains that a non-atomic SQL batch shares a total deadline including admission, execution and reading. Driver cleanup may delay return beyond ten seconds. Atomic batches use totalTimeoutSeconds plus a per-command timeout; server caps and AllowInfiniteTimeout still apply.",
       "files": [],
       "assertions": [
-        {"id": "a1", "text": "Does not promise a ten-second total batch deadline"},
+        {"id": "a1", "text": "States that the non-atomic batch shares a ten-second request deadline, but cleanup may delay the response"},
         {"id": "a2", "text": "Explains DB_COMMAND_MAX_TIMEOUT_SECONDS and DB_ALLOW_INFINITE_TIMEOUT"},
-        {"id": "a3", "text": "Distinguishes shared batch row/byte budgets from per-command SQL timeout"}
+        {"id": "a3", "text": "Distinguishes the shared non-atomic batch deadline and row/byte budgets from atomic totalTimeoutSeconds and per-command limits"}
       ]
     },
     {

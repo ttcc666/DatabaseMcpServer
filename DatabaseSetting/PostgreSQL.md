@@ -2,6 +2,8 @@
 
 本文档详细说明 PostgreSQL 数据库的配置方法，包含大小写规范、ILike、Schema、数组/JSON/PostGIS、自增策略等实战要点。
 
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
+
 ---
 
 ## 📋 配置方式
@@ -63,7 +65,7 @@
 
 | 参数 | 说明 | 推荐值 | 性能影响 |
 |------|------|--------|---------|
-| `Pooling` | 启用连接池 | `true` | 连接复用，性能提升 **80%+** |
+| `Pooling` | 启用连接池 | `true` | 驱动复用物理连接，性能需实测 |
 | `Minimum Pool Size` | 最小连接数 | `1` | 保持最小连接，快速响应 |
 | `Maximum Pool Size` | 最大连接数 | `100` | 防止连接耗尽 |
 | `Timeout` | 连接超时（秒） | `30` | 避免长时间等待 |
@@ -93,7 +95,7 @@ DatabaseMcpServer 自动为 PostgreSQL 应用以下优化：
 | **CodeFirst 表名自动转小写** | 可独立控制 | 便于迁移旧库 |
 | ILike 支持 | 不区分大小写查询 | 查询灵活性提升 |
 | 自增策略 | Serial/Identity 可选 | 兼容不同版本 |
-| 连接池复用 | SqlSugarScope 自动管理 | 连接建立时间从 100ms 降至 5ms |
+| 连接池复用 | 独立 SqlSugarClient + 驱动连接池 | 每次操作独占实例并自动关闭连接 |
 
 ---
 
@@ -551,4 +553,4 @@ public Point Location { get; set; }
 
 ---
 
-**最后更新**: 2025-12-10
+**最后更新**: 2026-11-26

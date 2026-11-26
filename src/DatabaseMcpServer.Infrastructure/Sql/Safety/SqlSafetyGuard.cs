@@ -108,6 +108,24 @@ internal static class SqlSafetyGuard
         }
     }
 
+    public static void EnsureExplainableSql(string sql, IDatabaseHelperService helper)
+    {
+        EnsureReadOnlySql(sql, helper);
+        var statement = SplitStatements(sql).Select(NormalizeSql).Single(s => s.Length > 0);
+        if (!Regex.IsMatch(statement, @"^(SELECT|WITH)\b", RegexOptions.IgnoreCase))
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "估算计划只接受 SELECT/WITH 查询，不接受 EXPLAIN 或控制语句。");
+    }
+
+    public static void EnsureAtomicDml(string sql)
+    {
+        EnsureDataModificationSql(sql);
+        var statements = SplitStatements(sql).Select(NormalizeSql).Where(s => s.Length > 0).ToArray();
+        if (statements.Length != 1 || !Regex.IsMatch(statements[0], @"^(INSERT|UPDATE|DELETE)\b", RegexOptions.IgnoreCase) ||
+            Regex.Matches(StripStringLiterals(statements[0]), @"\b(INSERT|UPDATE|DELETE)\b", RegexOptions.IgnoreCase).Count != 1 ||
+            Regex.IsMatch(StripStringLiterals(statements[0]), @"\b(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|TRANSACTION|VACUUM|ATTACH|DETACH|PRAGMA|COPY|EXEC|EXECUTE|CALL|OPENROWSET|OPENQUERY|WAITFOR|DBCC|KILL|USE|RECONFIGURE|BACKUP|RESTORE|SHUTDOWN|IMPLICIT_TRANSACTIONS|XACT_ABORT|IDENTITY_INSERT)\b", RegexOptions.IgnoreCase))
+            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "atomic 仅接受每项一条 INSERT/UPDATE/DELETE，不接受脚本、DDL 或事务控制。");
+    }
+
     // Restricted raw command mode deliberately accepts only standalone DML.
     // Procedures and scripts can change schema indirectly and require schema-admin.
     public static void EnsureDataModificationSql(string sql)
@@ -178,7 +196,7 @@ internal static class SqlSafetyGuard
         return dbType switch
         {
             DbType.SqlServer => $"[{segment.Replace("]", "]]", StringComparison.Ordinal)}]",
-            DbType.MySql or DbType.MySqlConnector or DbType.ClickHouse or DbType.Tidb or DbType.Doris or DbType.OceanBase =>
+            DbType.MySql or DbType.MySqlConnector or DbType.ClickHouse or DbType.Tidb or DbType.TDSQL or DbType.Doris or DbType.OceanBase or DbType.PolarDB or DbType.GoldenDB =>
                 $"`{segment.Replace("`", "``", StringComparison.Ordinal)}`",
             _ => $"\"{segment.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
         };

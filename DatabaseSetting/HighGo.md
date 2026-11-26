@@ -46,7 +46,7 @@ HighGo 基于 PostgreSQL，默认表/列名转小写。**建议连接字符串�
 
 ## 🚀 自动性能优化
 
-- `HighGoOptimizationStrategy`：默认 `PgSqlIsAutoToLower=true`；未配置或未禁用连接池时会提示设置 `Pooling=false`。记录 `disablePooling/maxPoolSize` 便于调优。
+- `HighGoOptimizationStrategy`：默认 `PgSqlIsAutoToLower=true`，支持 `autoToLower` 与 `autoToLowerCodeFirst`；`Pooling=false` 需在连接字符串中配置。
 
 ---
 
@@ -61,9 +61,10 @@ HighGo 基于 PostgreSQL，默认表/列名转小写。**建议连接字符串�
 
 | 配置键 | 类型 | 说明 |
 |--------|------|------|
-| `autoToLower` | bool | 表/列名自动转小写（默认 true） |
-| `disablePooling` | bool | 建议 `true`，对应连接串 `Pooling=false` |
-| `maxPoolSize` | int | 连接池上限（如已禁用池可忽略） |
+| `autoToLower` | bool | `mapped`：表/列名自动转小写（默认 true） |
+| `autoToLowerCodeFirst` | bool | `mapped`：CodeFirst 表/列名自动转小写 |
+| `disablePooling` | bool | `advisory`：请在连接串设置 `Pooling=false` |
+| `maxPoolSize` | int | `advisory`：请在连接串配置连接池大小 |
 
 ---
 

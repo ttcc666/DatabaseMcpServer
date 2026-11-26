@@ -1,7 +1,8 @@
-using System.Text.Json;
 using DatabaseMcpServer.Helpers;
+using DatabaseMcpServer.Interfaces;
 using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Tools;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -9,68 +10,41 @@ namespace DatabaseMcpServer.Filters;
 
 internal sealed class ToolRequestValidationFilter
 {
-    private readonly Dictionary<string, ToolDescriptor> _toolMetadata = new ToolCatalog().Tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
-    private readonly Dictionary<string, HashSet<string>> _argumentNames;
-
-    public ToolRequestValidationFilter()
-        => _argumentNames = _toolMetadata.Values.ToDictionary(tool => tool.Name,
-            tool => tool.Parameters.Select(parameter => parameter.ParameterName).ToHashSet(StringComparer.Ordinal));
-
     public async ValueTask<CallToolResult> InvokeAsync(RequestContext<CallToolRequestParams> context,
         CancellationToken cancellationToken, Func<RequestContext<CallToolRequestParams>, CancellationToken, ValueTask<CallToolResult>> next)
     {
-        if (context.Params is { } request && _argumentNames.TryGetValue(request.Name, out var allowed))
+        using var activity = DatabaseTelemetry.StartTool();
+        var services = context.Services ?? context.Server.Services!;
+        var policy = services.GetRequiredService<ToolExposurePolicy>();
+        var catalog = services.GetRequiredService<ToolCatalog>();
+        var configuration = services.GetRequiredService<IDatabaseConfigService>();
+        var options = services.GetRequiredService<DatabaseExecutionOptions>();
+        policy.Observe(context.Server, catalog, configuration, options);
+        if (context.Params is { } request && catalog.TryGetTool(request.Name, out var tool))
         {
-            var arguments = request.Arguments ?? new Dictionary<string, System.Text.Json.JsonElement>();
-            var unknown = arguments.Keys.FirstOrDefault(name => !allowed.Contains(name));
-            if (unknown != null)
+            if (!policy.Select(catalog, configuration, options).Contains(request.Name))
+                return McpResultAdapter.Structured(ApiResult<object>.CreateError("当前 MCP 工具集未启用此工具。", DatabaseErrorCode.AccessDenied), false);
+            try
             {
-                if (_toolMetadata[request.Name].IsCollection)
-                    return McpResultAdapter.Structured(new MongoCollectionResult() { Success = false, ErrorCode = 1004,
-                        ErrorMessage = "包含未知参数，请按当前 tools/list schema 调用。",
-                        WriteOutcome = _toolMetadata[request.Name].RequiresConfirmation ? "not-executed" : null }, false);
-                return new CallToolResult { IsError = true, Content = [new TextContentBlock
-                {
-                    Text = System.Text.Json.JsonSerializer.Serialize(new { success = false, errorCode = 1004,
-                        errorMessage = $"未知参数 '{unknown}'，请按当前 tools/list schema 调用。" })
-                }] };
+                var parameters = tool.Parameters.ToDictionary(p => p.ParameterName, p => p.OptionName, StringComparer.Ordinal);
+                var arguments = request.Arguments ?? new Dictionary<string, System.Text.Json.JsonElement>();
+                if (arguments.Keys.Any(name => !parameters.ContainsKey(name)))
+                    throw new InvalidOperationException("包含未知参数，请按当前 tools/list schema 调用。");
+                // Share JSON shape, nullability and duplicate-key rules with CLI/Web.
+                ToolInvoker.BindJsonArguments(tool, arguments.ToDictionary(p => parameters[p.Key], p => p.Value));
             }
-            if (_toolMetadata[request.Name].IsCollection)
+            catch (InvalidOperationException ex)
             {
-                try
-                {
-                    foreach (var parameter in _toolMetadata[request.Name].Parameters)
-                    {
-                        if (!arguments.TryGetValue(parameter.ParameterName, out var value))
-                        {
-                            if (parameter.IsRequired) throw MongoDocumentContract.Invalid("缺少必填 Mongo 工具参数。");
-                            continue;
-                        }
-                        if (parameter.IsJson) MongoDocumentContract.ValidateObject(value);
-                        else if (value.ValueKind == System.Text.Json.JsonValueKind.Null && !parameter.IsRequired &&
-                            (!parameter.ParameterType.IsValueType || Nullable.GetUnderlyingType(parameter.ParameterType) != null)) continue;
-                        else if (parameter.EffectiveType == typeof(string) && value.ValueKind == System.Text.Json.JsonValueKind.String) continue;
-                        else if (parameter.EffectiveType == typeof(bool) && value.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False) continue;
-                        else if (parameter.EffectiveType == typeof(int) && value.ValueKind == System.Text.Json.JsonValueKind.Number && value.TryGetInt32(out _)) continue;
-                        else throw MongoDocumentContract.Invalid("Mongo 工具参数类型不符合当前 tools/list schema。");
-                    }
-                }
-                catch (DatabaseMcpException ex)
-                {
-                    return McpResultAdapter.Structured(new MongoCollectionResult() { Success = false, ErrorCode = (int)ex.ErrorCode,
-                        ErrorMessage = ex.Message, WriteOutcome = _toolMetadata[request.Name].RequiresConfirmation ? "not-executed" : null }, false);
-                }
+                if (tool.IsCollection)
+                    return McpResultAdapter.Structured(new MongoCollectionResult { Success = false, ErrorCode = 1004,
+                        ErrorMessage = ex.Message, Retryable = false, Phase = "validation", WriteOutcome = tool.RequiresConfirmation ? "not-executed" : null }, false);
+                return McpResultAdapter.Structured(ApiResult<object>.CreateError(ex.Message, DatabaseErrorCode.InvalidParameters), false);
             }
         }
         var result = await next(context, cancellationToken);
-        var failed = result.StructuredContent is { } structured
-            ? ToolResultStatus.IsFailure(structured)
-            : result.Content is [TextContentBlock text] && ToolResultStatus.IsFailure(text.Text);
-        if (failed)
-        {
+        if (result.StructuredContent is { } structured ? ToolResultStatus.IsFailure(structured)
+            : result.Content is [TextContentBlock text] && ToolResultStatus.IsFailure(text.Text))
             result.IsError = true;
-        }
-
         return result;
     }
 }

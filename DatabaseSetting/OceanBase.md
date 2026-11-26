@@ -2,6 +2,8 @@
 
 本文档详细说明 OceanBase 数据库的配置方法。OceanBase 支持 **MySQL 模式** 和 **Oracle 模式** 两种兼容模式。
 
+当前源码的工具与权限以 [工具手册](../TOOLS.md) 和 `get_database_capabilities` 为准。优化项状态见 [ORM 配置约定](../Doc/orm-configuration.md)；下文 C# 实体、CodeFirst 和原生驱动示例属于 SqlSugar 用法，不代表 MCP 提供对应参数或工具。
+
 ---
 
 ## 📋 配置方式
@@ -18,12 +20,7 @@
       "connectionString": "Server=localhost;Port=2881;Database=test;User=root@sys;Password=password;Charset=utf8mb4;Min Pool Size=5;Max Pool Size=100;Pooling=true;Connection Timeout=30;",
       "dbType": "OceanBase",
       "description": "OceanBase MySQL 模式（租户隔离 + 分布式事务）",
-      "isDefault": true,
-      "optimizationSettings": {
-        "enableHints": "true",
-        "maxPoolSize": "100",
-        "tenantMode": "mysql"
-      }
+      "isDefault": true
     }
   ]
 }
@@ -173,135 +170,18 @@ SqlSugarClient db = new SqlSugarClient(new ConnectionConfig()
 
 ---
 
-## 🚀 自动性能优化
+## 驱动与优化配置
 
-### MySQL 模式优化
+dbType=OceanBase 选择 MySQL 模式；dbType=OceanBaseForOracle 选择 Oracle 模式及对应驱动。tenantMode 不切换驱动，连接串须匹配服务端租户。当前兼容产品的专用分页、自增 insert_row 和原子批次没有开放，以能力查询为准。
 
-DatabaseMcpServer 自动为 OceanBase MySQL 模式应用以下优化：
+| optimizationSettings 键 | 状态 | 作用 |
+| --- | --- | --- |
+| disableNvarchar | mapped | 影响相应 ORM 生成路径，不改写原始 SQL |
+| disablePooling / maxPoolSize | advisory | 通过连接串 Pooling / Max Pool Size 配置 |
+| tenantMode | advisory | 保留诊断；以 dbType 和连接串选择模式 |
+| enableHints / enableBulkCopy | not-applicable | 不自动添加 hints 或启用 BulkCopy |
 
-| 优化项 | 说明 | 效果 |
-|--------|------|------|
-| MySQL 兼容性 | 自动识别 MySQL 协议 | 无缝兼容 MySQL 驱动 |
-| 连接池管理 | 智能连接池复用 | 可选禁用连接池（不兼容服务器） |
-| 租户隔离 | 支持租户级别连接 | 多租户环境下资源隔离 |
-| Optimizer Hints | 支持查询优化提示 | 手动优化查询计划 |
-
-### Oracle 模式优化
-
-自动应用 Oracle 兼容优化策略（详见 `Oracle.md`）。
-
----
-
-## 🔧 MySQL 模式 - 优化配置选项
-
-以下配置选项在 databases.json 的 optimizationSettings 中设置。
-
-### disablePooling
-
-**类型**: `bool`
-**默认值**: `false`
-**说明**: 禁用连接池。某些 OceanBase 服务器不支持连接池，连续执行两次写入操作会报错。
-
-**配置示例**:
-```json
-{
-  "optimizationSettings": {
-    "disablePooling": "true"
-  }
-}
-```
-
-**或在连接字符串中设置**:
-```json
-{
-  "connectionString": "Server=localhost;...;Pooling=false;"
-}
-```
-
-### enableHints
-
-**类型**: `bool`
-**默认值**: `false`
-**说明**: 启用 OceanBase Optimizer Hints 支持。
-
-**配置示例**:
-```json
-{
-  "optimizationSettings": {
-    "enableHints": "true"
-  }
-}
-```
-
-**使用示例**:
-```csharp
-// 强制使用索引
-db.Queryable<Order>()
-  .Hints("/*+ INDEX(order idx_create_time) */")
-  .ToList();
-```
-
-### maxPoolSize
-
-**类型**: `int`
-**默认值**: `100`
-**说明**: 最大连接池大小。
-
-**配置示例**:
-```json
-{
-  "optimizationSettings": {
-    "maxPoolSize": "200"
-  }
-}
-```
-
-### tenantMode
-
-**类型**: `string`
-**默认值**: `"mysql"`
-**说明**: 租户兼容模式（mysql / oracle）。
-
-**配置示例**:
-```json
-{
-  "optimizationSettings": {
-    "tenantMode": "mysql"
-  }
-}
-```
-
-### enableBulkCopy
-
-**类型**: `bool`
-**默认值**: `false`
-**说明**: 启用批量操作优化。
-
-**配置示例**:
-```json
-{
-  "optimizationSettings": {
-    "enableBulkCopy": "true"
-  }
-}
-```
-
-### disableNvarchar
-
-**类型**: `bool`
-**默认值**: `false`
-**说明**: 少数兼容模式不支持 `N''` 前缀（官方文档提示特殊服务器需禁用 Nvarchar），如遇连续写入或字符集异常可开启。
-
-**配置示例**:
-```json
-{
-  "optimizationSettings": {
-    "disableNvarchar": "true"
-  }
-}
-```
-
----
+Oracle 模式复用对应 ORM 配置项，见 [Oracle 指南](Oracle.md)。每次操作独占客户端租约，不能依赖独立工具调用间保留会话状态。
 
 ## 📊 配置场景
 
@@ -311,12 +191,7 @@ db.Queryable<Order>()
 {
   "name": "oceanbase-prod-mysql",
   "connectionString": "Server=obproxy.example.com;Port=2883;Database=app;User=app_user@tenant_prod;Password=strong_pwd;Charset=utf8mb4;Min Pool Size=10;Max Pool Size=200;Pooling=true;",
-  "dbType": "OceanBase",
-  "optimizationSettings": {
-    "enableHints": "true",
-    "maxPoolSize": "200",
-    "tenantMode": "mysql"
-  }
+  "dbType": "OceanBase"
 }
 ```
 
@@ -331,10 +206,7 @@ db.Queryable<Order>()
 {
   "name": "oceanbase-no-pool",
   "connectionString": "Server=localhost;Port=2881;Database=test;User=root@sys;Password=pwd;Pooling=false;",
-  "dbType": "OceanBase",
-  "optimizationSettings": {
-    "disablePooling": "true"
-  }
+  "dbType": "OceanBase"
 }
 ```
 
@@ -368,9 +240,7 @@ db.Queryable<Order>()
 
 ### Q1: 连续执行两次写入操作报错？
 
-**A**: 这是 OceanBase 服务器不支持连接池导致的。解决方案：
-1. **方案 1**: 在连接字符串中添加 `Pooling=false`
-2. **方案 2**: 在 `optimizationSettings` 中设置 `disablePooling: "true"`
+**A**: 先核对驱动、租户配置和服务器错误。若已确认目标不兼容连接池，可在连接字符串设置 Pooling=false；optimizationSettings.disablePooling 仅为 advisory，不会禁用连接池。
 
 ### Q2: 租户连接格式错误？
 
@@ -437,4 +307,4 @@ long id = db.Insertable(entity).ExecuteReturnSnowflakeId();
 
 ---
 
-**最后更新**: 2025-12-05
+**最后更新**: 2026-11-26

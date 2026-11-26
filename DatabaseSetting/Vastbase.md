@@ -47,9 +47,8 @@ Vastbase 基于 PostgreSQL，需要在连接字符串添加 `No Reset On Close=t
 
 ## 🚀 自动性能优化
 
-- `VastbaseOptimizationStrategy` 默认启用 `PgSqlIsAutoToLower=true`，贴合 PG 风格。
-- 未设置或关闭 `noResetOnClose` 时，会发出警告提示补充到连接字符串。
-- 记录 `maxPoolSize` 便于池化调优，可选 `disableNvarchar` 兼容特殊版本。
+- `VastbaseOptimizationStrategy` 默认启用 `PgSqlIsAutoToLower=true`，支持 `autoToLower`、`autoToLowerCodeFirst` 与 `disableNvarchar`。
+- 请在连接字符串中显式配置 `No Reset On Close=true` 以避免会话重置问题。
 
 ---
 
@@ -64,10 +63,11 @@ Vastbase 基于 PostgreSQL，需要在连接字符串添加 `No Reset On Close=t
 
 | 配置键 | 类型 | 说明 |
 |--------|------|------|
-| `autoToLower` | bool | 表/列名自动转小写（默认 true） |
-| `noResetOnClose` | bool | 建议 `true`，对应连接串 `No Reset On Close=true` |
-| `maxPoolSize` | int | 连接池上限 |
-| `disableNvarchar` | bool | 少数版本需禁用 `N''` 前缀时设为 `true` |
+| `autoToLower` | bool | `mapped`：表/列名自动转小写（默认 true） |
+| `autoToLowerCodeFirst` | bool | `mapped`：CodeFirst 表/列名自动转小写 |
+| `disableNvarchar` | bool | `mapped`：少数版本需禁用 `N''` 前缀时设为 `true` |
+| `noResetOnClose` | bool | `advisory`：请在连接串设置 `No Reset On Close=true` |
+| `maxPoolSize` | int | `advisory`：请在连接串配置连接池大小 |
 
 ---
 

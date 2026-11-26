@@ -5,7 +5,9 @@ namespace DatabaseMcpServer.Models;
 
 internal sealed record DatabaseExecutionOptions(int MaxConcurrent = 8, int MaxQueued = 32, int QueueTimeoutSeconds = 30)
 {
-    public bool BoundedQueryDefaults { get; init; }
+    public int MaxTotalConcurrent { get; init; } = 32;
+    public int MaxTotalQueued { get; init; } = 128;
+    public bool BoundedQueryDefaults { get; init; } = true;
     public int DefaultQueryRows { get; init; } = 1000;
     public int DefaultResponseBytes { get; init; } = 1024 * 1024;
     public int DefaultCommandTimeoutSeconds { get; init; } = 30;
@@ -19,7 +21,8 @@ internal sealed record DatabaseExecutionOptions(int MaxConcurrent = 8, int MaxQu
 
     public void Validate()
     {
-        if (MaxConcurrent < 1 || MaxQueued < 0 || QueueTimeoutSeconds < 1 || DefaultQueryRows < 1 || MaxQueryRows < 1 ||
+        if (MaxConcurrent < 1 || MaxQueued < 0 || MaxTotalConcurrent is < 1 or > 1024 || MaxTotalQueued is < 0 or > 10000 ||
+            QueueTimeoutSeconds < 1 || DefaultQueryRows < 1 || MaxQueryRows < 1 ||
             DefaultResponseBytes < 256 || MaxResponseBytes < 256 || DefaultCommandTimeoutSeconds < 1 || MaxCommandTimeoutSeconds < 1 ||
             MaxCommandTimeoutSeconds > CommandTimeoutPolicy.MaxTimeoutSeconds || MetadataCacheSeconds < 0 || MetadataCacheEntries < 1 || !Enum.IsDefined(Access))
             throw new ArgumentOutOfRangeException(nameof(DatabaseExecutionOptions), "数据库执行策略无效。");
@@ -29,7 +32,9 @@ internal sealed record DatabaseExecutionOptions(int MaxConcurrent = 8, int MaxQu
         Read("DB_MAX_CONCURRENT", 8, 1, 1024), Read("DB_MAX_QUEUED", 32, 0, 10000),
         Read("DB_QUEUE_TIMEOUT_SECONDS", 30, 1, 86400))
     {
-        BoundedQueryDefaults = ReadBoolean("DB_QUERY_BOUNDED_DEFAULTS", false),
+        MaxTotalConcurrent = Read("DB_MAX_TOTAL_CONCURRENT", 32, 1, 1024),
+        MaxTotalQueued = Read("DB_MAX_TOTAL_QUEUED", 128, 0, 10000),
+        BoundedQueryDefaults = ReadBoolean("DB_QUERY_BOUNDED_DEFAULTS", true),
         DefaultQueryRows = Read("DB_QUERY_DEFAULT_ROWS", 1000, 1, 1_000_000),
         DefaultResponseBytes = Read("DB_QUERY_DEFAULT_BYTES", 1024 * 1024, 256, 64 * 1024 * 1024),
         DefaultCommandTimeoutSeconds = Read("DB_QUERY_DEFAULT_TIMEOUT_SECONDS", 30, 1, 86400),
@@ -58,8 +63,9 @@ internal sealed record DatabaseExecutionOptions(int MaxConcurrent = 8, int MaxQu
     public int? ResolveTimeout(int? timeout)
     {
         // The provider default is also subject to the configured server timeout ceiling.
-        if (timeout == null && (BoundedQueryDefaults || MaxCommandTimeoutSeconds < 300))
-            timeout = Math.Min(BoundedQueryDefaults ? DefaultCommandTimeoutSeconds : 300, MaxCommandTimeoutSeconds);
+        // Query defaults are resolved by ResolveQuery; command defaults remain independent.
+        if (timeout == null && MaxCommandTimeoutSeconds < 300)
+            timeout = MaxCommandTimeoutSeconds;
         if (timeout.HasValue) CommandTimeoutPolicy.Validate(timeout.Value);
         if (timeout > MaxCommandTimeoutSeconds || (timeout == 0 && !AllowInfiniteTimeout))
             throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "commandTimeoutSeconds 超出服务端策略；无限等待可能已被禁用。");

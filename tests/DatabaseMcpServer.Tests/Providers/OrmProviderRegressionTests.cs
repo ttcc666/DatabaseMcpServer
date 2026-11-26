@@ -18,7 +18,7 @@ namespace DatabaseMcpServer.Tests;
 public class OrmProviderRegressionTests
 {
     [Fact]
-    public void MetadataTools_IsolateSameNamedTablesAndRefreshAfterDdl()
+    public async Task MetadataTools_IsolateSameNamedTablesAndRefreshAfterDdl()
     {
         using var fixture = DatabaseRoleTests.Create();
         var tools = fixture.Host.Services.GetRequiredService<SchemaTools>();
@@ -30,10 +30,10 @@ public class OrmProviderRegressionTests
             // Seed SqlSugar's shared cache to prove the tools bypass it.
             _ = lease.Client.DbMaintenance.GetPrimaries(table);
             _ = lease.Client.DbMaintenance.GetIsIdentities(table);
-            Assert.Equal(key, Assert.Single(Data(tools.GetPrimaries(table, name)).EnumerateArray()).GetString());
-            Assert.Equal(key, Assert.Single(Data(tools.GetIsIdentities(table, name)).EnumerateArray()).GetString());
+            Assert.Equal(key, Assert.Single(DatabaseRoleTests.Success(await tools.GetTableSchema(table, name, sections: ["primaryKeys"])).GetProperty("data").GetProperty("primaryKeys").EnumerateArray()).GetString());
+            Assert.Equal(key, Assert.Single(DatabaseRoleTests.Success(await tools.GetTableSchema(table, name, sections: ["identityColumns"])).GetProperty("data").GetProperty("identityColumns").EnumerateArray()).GetString());
         }
-        Assert.Empty(Data(tools.GetViewInfoList("analytics")).EnumerateArray());
+        Assert.Empty(DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<ObjectMetadataTools>().ListObjects("view", "analytics").Json()).GetProperty("objects").EnumerateArray());
         Assert.True(DatabaseRoleTests.Success(tools.IsAnyColumn(table, "old_col", "analytics")).GetProperty("exists").GetBoolean());
         using (var lease = fixture.Sessions.AcquireClient("analytics"))
         {
@@ -41,25 +41,31 @@ public class OrmProviderRegressionTests
             _ = lease.Client.DbMaintenance.IsAnyColumn(table, "old_col");
             lease.Client.Ado.ExecuteCommand($"create view {table}_view as select second_id from {table}");
         }
-        Assert.Single(Data(tools.GetViewInfoList("analytics")).EnumerateArray());
+        Assert.Single(DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<ObjectMetadataTools>().ListObjects("view", "analytics").Json()).GetProperty("objects").EnumerateArray());
         DatabaseRoleTests.Success(tools.DropColumn(table, "old_col", "analytics"));
         Assert.False(DatabaseRoleTests.Success(tools.IsAnyColumn(table, "old_col", "analytics")).GetProperty("exists").GetBoolean());
         Assert.True(DatabaseRoleTests.Success(tools.IsAnyColumn(table, "old_col", "primary")).GetProperty("exists").GetBoolean());
     }
 
     [Fact]
-    public void SynchronousMetadataAndDdl_RespectServerTimeout()
+    public async Task MetadataAndDdl_DistinguishRequestDeadlineFromNativeTimeout()
     {
         var timeouts = new List<int>();
         using var fixture = new RuntimeConsistencyTests.Fixture(
             observeClient: db => db.Aop.OnLogExecuting = (_, _) => timeouts.Add(db.Ado.CommandTimeOut),
             configureServices: services => services.AddSingleton(new DatabaseExecutionOptions { MaxCommandTimeoutSeconds = 7 }));
         var tools = fixture.Host.Services.GetRequiredService<SchemaTools>();
-        DatabaseRoleTests.Success(tools.GetTableInfoList());
-        DatabaseRoleTests.Success(tools.CreateTable("timeout_probe", """[{"DbColumnName":"id","DataType":"integer"}]"""));
-        DatabaseRoleTests.Success(tools.GetTableSchema("sqlite_master", refresh: true));
+        DatabaseRoleTests.Success(await tools.GetTableSchema("sqlite_master"));
         Assert.NotEmpty(timeouts);
-        Assert.All(timeouts, timeout => Assert.Equal(7, timeout));
+        Assert.All(timeouts, timeout => Assert.Equal(8, timeout)); // 7s request deadline, later native fallback.
+        timeouts.Clear();
+        DatabaseRoleTests.Success(tools.CreateTable("timeout_probe", [new() { Name = "id", DataType = "integer" }]));
+        Assert.NotEmpty(timeouts);
+        Assert.All(timeouts, timeout => Assert.Equal(7, timeout)); // Synchronous DDL retains native timeout semantics.
+        timeouts.Clear();
+        DatabaseRoleTests.Success(await tools.GetTableSchema("sqlite_master", refresh: true));
+        Assert.NotEmpty(timeouts);
+        Assert.All(timeouts, timeout => Assert.Equal(8, timeout));
     }
 
     public static IEnumerable<object[]> Presets() => DatabasePresetCatalog.Presets.Select(p => new object[] { p.DbType });
@@ -118,10 +124,10 @@ public class OrmProviderRegressionTests
         File.WriteAllText(fixture.Path, JsonSerializer.Serialize(config));
         Assert.True(fixture.Service.ReloadConfiguration().Success);
         var queries = fixture.Host.Services.GetRequiredService<QueryTools>();
-        var capabilities = DatabaseRoleTests.Success(fixture.Host.Services.GetRequiredService<ConnectionTools>().GetDatabaseCapabilities("highgo"));
+        var capabilities = DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<ConnectionTools>().GetDatabaseCapabilities("highgo"));
         Assert.Equal("HG", capabilities.GetProperty("actualProvider").GetString());
         Assert.Equal("unverified", capabilities.GetProperty("productVerification").GetString());
-        Assert.Equal(1, DatabaseRoleTests.Success(await queries.GetScalar("select 1", databaseName: "primary")).GetProperty("value").GetInt32());
+        Assert.Equal(1, DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<DatabaseQueryTools>().QueryDatabase("select 1 as value", databaseName: "primary").Json()).GetProperty("data")[0].GetProperty("value").GetInt32());
     }
 
     [Fact]
@@ -149,13 +155,17 @@ public class OrmProviderRegressionTests
         Assert.Equal(9007199254740993L, row.GetProperty("id").GetInt64());
         Assert.Equal("驱动 O'Reilly", row.GetProperty("label").GetString());
         Assert.Equal(12345678.1250m, row.GetProperty("amount").GetDecimal());
-        var initial = DatabaseRoleTests.Success(schema.GetTableSchema("driver_probe", "duck", refresh: true));
+        var initial = DatabaseRoleTests.Success(await schema.GetTableSchema("driver_probe", "duck", refresh: true));
         Assert.Contains("label", initial.GetRawText());
+        var listed = DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<ObjectMetadataTools>()
+            .ListObjects("table", "duck", namePrefix: "driver_probe").Json());
+        Assert.Equal("client", listed.GetProperty("pagingMode").GetString());
+        Assert.Equal("driver_probe", Assert.Single(listed.GetProperty("objects").EnumerateArray()).GetProperty("name").GetString());
         DatabaseRoleTests.Success(await commands.ExecuteCommand("alter table driver_probe add column extra integer", databaseName: "duck"));
-        var refreshed = DatabaseRoleTests.Success(schema.GetTableSchema("driver_probe", "duck", refresh: true));
+        var refreshed = DatabaseRoleTests.Success(await schema.GetTableSchema("driver_probe", "duck", refresh: true));
         Assert.Contains("extra", refreshed.GetRawText());
         DatabaseRoleTests.Success(schema.DropTable("driver_probe", "duck"));
-        Assert.Empty(Data(schema.GetTableInfoList("duck")).EnumerateArray());
+        Assert.Empty(DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<ObjectMetadataTools>().ListObjects("table", "duck").Json()).GetProperty("objects").EnumerateArray());
     }
 
     [Fact]
@@ -242,7 +252,7 @@ public class OrmProviderRegressionTests
     }
 
     [Fact]
-    public void TiDbProcedureOutput_IsRejectedBeforeOpeningConnection()
+    public async Task TiDbProcedureOutput_IsRejectedBeforeOpeningConnection()
     {
         using var fixture = new RuntimeConsistencyTests.Fixture();
         var config = new ConfigurationFileStore().Load(fixture.Path);
@@ -250,7 +260,7 @@ public class OrmProviderRegressionTests
         config.Databases[0].ConnectionString = "Server=localhost;Port=1;User=root;Database=test";
         File.WriteAllText(fixture.Path, JsonSerializer.Serialize(config));
         Assert.True(fixture.Service.ReloadConfiguration().Success);
-        var result = fixture.Host.Services.GetRequiredService<CommandTools>().CallStoredProcedure("unused",
+        var result = await fixture.Host.Services.GetRequiredService<CommandTools>().CallStoredProcedure("unused",
             [new() { Name = "output", Direction = DatabaseParameterDirection.Output, DbType = DatabaseParameterType.Int32 }]);
         DatabaseRoleTests.Error(result, 1012);
     }
@@ -271,6 +281,46 @@ public class OrmProviderRegressionTests
         var legacy = diagnostic.GetProperty("optimizationSettings").EnumerateArray().Single(o => o.GetProperty("name").GetString() == "nativeDriver");
         Assert.Equal("advisory", legacy.GetProperty("status").GetString());
         Assert.DoesNotContain("secret", diagnostic.GetRawText());
+        if (product is "GaussDB" or "OpenGauss")
+        {
+            Assert.Equal("sequential-for-bounded-text-commands", diagnostic.GetProperty("fieldReading").GetProperty("readerMode").GetString());
+            Assert.True(diagnostic.GetProperty("sqlSugarSettings").GetProperty("disableNvarchar").GetBoolean());
+        }
+    }
+
+    [Fact]
+    public void BuiltInAliasesAndUpdatedPresets_ValidateAndMapConsistently()
+    {
+        foreach (var dbType in new[] { "MySqlConnector", "TDSQL", "GaussDB", "Oscar", "Doris" })
+            Assert.True(DatabasePresetCatalog.TryGet(dbType, out _), $"Missing preset for {dbType}");
+
+        Assert.Contains("Port=9030", DatabasePresetCatalog.Presets.Single(p => p.DbType == "Doris").ExampleConnectionString);
+        Assert.Contains("PORT=2003", DatabasePresetCatalog.Presets.Single(p => p.DbType == "Oscar").ExampleConnectionString);
+        Assert.Contains("DATABASE=osrdb", DatabasePresetCatalog.Presets.Single(p => p.DbType == "Oscar").ExampleConnectionString);
+        Assert.DoesNotContain("No Reset On Close", DatabasePresetCatalog.Presets.Single(p => p.DbType == "GaussDBNative").ExampleConnectionString);
+
+        foreach (var (dbType, table, expected) in new[]
+        {
+            (DbType.PolarDB, "db.users", "`db`.`users`"),
+            (DbType.GoldenDB, "db.users", "`db`.`users`"),
+            (DbType.TDSQL, "db.users", "`db`.`users`")
+        })
+            Assert.Equal(expected, SqlSafetyGuard.QuoteTableName(table, dbType));
+
+        using var factory = Factory();
+        using var golden = factory.AcquireClient(new()
+        {
+            Name = "golden", DbType = "GoldenDB", ConnectionString = "Server=localhost;Database=test;Uid=root;Pwd=secret;Pooling=false;",
+            OptimizationSettings = new() { ["disableNvarchar"] = "true", ["disablePooling"] = "true" }
+        });
+        Assert.True(golden.Client.CurrentConnectionConfig.MoreSettings.DisableNvarchar);
+        var goldenCaps = JsonSerializer.SerializeToElement(DatabaseCapabilities.Describe(golden.Context, new(), golden.Client.CurrentConnectionConfig));
+        Assert.True(goldenCaps.GetProperty("sqlSugarSettings").GetProperty("disableNvarchar").GetBoolean());
+        Assert.Equal("advisory", goldenCaps.GetProperty("optimizationSettings").EnumerateArray()
+            .Single(o => o.GetProperty("name").GetString() == "disablePooling").GetProperty("status").GetString());
+
+        Assert.NotNull(DatabaseProviderCatalog.ConnectionStringError(DbType.QuestDB, "host=localhost;port=bad;password=secret"));
+        Assert.DoesNotContain("secret", DatabaseProviderCatalog.ConnectionStringError(DbType.Dm, "Server=localhost;Bad\"Quote=\"") ?? "");
     }
 
     [Theory]
@@ -286,7 +336,7 @@ public class OrmProviderRegressionTests
         Assert.Equal(actual, result.GetProperty("actualProvider").GetString());
         Assert.Equal("unverified", result.GetProperty("productVerification").GetString());
         Assert.Equal("unverified", result.GetProperty("capabilities").GetProperty("asyncQueryCancellation").GetString());
-        Assert.Equal("supported", result.GetProperty("capabilities").GetProperty("tablePagination").GetString());
+        Assert.Equal("unsupported", result.GetProperty("capabilities").GetProperty("tablePagination").GetString());
         Assert.Equal("unverified", result.GetProperty("capabilityVerification").GetProperty("tablePagination").GetString());
         Assert.Equal("unsupported", result.GetProperty("capabilities").GetProperty("typedProcedureOutput").GetString());
     }
@@ -300,9 +350,9 @@ public class OrmProviderRegressionTests
         config.Databases[0].ConnectionString = "mongodb://localhost:1/test";
         File.WriteAllText(fixture.Path, JsonSerializer.Serialize(config));
         Assert.True(fixture.Service.ReloadConfiguration().Success);
-        var capabilities = DatabaseRoleTests.Success(fixture.Host.Services.GetRequiredService<ConnectionTools>().GetDatabaseCapabilities());
+        var capabilities = DatabaseRoleTests.Success(await fixture.Host.Services.GetRequiredService<ConnectionTools>().GetDatabaseCapabilities());
         Assert.Equal("unsupported", capabilities.GetProperty("capabilities").GetProperty("sqlTools").GetString());
-        DatabaseRoleTests.Error(await fixture.Host.Services.GetRequiredService<QueryTools>().GetScalar("select 1"), 1012);
+        DatabaseRoleTests.Error(await fixture.Host.Services.GetRequiredService<DatabaseQueryTools>().QueryDatabase("select 1").Json(), 1012);
         DatabaseRoleTests.Error(await fixture.Host.Services.GetRequiredService<DatabaseQueryTools>().QueryDatabase("select 1").Json(), 1012);
         DatabaseRoleTests.Error(await fixture.Host.Services.GetRequiredService<CommandTools>().ExecuteCommand("insert into t values (1)"), 1012);
     }

@@ -1,12 +1,34 @@
 using DatabaseMcpServer.Models;
 using System.Diagnostics;
 using System.Text.Json;
+using DatabaseMcpServer.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DatabaseMcpServer.Tests.Integration;
 
 [Trait("Category", "Integration")]
 public class ProviderIntegrationTests
 {
+    [ProviderTheory]
+    [InlineData("MySql")]
+    [InlineData("PostgreSQL")]
+    [InlineData("SqlServer")]
+    public async Task GlobalAdmission_QueuesAcrossConnectionsAndRecoversAfterDeadline(string provider)
+    {
+        using var fixture = new ProviderFixture(provider, configureServices: services =>
+            services.AddSingleton(new DatabaseExecutionOptions { MaxConcurrent = 4, MaxTotalConcurrent = 1 }));
+        var coordinator = fixture.Tool<DatabaseExecutionCoordinator>();
+        using var other = coordinator.Reserve(new() { Name = "other", DbType = "Sqlite", ConnectionString = "Data Source=:memory:" }).Acquire();
+        var waiting = fixture.StructuredQuery.QueryDatabase("SELECT 7 AS value", commandTimeoutSeconds: 1);
+        Assert.False(waiting.IsCompleted);
+        var timeout = await waiting.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(timeout.IsError);
+        Assert.Equal(1011, timeout.StructuredContent!.Value.GetProperty("errorCode").GetInt32());
+        other.Dispose();
+        using var recovered = ProviderFixture.Success(await fixture.StructuredQuery.QueryDatabase("SELECT 7 AS value"));
+        Assert.Equal(7, recovered.RootElement.GetProperty("data")[0].GetProperty("value").GetInt32());
+    }
+
     [ProviderTheory]
     [InlineData("MySql")]
     [InlineData("PostgreSQL")]
@@ -60,8 +82,8 @@ public class ProviderIntegrationTests
                 $"SELECT id FROM {table} WHERE id IN (@ids) AND label=@label", parameters: [new() { Name = "ids", Value = JsonSerializer.SerializeToElement(new long[] { 9007199254740993, 2 }) }, new() { Name = "label", Value = JsonSerializer.SerializeToElement(label) }]).Json());
             Assert.Equal(1, inResult.RootElement.GetProperty("rowCount").GetInt32());
             Assert.Equal(9007199254740993L, inResult.RootElement.GetProperty("data")[0].GetProperty("id").GetInt64());
-            using var empty = ProviderFixture.Success(await fixture.Query.SqlQuerySingle(sql, JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"id","value":99}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!));
-            Assert.Equal(JsonValueKind.Null, empty.RootElement.GetProperty("data").ValueKind);
+            using var empty = ProviderFixture.Success(await fixture.StructuredQuery.QueryDatabase(sql, parameters: JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"id","value":99}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!));
+            Assert.Empty(empty.RootElement.GetProperty("data").EnumerateArray());
         }
         finally { fixture.Observer.Ado.ExecuteCommand($"DROP TABLE {table}"); }
     }
@@ -142,8 +164,8 @@ public class ProviderIntegrationTests
             }
             finally { fixture.Observer.Ado.RollbackTran(); }
             await fixture.WaitForActivity(marker, false);
-            using var unchanged = ProviderFixture.Success(await fixture.Query.GetScalar($"SELECT amount FROM {table} WHERE id=1"));
-            Assert.Equal(0, unchanged.RootElement.GetProperty("value").GetInt32());
+            using var unchanged = ProviderFixture.Success(await fixture.StructuredQuery.QueryDatabase($"SELECT amount AS value FROM {table} WHERE id=1"));
+            Assert.Equal(0, unchanged.RootElement.GetProperty("data")[0].GetProperty("value").GetInt32());
             await fixture.AssertUsable();
         }
         finally { fixture.Observer.Ado.ExecuteCommand($"DROP TABLE {table}"); }
@@ -194,7 +216,7 @@ public class ProviderIntegrationTests
         fixture.Observer.Ado.ExecuteCommand(sql);
         try
         {
-            using var result = ProviderFixture.Success(fixture.Command.CallStoredProcedure(
+            using var result = ProviderFixture.Success(await fixture.Command.CallStoredProcedure(
                 procedure, [new() { Name = "@input_value", DbType = DatabaseParameterType.Int32, Value = JsonSerializer.SerializeToElement(41) }, new() { Name = "@output_value", DbType = DatabaseParameterType.Int32, Direction = DatabaseParameterDirection.Output }]));
             Assert.Equal(1, result.RootElement.GetProperty("rowCount").GetInt32());
             Assert.Equal(41, result.RootElement.GetProperty("data")[0].GetProperty("received").GetInt32());
@@ -215,8 +237,8 @@ public class ProviderIntegrationTests
         fixture.Observer.Ado.ExecuteCommand($"CREATE FUNCTION {function}(input_value bigint) RETURNS bigint LANGUAGE SQL AS 'SELECT input_value+1'");
         try
         {
-            using var result = ProviderFixture.Success(await fixture.Query.GetScalar($"SELECT {function}(@value)", JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"value","value":41}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!));
-            Assert.Equal(42, result.RootElement.GetProperty("value").GetInt64());
+            using var result = ProviderFixture.Success(await fixture.StructuredQuery.QueryDatabase($"SELECT {function}(@value) AS value", parameters: JsonSerializer.Deserialize<DatabaseParameter[]>("""[{"name":"value","value":41}]""", new JsonSerializerOptions(JsonSerializerDefaults.Web))!));
+            Assert.Equal(42, result.RootElement.GetProperty("data")[0].GetProperty("value").GetInt64());
         }
         finally { fixture.Observer.Ado.ExecuteCommand($"DROP FUNCTION {function}(bigint)"); }
     }
@@ -232,8 +254,8 @@ public class ProviderIntegrationTests
         {
             using var result = ProviderFixture.Success(fixture.Command.ExecuteCommandWithGo($"INSERT INTO {table} VALUES (1)\nGO\nINSERT INTO {table} VALUES (2)"));
             Assert.Equal(2, result.RootElement.GetProperty("affectedRows").GetInt32());
-            using var count = ProviderFixture.Success(await fixture.Query.GetScalar($"SELECT COUNT(*) FROM {table}"));
-            Assert.Equal(2, count.RootElement.GetProperty("value").GetInt32());
+            using var count = ProviderFixture.Success(await fixture.StructuredQuery.QueryDatabase($"SELECT COUNT(*) AS value FROM {table}"));
+            Assert.Equal(2, count.RootElement.GetProperty("data")[0].GetProperty("value").GetInt32());
         }
         finally { fixture.Observer.Ado.ExecuteCommand($"DROP TABLE {table}"); }
     }

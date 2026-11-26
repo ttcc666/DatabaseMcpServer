@@ -28,18 +28,21 @@ public class VastbaseOptimizationStrategy : IDatabaseOptimizationStrategy
         if (optimizationSettings == null)
         {
             _logger?.LogDebug("应用 Vastbase 默认性能优化配置");
-            _logger?.LogInformation("Vastbase 建议在连接字符串添加 No Reset On Close=true 以兼容 PG 驱动");
             return;
         }
-
-        var applied = new List<string>();
 
         if (optimizationSettings.TryGetValue("autoToLower", out var autoToLowerStr) &&
             bool.TryParse(autoToLowerStr, out var autoToLower))
         {
             settings.PgSqlIsAutoToLower = autoToLower;
             _logger?.LogDebug("Vastbase 表名自动转小写: {Enabled}", autoToLower);
-            applied.Add($"autoToLower={autoToLower}");
+        }
+
+        if (optimizationSettings.TryGetValue("autoToLowerCodeFirst", out var autoToLowerCodeFirstStr) &&
+            bool.TryParse(autoToLowerCodeFirstStr, out var autoToLowerCodeFirst))
+        {
+            settings.PgSqlIsAutoToLowerCodeFirst = autoToLowerCodeFirst;
+            _logger?.LogDebug("Vastbase CodeFirst 表名自动转小写: {Enabled}", autoToLowerCodeFirst);
         }
 
         // 可选禁用 nvarchar（少数版本需要）
@@ -48,33 +51,6 @@ public class VastbaseOptimizationStrategy : IDatabaseOptimizationStrategy
         {
             settings.DisableNvarchar = disableNvarchar;
             _logger?.LogDebug("Vastbase 禁用 Nvarchar: {Disabled}", disableNvarchar);
-            applied.Add($"disableNvarchar={disableNvarchar}");
-        }
-
-        if (optimizationSettings.TryGetValue("maxPoolSize", out var maxPoolSizeStr) &&
-            int.TryParse(maxPoolSizeStr, out var maxPoolSize))
-        {
-            _logger?.LogDebug("Vastbase 最大连接池: {MaxPoolSize}", maxPoolSize);
-            applied.Add($"maxPoolSize={maxPoolSize}");
-        }
-
-        if (optimizationSettings.TryGetValue("noResetOnClose", out var noResetStr) &&
-            bool.TryParse(noResetStr, out var noResetOnClose))
-        {
-            if (!noResetOnClose)
-            {
-                _logger?.LogWarning("Vastbase 建议将连接字符串 No Reset On Close=true 以避免连接复用问题");
-            }
-            applied.Add($"noResetOnClose={noResetOnClose}");
-        }
-        else
-        {
-            _logger?.LogInformation("Vastbase 未显式设置 No Reset On Close，建议在连接字符串中添加 No Reset On Close=true");
-        }
-
-        if (applied.Count > 0)
-        {
-            _logger?.LogDebug("Vastbase 优化配置选项: {Options}", string.Join(", ", applied));
         }
 
         _logger?.LogDebug("应用 Vastbase 性能优化配置");

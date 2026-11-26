@@ -1,14 +1,16 @@
-using DatabaseMcpServer.Tools;
-using DatabaseMcpServer.Configuration;
+using System.Data;
 using System.Text.Json;
 using DatabaseMcpServer.Cli;
+using DatabaseMcpServer.Configuration;
 using DatabaseMcpServer.Helpers;
 using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
+using DatabaseMcpServer.Tools;
 using DatabaseMcpServer.Tools.Management;
 using DatabaseMcpServer.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
+using SqlSugar;
 using static DatabaseMcpServer.Tests.MongoDocumentContractTests;
 
 namespace DatabaseMcpServer.Tests;
@@ -45,31 +47,34 @@ public class MongoCollectionServiceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReadOnlyPolicy_BlocksEveryMongoWriteBeforeClientCreation(bool serverPolicy)
+    public async Task ReadOnlyPolicy_BlocksEveryMongoWriteBeforeSqlSugarDispatch(bool serverPolicy)
     {
-        var calls = 0;
-        using var registry = new MongoClientRegistry((_, _) => { calls++; throw new InvalidOperationException("no network allowed"); });
+        var executed = 0;
         using var fixture = Fixture(serverPolicy ? null : "read-only", configure: services =>
         {
-            services.AddSingleton(registry);
+            ObservedClientFactory.Register(services, db =>
+            {
+                db.Aop.OnLogExecuting = (_, _) => executed++;
+            });
             if (serverPolicy) services.AddSingleton(new DatabaseExecutionOptions { Access = DatabaseToolAccess.Read });
         });
         var service = fixture.Host.Services.GetRequiredService<MongoCollectionService>();
-        foreach (var operation in new[] { MongoOperation.Insert, MongoOperation.Update, MongoOperation.Delete })
+        foreach (var operation in new[] { MongoOperation.InsertMany, MongoOperation.Update, MongoOperation.Delete, MongoOperation.Truncate })
         {
-            var error = Payload(await service.ExecuteAsync(new(operation, "docs", Object("{\"x\":1}"), Document: Object("{}"), Update: Object("{\"$set\":{\"x\":2}}")), default));
+            var error = Payload(await service.ExecuteAsync(new(operation, "docs", Object("{\"x\":1}"),
+                Documents: [Object("{}")], Update: Object("{\"$set\":{\"x\":2}}")), default));
             Assert.Equal(1010, error.GetProperty("errorCode").GetInt32());
             Assert.Equal("not-executed", error.GetProperty("writeOutcome").GetString());
         }
-        Assert.Equal(0, calls);
+        Assert.Equal(0, executed);
     }
 
     [Fact]
-    public async Task InvalidDocumentsAndWriteConcern_AreRejectedBeforeClientCreation()
+    public async Task InvalidDocumentsAndWriteConcern_AreRejectedBeforeSqlSugarDispatch()
     {
-        var calls = 0;
-        using var registry = new MongoClientRegistry((_, _) => { calls++; throw new InvalidOperationException("no network allowed"); });
-        using var fixture = Fixture(configure: services => services.AddSingleton(registry));
+        var executed = 0;
+        using var fixture = Fixture(dangerous: true, configure: services =>
+            ObservedClientFactory.Register(services, db => db.Aop.OnLogExecuting = (_, _) => executed++));
         var service = fixture.Host.Services.GetRequiredService<MongoCollectionService>();
         var cases = new[]
         {
@@ -79,7 +84,7 @@ public class MongoCollectionServiceTests
             new MongoCollectionRequest(MongoOperation.Update, "docs", Object("{}"), Update: Object("{\"$set\":{\"x\":1}}")),
             new MongoCollectionRequest(MongoOperation.Update, "docs", Object("{\"x\":1}"), Update: Object("{\"$set\":{\"_id\":1}}")),
             new MongoCollectionRequest(MongoOperation.Delete, "docs"),
-            new MongoCollectionRequest(MongoOperation.Insert, "docs", Document: Object(JsonSerializer.Serialize(new { _id = new string('x', 4000) })), MaxResponseBytes: 1024)
+            new MongoCollectionRequest(MongoOperation.InsertMany, "docs", Documents: [])
         };
         foreach (var request in cases)
         {
@@ -91,9 +96,9 @@ public class MongoCollectionServiceTests
         config.Databases[0].ConnectionString += "?w=0";
         File.WriteAllText(fixture.Path, JsonSerializer.Serialize(config));
         Assert.True(fixture.Service.ReloadConfiguration().Success);
-        var rejected = Payload(await service.ExecuteAsync(new(MongoOperation.Insert, "docs", Document: Object("{}")), default));
+        var rejected = Payload(await service.ExecuteAsync(new(MongoOperation.InsertMany, "docs", Documents: [Object("{}")]), default));
         Assert.Equal(1004, rejected.GetProperty("errorCode").GetInt32());
-        Assert.Equal(0, calls);
+        Assert.Equal(0, executed);
     }
 
     [Fact]
@@ -105,14 +110,14 @@ public class MongoCollectionServiceTests
             Assert.Equal(1012, Payload(await service.ExecuteAsync(new(operation, "docs"), default)).GetProperty("errorCode").GetInt32());
         var catalog = new ToolCatalog();
         var web = fixture.Host.Services.GetRequiredService<CliWebToolService>();
-        foreach (var name in new[] { "mongo_insert_one", "mongo_update", "mongo_delete" })
+        foreach (var name in new[] { "mongo_insert_many", "mongo_update", "mongo_delete", "mongo_truncate" })
         {
             Assert.True(catalog.Tools.Single(t => t.Name == name).RequiresConfirmation);
             await Assert.ThrowsAsync<InvalidOperationException>(() => web.InvokeAsync(name, new(null, null), default));
         }
-        var result = JsonSerializer.SerializeToElement(await web.InvokeAsync("mongo_find", new(new Dictionary<string, JsonElement>()
+        var hidden = await Assert.ThrowsAsync<InvalidOperationException>(() => web.InvokeAsync("mongo_find", new(new Dictionary<string, JsonElement>()
         { ["collection"] = JsonSerializer.SerializeToElement("docs"), ["filter"] = JsonSerializer.SerializeToElement(new { x = 1 }) }, null), default));
-        Assert.Equal(1012, result.GetProperty("result").GetProperty("errorCode").GetInt32());
+        Assert.Contains("未在当前配置", hidden.Message);
     }
 
     [Fact]
@@ -120,10 +125,22 @@ public class MongoCollectionServiceTests
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        using var registry = new MongoClientRegistry(async (_, token) =>
-        { calls++; entered.TrySetResult(); await Task.Delay(Timeout.Infinite, token); throw new InvalidOperationException(); });
-        using var fixture = Fixture(uri: "mongodb+srv://example.invalid/test", configure: s => s.AddSingleton(registry));
-        using var capabilities = TestJson.Parse(fixture.Host.Services.GetRequiredService<ConnectionTools>().GetDatabaseCapabilities());
+        using var fixture = Fixture(configure: services =>
+            ObservedClientFactory.Register(services, db =>
+            {
+                db.CurrentConnectionConfig.SqlMiddle = new SqlMiddle
+                {
+                    IsSqlMiddle = true,
+                    GetDataReaderAsync = async (_, _) =>
+                    {
+                        Interlocked.Increment(ref calls);
+                        entered.TrySetResult();
+                        await Task.Delay(Timeout.Infinite, db.Ado.CancellationToken ?? default);
+                        throw new InvalidOperationException();
+                    }
+                };
+            }));
+        using var capabilities = TestJson.Parse(await fixture.Host.Services.GetRequiredService<ConnectionTools>().GetDatabaseCapabilities());
         Assert.True(capabilities.RootElement.GetProperty("success").GetBoolean());
         Assert.Equal(0, calls);
         var service = fixture.Host.Services.GetRequiredService<MongoCollectionService>();
@@ -133,7 +150,7 @@ public class MongoCollectionServiceTests
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query);
         using var lease = fixture.Sessions.AcquireClient();
-        var timedOut = Payload(await service.ExecuteAsync(new(MongoOperation.Count, "docs", CommandTimeoutSeconds: 1), default));
+        var timedOut = Payload(await service.ExecuteAsync(new(MongoOperation.Find, "docs", CommandTimeoutSeconds: 1), default));
         Assert.Equal(1011, timedOut.GetProperty("errorCode").GetInt32());
     }
 
@@ -141,9 +158,20 @@ public class MongoCollectionServiceTests
     public async Task ConnectionDiagnostics_PropagateCancellationWithoutLeakingAdmission()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var registry = new MongoClientRegistry(async (_, token) =>
-        { entered.TrySetResult(); await Task.Delay(Timeout.Infinite, token); throw new InvalidOperationException(); });
-        using var fixture = Fixture(configure: services => services.AddSingleton(registry));
+        using var fixture = Fixture(configure: services =>
+            ObservedClientFactory.Register(services, db =>
+            {
+                db.CurrentConnectionConfig.SqlMiddle = new SqlMiddle
+                {
+                    IsSqlMiddle = true,
+                    GetDataReaderAsync = async (_, _) =>
+                    {
+                        entered.TrySetResult();
+                        await Task.Delay(Timeout.Infinite, db.Ado.CancellationToken ?? default);
+                        throw new InvalidOperationException();
+                    }
+                };
+            }));
         var probe = fixture.Host.Services.GetRequiredService<DatabaseConnectionProbe>();
         var handler = new ConfigurationCommands(new ConfigurationFileStore(),
             fixture.Host.Services.GetRequiredService<DatabaseMcpServer.Interfaces.ISqlSugarClientFactory>(), probe);

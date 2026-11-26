@@ -11,7 +11,7 @@ public class DatabaseConnection
     {
         Name = Name, ConnectionString = ConnectionString, DbType = DbType, Description = Description,
         IsDefault = IsDefault, EnableDangerousOperations = EnableDangerousOperations,
-        AccessMode = AccessMode, ConfigurationVersion = ConfigurationVersion,
+        AccessMode = AccessMode, ConfigurationVersion = ConfigurationVersion, ConfigurationFingerprint = ConfigurationFingerprint,
         OptimizationSettings = OptimizationSettings == null ? null : new(OptimizationSettings, StringComparer.Ordinal)
     };
 
@@ -19,6 +19,9 @@ public class DatabaseConnection
 
     [JsonIgnore]
     public long ConfigurationVersion { get; internal set; }
+
+    [JsonIgnore]
+    internal string? ConfigurationFingerprint { get; set; }
 
     /// <summary>Optional tool access restriction: read-only, read-write or schema-admin (legacy default).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

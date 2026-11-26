@@ -10,6 +10,7 @@ public record DatabaseOperationContext
     [JsonIgnore] public string ConnectionString { get; init; } = string.Empty;
     public string ConnectionIdentity { get; init; } = string.Empty;
     public long ConfigurationVersion { get; init; }
+    [JsonIgnore] internal string? ConfigurationFingerprint { get; init; }
     public bool EnableDangerousOperations { get; init; }
     public string? AccessMode { get; init; }
     public IReadOnlyDictionary<string, string>? OptimizationSettings { get; init; }
@@ -23,6 +24,7 @@ public record DatabaseOperationContext
         ConnectionString = connection.ConnectionString;
         ConnectionIdentity = identity;
         ConfigurationVersion = connection.ConfigurationVersion;
+        ConfigurationFingerprint = connection.ConfigurationFingerprint;
         EnableDangerousOperations = connection.EnableDangerousOperations;
         AccessMode = connection.AccessMode;
         OptimizationSettings = connection.OptimizationSettings == null ? null
@@ -32,7 +34,8 @@ public record DatabaseOperationContext
     internal DatabaseConnection ToConnection() => new()
     {
         Name = DatabaseName, DbType = DatabaseType, ConnectionString = ConnectionString,
-        ConfigurationVersion = ConfigurationVersion, EnableDangerousOperations = EnableDangerousOperations,
+        ConfigurationVersion = ConfigurationVersion, ConfigurationFingerprint = ConfigurationFingerprint,
+        EnableDangerousOperations = EnableDangerousOperations,
         AccessMode = AccessMode, OptimizationSettings = OptimizationSettings?.ToDictionary(p => p.Key, p => p.Value)
     };
 

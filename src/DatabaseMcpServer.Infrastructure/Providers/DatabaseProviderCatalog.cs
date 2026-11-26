@@ -11,6 +11,7 @@ internal static class DatabaseProviderCatalog
         return dbType.ToLowerInvariant() switch
         {
             "mysql" => DbType.MySql,
+            "mysqlconnector" => DbType.MySql,
             "postgresql" => DbType.PostgreSQL,
             "sqlserver" => DbType.SqlServer,
             "sqlite" => DbType.Sqlite,
@@ -31,17 +32,24 @@ internal static class DatabaseProviderCatalog
             "oceanbase" => DbType.OceanBase,
             "oceanbasefororacle" => DbType.OceanBaseForOracle,
             "tidb" => DbType.Tidb,
+            "tdsql" => DbType.TDSQL,
             "polardb" => DbType.PolarDB,
             "clickhouse" => DbType.ClickHouse,
             "opengauss" => DbType.OpenGauss,
             "gaussdb" => DbType.GaussDB,
             "gaussdbnative" => DbType.GaussDBNative,
-            _ => throw new ArgumentException($"不支持的数据库类型: {dbType}。支持的数据库类型包括：mysql, postgresql, sqlserver, oracle, mongodb, sqlite, clickhouse, tidb, oceanbase, oceanbasefororacle, questdb, tdengine, duckdb, doris, dm, kdbndp, kingbase, oscar, hg, vastbase, goldendb, gbase, polardb, gaussdb, opengauss, gaussdbnative")
+            _ => throw new ArgumentException($"不支持的数据库类型: {dbType}。支持的数据库类型包括：mysql, mysqlconnector, postgresql, sqlserver, oracle, mongodb, sqlite, clickhouse, tidb, tdsql, oceanbase, oceanbasefororacle, questdb, tdengine, duckdb, doris, dm, kdbndp, kingbase, oscar, hg, vastbase, goldendb, gbase, polardb, gaussdb, opengauss, gaussdbnative")
         };
     }
 
     public static bool SupportsBoundedResults(DbType provider)
-        => provider is DbType.Sqlite or DbType.MySql or DbType.PostgreSQL or DbType.SqlServer;
+        => ProviderCapabilities.Supports(provider, DatabaseCapability.BoundedResults);
+
+    public static bool SupportsEstimatedPlan(DbType provider)
+        => ProviderCapabilities.Supports(provider, DatabaseCapability.EstimatedPlan);
+
+    public static bool SupportsAtomicDml(DbType provider)
+        => ProviderCapabilities.Supports(provider, DatabaseCapability.AtomicDml);
 
     internal static readonly IReadOnlyDictionary<DbType, string> ExtensionAssemblies = new Dictionary<DbType, string>
     {
@@ -57,7 +65,7 @@ internal static class DatabaseProviderCatalog
 
     public static DbType DriverFamily(DbType product) => product switch
     {
-        DbType.Tidb or DbType.OceanBase or DbType.PolarDB or DbType.GoldenDB or DbType.Doris => DbType.MySql,
+        DbType.Tidb or DbType.OceanBase or DbType.PolarDB or DbType.GoldenDB or DbType.Doris or DbType.TDSQL => DbType.MySql,
         DbType.GaussDB or DbType.OpenGauss or DbType.Vastbase => DbType.PostgreSQL,
         _ => product
     };
@@ -85,7 +93,7 @@ internal static class DatabaseProviderCatalog
     {
         if (product == DbType.MongoDb)
             throw new DatabaseMcpException(DatabaseErrorCode.UnsupportedCapability,
-                "MongoDB 不支持通用 SQL 工具；请使用 mongo_list_collections、mongo_find、mongo_count 及 Mongo 集合写入工具。");
+                "MongoDB 不支持通用 SQL 工具；请使用 mongo_find、mongo_aggregate、mongo_insert_many、mongo_update、mongo_delete 或 mongo_truncate。");
     }
 
     // Parse locally; never open connections, resolve SRV records, or return driver exception text.
@@ -96,16 +104,23 @@ internal static class DatabaseProviderCatalog
             _ = DriverFamily(product) switch
             {
                 DbType.MySql => (object)new MySqlConnector.MySqlConnectionStringBuilder(connectionString),
-                DbType.PostgreSQL => new Npgsql.NpgsqlConnectionStringBuilder(connectionString),
+                DbType.PostgreSQL or DbType.QuestDB => new Npgsql.NpgsqlConnectionStringBuilder(connectionString),
                 DbType.SqlServer => new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString),
                 DbType.Sqlite => new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(connectionString),
                 DbType.Kdbndp => new Kdbndp.KdbndpConnectionStringBuilder(connectionString),
                 DbType.Oracle => new Oracle.ManagedDataAccess.Client.OracleConnectionStringBuilder(connectionString),
+                DbType.Dm => new Dm.DmConnectionStringBuilder(connectionString),
+                DbType.Oscar => new System.Data.OscarClient.OscarConnectionStringBuilder(connectionString),
+                DbType.HG => new Nhgdb.NhgdbConnectionStringBuilder(connectionString),
                 DbType.GaussDBNative => new OpenGauss.NET.OpenGaussConnectionStringBuilder(connectionString),
-                DbType.MongoDb => new MongoDB.Driver.MongoUrlBuilder(connectionString),
+                DbType.MongoDb => MongoDocumentContract.ValidateUri(connectionString),
                 _ => new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString }
             };
             return null;
+        }
+        catch (DatabaseMcpException ex) when (ex.ErrorCode == DatabaseErrorCode.InvalidParameters)
+        {
+            return ex.Message;
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or OverflowException or KeyNotFoundException)
         {

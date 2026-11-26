@@ -13,7 +13,7 @@
 - `dotnet build 'DatabaseMcpServer.slnx'` — compile the full solution and validate package references.
 - `dotnet test 'DatabaseMcpServer.slnx'` — run all xUnit tests discovered under `tests/`.
 - `$env:DB_CONFIG_PATH = 'path/to/databases.json'; dotnet run --project 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' --framework 'net10.0'` — launch the stdio MCP server with a local config file.
-- `dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c Release '-p:TargetFrameworks=net10.0' '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'` — create the .NET 10 NuGet/global-tool package with isolated restore assets; source builds/tests retain both frameworks. Regular backend builds use tracked `website/dist` without running npm.
+- `dotnet pack 'src/DatabaseMcpServer/DatabaseMcpServer.csproj' -c Release '-p:BuildWebsite=true' --artifacts-path 'artifacts/package-build'` — create the .NET 10 NuGet/global-tool package with isolated restore assets; source, tests and benchmarks target .NET 10 only. Regular backend builds use tracked `website/dist` without running npm.
 - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1` — run repository verification scripts when preparing releases.
 
 ## Coding Style & Naming Conventions

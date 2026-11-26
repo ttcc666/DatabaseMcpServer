@@ -78,6 +78,11 @@ public class ApiResult<T>
     /// </summary>
     public DatabaseErrorCode? ErrorCode { get; set; }
 
+    public bool? Retryable { get; set; }
+    public string? Phase { get; set; }
+    public string? Capability { get; set; }
+    public string? Hint { get; set; }
+
     /// <summary>
     /// 时间戳
     /// </summary>
@@ -104,7 +109,20 @@ public class ApiResult<T>
         {
             Success = false,
             ErrorMessage = errorMessage,
-            ErrorCode = errorCode
+            ErrorCode = errorCode,
+            // Only admission failures are safe to retry without knowing whether a write ran.
+            Retryable = errorCode == DatabaseErrorCode.DatabaseBusy,
+            Phase = errorCode switch
+            {
+                DatabaseErrorCode.DatabaseBusy => "admission",
+                DatabaseErrorCode.InvalidParameters => "validation",
+                DatabaseErrorCode.AccessDenied => "authorization",
+                DatabaseErrorCode.UnsupportedCapability => "capability",
+                DatabaseErrorCode.ResponseLimitExceeded => "read",
+                DatabaseErrorCode.ConnectionFailed => "connect",
+                _ => "execution"
+            },
+            Hint = errorCode == DatabaseErrorCode.UnsupportedCapability ? "查看 get_database_capabilities 和当前工具目录。" : null
         };
     }
 }
@@ -115,6 +133,8 @@ public class ApiResult<T>
 public class DatabaseMcpException : Exception
 {
     public DatabaseErrorCode ErrorCode { get; }
+    public string? Phase { get; init; }
+    public string? Capability { get; init; }
 
     public DatabaseMcpException(DatabaseErrorCode errorCode, string message) : base(message)
     {

@@ -1,97 +1,42 @@
 using DatabaseMcpServer.Models;
 using SqlSugar;
-using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace DatabaseMcpServer.Helpers;
 
 internal static class SchemaColumnDefinitionParser
 {
-    public static DbColumnInfo Parse(string columnInfo)
+    public static DbColumnInfo Parse(ColumnDefinition column)
     {
-        var columnData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(columnInfo);
-        if (columnData == null)
+        if (column == null || string.IsNullOrWhiteSpace(column.Name) || string.IsNullOrWhiteSpace(column.DataType))
+            throw Invalid("列必须提供 name 和 dataType。");
+        SqlSafetyGuard.EnsureSafeTableName(column.Name);
+        if (column.Name.Contains('.') || !Regex.IsMatch(column.DataType, @"\A[A-Za-z][A-Za-z0-9_ ]{0,63}\z") ||
+            column.Length is <= 0 || column.Precision is 0 || column.Scale > column.Precision ||
+            column.Scale.HasValue != column.Precision.HasValue || column.Length.HasValue && column.Precision.HasValue)
+            throw Invalid("字段类型、长度或 precision/scale 无效。");
+        var type = column.DataType.ToLowerInvariant();
+        var decimalType = type is "decimal" or "numeric";
+        if (column.Precision.HasValue && !decimalType) throw Invalid("precision/scale 仅用于 decimal/numeric。");
+        return new()
         {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "无效的列信息 JSON");
-        }
-
-        return Parse(columnData);
-    }
-
-    public static List<DbColumnInfo> ParseMany(string columnsInfo)
-    {
-        var columnsData = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(columnsInfo);
-        if (columnsData == null || columnsData.Count == 0)
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "columnsInfo 必须是非空列定义 JSON 数组");
-        }
-
-        var columns = columnsData.Select(Parse).ToList();
-        if (columns.Any(column => string.IsNullOrWhiteSpace(column.DbColumnName)))
-        {
-            throw new DatabaseMcpException(DatabaseErrorCode.InvalidParameters, "每个列定义都必须包含 DbColumnName");
-        }
-
-        return columns;
-    }
-
-    private static DbColumnInfo Parse(IReadOnlyDictionary<string, JsonElement> columnData)
-    {
-        var dataType = JsonElementValueConverter.GetString(columnData, "DataType") ?? "varchar";
-        var column = new DbColumnInfo
-        {
-            DbColumnName = JsonElementValueConverter.GetString(columnData, "DbColumnName") ?? string.Empty,
-            DataType = dataType,
-            IsNullable = JsonElementValueConverter.GetBoolean(columnData, "IsNullable", true),
-            IsIdentity = JsonElementValueConverter.GetBoolean(columnData, "IsIdentity", false),
-            IsPrimarykey = JsonElementValueConverter.GetBoolean(columnData, "IsPrimarykey", false),
-            ColumnDescription = JsonElementValueConverter.GetString(columnData, "ColumnDescription") ?? string.Empty,
-            DefaultValue = JsonElementValueConverter.GetString(columnData, "DefaultValue") ?? string.Empty,
-            CreateTableFieldSort = JsonElementValueConverter.GetInt32(columnData, "CreateTableFieldSort", 0)
-        };
-
-        if (RequiresLength(dataType))
-        {
-            column.Length = JsonElementValueConverter.GetInt32(columnData, "Length", GetDefaultLength(dataType));
-        }
-
-        if (RequiresDecimalDigits(dataType))
-        {
-            column.Length = JsonElementValueConverter.GetInt32(columnData, "Length", 18);
-            column.DecimalDigits = JsonElementValueConverter.GetInt32(columnData, "DecimalDigits", 2);
-        }
-
-        return column;
-    }
-
-    private static bool RequiresLength(string dataType)
-    {
-        var type = dataType.ToLowerInvariant();
-        string[] stringTypes = ["char", "varchar", "nchar", "nvarchar", "binary", "varbinary"];
-        return stringTypes.Any(t => type.Contains(t, StringComparison.Ordinal));
-    }
-
-    private static bool RequiresDecimalDigits(string dataType)
-    {
-        var type = dataType.ToLowerInvariant();
-        return type.Contains("decimal", StringComparison.Ordinal)
-            || type.Contains("numeric", StringComparison.Ordinal);
-    }
-
-    private static int GetDefaultLength(string dataType)
-    {
-        var type = dataType.ToLowerInvariant();
-
-        return type switch
-        {
-            var t when t.Contains("nchar", StringComparison.Ordinal) && !t.Contains("nvarchar", StringComparison.Ordinal) => 10,
-            var t when t.Contains("char", StringComparison.Ordinal)
-                && !t.Contains("varchar", StringComparison.Ordinal)
-                && !t.Contains("nchar", StringComparison.Ordinal) => 10,
-            var t when t.Contains("nvarchar", StringComparison.Ordinal) => 50,
-            var t when t.Contains("varchar", StringComparison.Ordinal) => 50,
-            var t when t.Contains("varbinary", StringComparison.Ordinal) => 50,
-            var t when t.Contains("binary", StringComparison.Ordinal) && !t.Contains("varbinary", StringComparison.Ordinal) => 8,
-            _ => 255
+            DbColumnName = column.Name, DataType = column.DataType,
+            Length = column.Length ?? column.Precision ?? (decimalType ? 18 : type.Contains("char", StringComparison.Ordinal) ? 50 : 0),
+            DecimalDigits = column.Scale ?? (decimalType ? 2 : 0),
+            IsNullable = column.Nullable && !column.PrimaryKey, IsPrimarykey = column.PrimaryKey, IsIdentity = column.Identity,
+            ColumnDescription = column.Comment ?? "", DefaultValue = column.DefaultExpression ?? ""
         };
     }
+
+    public static List<DbColumnInfo> ParseMany(ColumnDefinition[] columns)
+    {
+        if (columns is not { Length: > 0 and <= 1024 }) throw Invalid("columns 必须包含 1-1024 个字段。");
+        var mapped = columns.Select(Parse).ToList();
+        if (mapped.Select(c => c.DbColumnName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != mapped.Count)
+            throw Invalid("columns 包含重复名称。");
+        for (var i = 0; i < mapped.Count; i++) mapped[i].CreateTableFieldSort = i;
+        return mapped;
+    }
+
+    private static DatabaseMcpException Invalid(string message) => new(DatabaseErrorCode.InvalidParameters, message);
 }

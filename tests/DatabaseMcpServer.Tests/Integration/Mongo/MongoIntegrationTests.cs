@@ -1,17 +1,10 @@
-using DatabaseMcpServer.Tools;
-using DatabaseMcpServer.Configuration;
 using System.Text.Json;
-using DatabaseMcpServer.Cli;
 using DatabaseMcpServer.Models;
 using DatabaseMcpServer.Services;
 using DatabaseMcpServer.Tools.Management;
-using DatabaseMcpServer.Web;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Client;
-using ModelContextProtocol.Protocol;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using MongoDB.Driver.Core.Events;
 using static DatabaseMcpServer.Tests.MongoDocumentContractTests;
 using static DatabaseMcpServer.Tests.MongoCollectionServiceTests;
 
@@ -27,243 +20,183 @@ public sealed class MongoIntegrationFactAttribute : FactAttribute
 public class MongoIntegrationTests
 {
     [MongoIntegrationFact]
-    public async Task CollectionTools_RoundTripInsertFindUpdateDeleteAndNativePing()
+    public async Task ReadTools_ReturnProviderConvertedValuesAndTypedFilters()
     {
         using var test = new MongoFixture();
-        var inserted = await test.Call(new(MongoOperation.Insert, "orders", Document: Object("""{"customer":"甲","amount":{"$numberDecimal":"12.3456789"},"large":{"$numberLong":"9007199254740993"}}""")));
-        var id = inserted.GetProperty("insertedId");
-        Assert.Equal(24, id.GetProperty("$oid").GetString()!.Length);
-        Assert.Equal("acknowledged", inserted.GetProperty("writeOutcome").GetString());
-        var filter = Object("{\"_id\":" + id.GetRawText() + "}");
-        var found = await test.Call(new(MongoOperation.Find, "orders", filter));
+        const string source = """
+            {"_id":{"$oid":"507f1f77bcf86cd799439011"},"optional":null,"textId":"507f1f77bcf86cd799439011",
+             "long":{"$numberLong":"9007199254740993"},"decimal":{"$numberDecimal":"12.34"},
+             "uuid":{"$binary":{"base64":"AAAAAAAAAAAAAAAAAAAAAA==","subType":"04"}},"nested":[null,{"ok":true}]}
+            """;
+        await test.Call(new(MongoOperation.InsertMany, "docs", Documents: [Object(source)]));
+        foreach (var operation in new[] { MongoOperation.Find, MongoOperation.Aggregate })
+        {
+            var result = await test.Call(new(operation, "docs", Pipeline: operation == MongoOperation.Aggregate ? [Object("{\"$match\":{}}")]: null));
+            var document = result.GetProperty("documents")[0];
+            Assert.Equal("507f1f77bcf86cd799439011", document.GetProperty("_id").GetString());
+            Assert.Equal(document.GetProperty("_id").GetString(), document.GetProperty("textId").GetString());
+            Assert.Equal(9007199254740993L, document.GetProperty("long").GetInt64());
+            Assert.Equal(12.34m, document.GetProperty("decimal").GetDecimal());
+            Assert.Equal(new byte[16], document.GetProperty("uuid").GetBytesFromBase64());
+            Assert.Equal(JsonValueKind.Null, document.GetProperty("nested")[0].ValueKind);
+            Assert.True(document.GetProperty("nested")[1].GetProperty("ok").GetBoolean());
+            Assert.False(document.TryGetProperty("absent", out _));
+            Assert.Equal(JsonValueKind.Null, document.GetProperty("optional").ValueKind);
+            var filter = new Dictionary<string, JsonElement> { ["_id"] = document.GetProperty("_id").Clone() };
+            Assert.Equal(0, (await test.Call(new(MongoOperation.Find, "docs", filter))).GetProperty("returnedCount").GetInt32());
+            Assert.Equal(1, (await test.Call(new(MongoOperation.Find, "docs", Object("""{"_id":{"$oid":"507f1f77bcf86cd799439011"}}""")))).GetProperty("returnedCount").GetInt32());
+        }
+    }
+
+    [MongoIntegrationFact]
+    public async Task ProviderConversion_NormalizesMissingFieldsAndReportsDecimalOverflow()
+    {
+        using var test = new MongoFixture();
+        await test.Collection.InsertManyAsync([new BsonDocument { { "_id", 1 }, { "optional", BsonNull.Value } }, new BsonDocument("_id", 2)]);
+        var result = await test.Call(new(MongoOperation.Find, "docs"));
+        Assert.Equal(2, result.GetProperty("returnedCount").GetInt32());
+        Assert.All(result.GetProperty("documents").EnumerateArray(), row => Assert.Equal(JsonValueKind.Null, row.GetProperty("optional").ValueKind));
+        await test.Collection.InsertOneAsync(new BsonDocument { { "_id", 3 }, { "decimal", Decimal128.Parse("1E+100") } });
+        var failure = await test.Call(new(MongoOperation.Find, "docs"), false);
+        Assert.Equal((int)DatabaseErrorCode.QueryExecutionFailed, failure.GetProperty("errorCode").GetInt32());
+        Assert.DoesNotContain("1E+100", failure.GetRawText());
+        Assert.Equal(3, (await test.Call(new(MongoOperation.Find, "docs", Projection: Object("{\"_id\":1}")))).GetProperty("returnedCount").GetInt32());
+    }
+
+    [MongoIntegrationFact]
+    public async Task ReadBudgets_ApplyAfterProviderMaterialization()
+    {
+        using var test = new MongoFixture();
+        await test.Collection.InsertManyAsync(Enumerable.Range(1, 110).Select(i =>
+            new BsonDocument { { "_id", i }, { "payload", new string('x', 4000) } }));
+        await test.FailCommand("getMore", block: false);
+        var failure = await test.Call(new(MongoOperation.Aggregate, "docs", Pipeline: [Object("{\"$sort\":{\"_id\":1}}")],
+            MaxRows: 110, MaxResponseBytes: 1024), false);
+        Assert.Equal((int)DatabaseErrorCode.QueryExecutionFailed, failure.GetProperty("errorCode").GetInt32());
+        await test.DisableFailPoint();
+        foreach (var byteLimited in new[] { false, true })
+        {
+            var result = await test.Call(new(MongoOperation.Aggregate, "docs",
+                Pipeline: [Object("{\"$sort\":{\"_id\":1}}")], MaxRows: byteLimited ? 20 : 1,
+                MaxResponseBytes: byteLimited ? 1024 : 10000));
+            Assert.Equal(byteLimited ? 0 : 1, result.GetProperty("returnedCount").GetInt32());
+            Assert.True(result.GetProperty("limitReached").GetBoolean());
+            Assert.True(System.Text.Encoding.UTF8.GetByteCount(result.GetRawText()) <= (byteLimited ? 1024 : 10000));
+            if (byteLimited) Assert.True(result.GetProperty("truncated").GetBoolean());
+            else Assert.Equal(JsonValueKind.Null, result.GetProperty("truncated").ValueKind);
+        }
+    }
+
+    [MongoIntegrationFact]
+    public async Task Aggregation_HandlesEmptyResultsAndRowCeilingWithoutUserLimit()
+    {
+        using var test = new MongoFixture();
+        var empty = await test.Call(new(MongoOperation.Aggregate, "docs", Pipeline: [Object("{\"$match\":{}}")], MaxRows: 2));
+        Assert.Empty(empty.GetProperty("documents").EnumerateArray());
+        Assert.False(empty.GetProperty("limitReached").GetBoolean());
+        await test.Collection.InsertManyAsync(Enumerable.Range(1, 5).Select(i => new BsonDocument("_id", i)));
+        var result = await test.Call(new(MongoOperation.Aggregate, "docs", Pipeline: [Object("{\"$sort\":{\"_id\":1}}")], MaxRows: 2));
+        Assert.Equal(new[] { 1, 2 }, result.GetProperty("documents").EnumerateArray()
+            .Select(doc => BsonDocument.Parse(doc.GetRawText())["_id"].AsInt32));
+        Assert.True(result.GetProperty("limitReached").GetBoolean());
+    }
+
+    [MongoIntegrationFact]
+    public async Task Cancellation_WaitsForInitialCommandAndReleasesAdmission()
+    {
+        foreach (var command in new[] { "aggregate", "getMore" })
+        {
+            using var test = new MongoFixture(configure: services => services.AddSingleton(new DatabaseExecutionOptions { MaxTotalConcurrent = 1 }));
+            await test.Collection.InsertManyAsync(Enumerable.Range(1, 110).Select(i => new BsonDocument("_id", i)));
+            var count = await test.FailCommand(command, block: true);
+            using var cancellation = new CancellationTokenSource();
+            var pending = Task.Run(() => test.Service.ExecuteAsync(new(MongoOperation.Find, "docs"), cancellation.Token));
+            await test.WaitForFailPoint(count + 1);
+            cancellation.Cancel();
+            if (command == "aggregate")
+            {
+                await Task.Delay(100);
+                Assert.False(pending.IsCompleted);
+                var queued = test.Fixture.Sessions.AcquireClientAsync("analytics").AsTask();
+                Assert.False(queued.IsCompleted);
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(12)));
+                using var lease = await queued.WaitAsync(TimeSpan.FromSeconds(3));
+            }
+            else
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(3)));
+            await test.DisableFailPoint();
+            Assert.Equal(110, (await test.Call(new(MongoOperation.Find, "docs"))).GetProperty("returnedCount").GetInt32());
+        }
+    }
+
+    [MongoIntegrationFact]
+    public async Task Deadline_ReturnsTimeoutAndProbeCancellationReleasesAdmission()
+    {
+        using var test = new MongoFixture(configure: services => services.AddSingleton(new DatabaseExecutionOptions { MaxTotalConcurrent = 1 }));
+        await test.Collection.InsertOneAsync(new BsonDocument("_id", 1));
+        await test.FailCommand("aggregate", block: true);
+        var timeout = await Task.Run(() => test.Call(new(MongoOperation.Find, "docs", CommandTimeoutSeconds: 1), false)).WaitAsync(TimeSpan.FromSeconds(12));
+        Assert.Equal(1011, timeout.GetProperty("errorCode").GetInt32());
+        await test.DisableFailPoint();
+        var count = await test.FailCommand("aggregate", block: true);
+        using var cancellation = new CancellationTokenSource();
+        var tools = test.Fixture.Host.Services.GetRequiredService<ConnectionTools>();
+        var probe = Task.Run(() => tools.TestConnection(cancellation.Token));
+        await test.WaitForFailPoint(count + 1);
+        cancellation.Cancel();
+        await Task.Delay(100);
+        Assert.False(probe.IsCompleted);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => probe.WaitAsync(TimeSpan.FromSeconds(12)));
+        await test.DisableFailPoint();
+        Assert.Equal(1, (await test.Call(new(MongoOperation.Find, "docs"))).GetProperty("returnedCount").GetInt32());
+    }
+
+    [MongoIntegrationFact]
+    public async Task GlobalAdmission_SharesSqlSlotAndRunsMongoAfterRelease()
+    {
+        using var test = new MongoFixture(configure: services => services.AddSingleton(new DatabaseExecutionOptions { MaxTotalConcurrent = 1 }));
+        await test.Collection.InsertOneAsync(new BsonDocument("value", 7));
+        using var sql = test.Fixture.Sessions.AcquireClient("analytics");
+        var pending = test.Service.ExecuteAsync(new(MongoOperation.Find, "docs"), default);
+        Assert.False(pending.IsCompleted);
+        sql.Dispose();
+        var result = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(result.Success);
+        Assert.Equal(1, Payload(result).GetProperty("returnedCount").GetInt32());
+    }
+
+    [MongoIntegrationFact]
+    public async Task CollectionTools_RoundTripInsertFindUpdateDeleteTruncateAndProbe()
+    {
+        using var test = new MongoFixture();
+        var inserted = await test.Call(new(MongoOperation.InsertMany, "orders", Documents: [Object("""{"_id":"o1","customer":"甲","amount":{"$numberDecimal":"12.34"},"large":{"$numberLong":"9007199254740993"}}""")]));
+        Assert.Equal(1, inserted.GetProperty("insertedCount").GetInt64());
+        var found = await test.Call(new(MongoOperation.Find, "orders", Object("""{"_id":"o1"}""")));
         Assert.Equal("甲", found.GetProperty("documents")[0].GetProperty("customer").GetString());
-        Assert.Equal("12.3456789", found.GetProperty("documents")[0].GetProperty("amount").GetProperty("$numberDecimal").GetString());
-        Assert.Equal("9007199254740993", found.GetProperty("documents")[0].GetProperty("large").GetProperty("$numberLong").GetString());
-        var strings = await test.Call(new(MongoOperation.Count, "orders", Object("{\"_id\":\"" + id.GetProperty("$oid").GetString() + "\"}")));
-        Assert.Equal(0, strings.GetProperty("matchedCount").GetInt64());
-        var updated = await test.Call(new(MongoOperation.Update, "orders", filter, Update: Object("{\"$set\":{\"customer\":\"乙\"}}")));
-        Assert.Equal(1, updated.GetProperty("matchedCount").GetInt64());
+        var updated = await test.Call(new(MongoOperation.Update, "orders", Object("""{"_id":"o1"}"""), Update: Object("""{"$set":{"customer":"乙"}}""")));
         Assert.Equal(1, updated.GetProperty("modifiedCount").GetInt64());
-        var noChange = await test.Call(new(MongoOperation.Update, "orders", filter, Update: Object("{\"$set\":{\"customer\":\"乙\"}}")));
-        Assert.Equal(0, noChange.GetProperty("modifiedCount").GetInt64());
-        var upsert = await test.Call(new(MongoOperation.Update, "orders", Object("{\"customer\":\"新\"}"), Update: Object("{\"$set\":{\"x\":1}}"), Upsert: true));
-        Assert.True(upsert.TryGetProperty("upsertedId", out _));
-        var collections = await test.Call(new(MongoOperation.List, NamePrefix: "ord"));
-        Assert.Equal("orders", Assert.Single(collections.GetProperty("collections").EnumerateArray()).GetProperty("name").GetString());
-        Assert.Equal(1, (await test.Call(new(MongoOperation.Delete, "orders", filter))).GetProperty("deletedCount").GetInt64());
-        Assert.Equal(0, (await test.Call(new(MongoOperation.Delete, "orders", filter))).GetProperty("deletedCount").GetInt64());
+        Assert.Equal(1, (await test.Call(new(MongoOperation.Delete, "orders", Object("""{"_id":"o1"}""")))).GetProperty("deletedCount").GetInt64());
+        await test.Call(new(MongoOperation.InsertMany, "orders", Documents: [Object("""{"customer":"丙"}""")]));
+        await test.Call(new(MongoOperation.Truncate, "orders"));
+        Assert.Equal(0, await test.Collection.Database.GetCollection<BsonDocument>("orders").CountDocumentsAsync(new BsonDocument()));
         var tools = test.Fixture.Host.Services.GetRequiredService<ConnectionTools>();
         Assert.True(TestJson.Parse(await tools.TestConnection()).RootElement.GetProperty("connected").GetBoolean());
-        Assert.True(TestJson.Parse(await tools.TestConnectionByName("primary")).RootElement.GetProperty("connected").GetBoolean());
-        Assert.True(TestJson.Parse(await tools.TestConnectionWithRetry(0, 1)).RootElement.GetProperty("connected").GetBoolean());
         Assert.True(TestJson.Parse(await tools.HealthCheck()).RootElement.GetProperty("overallHealth").GetBoolean());
-        var handler = new ConfigurationCommands();
-        Assert.True(TestJson.Parse(await handler.TestAsync(test.Fixture.Path, "primary")).RootElement.GetProperty("connected").GetBoolean());
-        Assert.True(TestJson.Parse(await handler.DoctorAsync(test.Fixture.Path, "primary", true, false, false)).RootElement.GetProperty("success").GetBoolean());
-    }
-
-    [MongoIntegrationFact]
-    public async Task OneAndMany_ReturnActualCountsAndProtectEmptyFilters()
-    {
-        using var test = new MongoFixture();
-        await test.Collection.InsertManyAsync(Enumerable.Range(0, 3).Select(i => new BsonDocument { { "_id", i }, { "group", 1 }, { "n", 0 } }));
-        var filter = Object("{\"group\":1}");
-        var update = Object("{\"$inc\":{\"n\":1}}");
-        Assert.Equal(1, (await test.Call(new(MongoOperation.Update, "docs", filter, Update: update))).GetProperty("modifiedCount").GetInt64());
-        Assert.Equal(3, (await test.Call(new(MongoOperation.Update, "docs", filter, Update: update, Many: true))).GetProperty("modifiedCount").GetInt64());
-        Assert.Equal(1, (await test.Call(new(MongoOperation.Delete, "docs", filter))).GetProperty("deletedCount").GetInt64());
-        var rejected = await test.Call(new(MongoOperation.Delete, "docs", Object("{}"), Many: true), false);
-        Assert.Equal(1010, rejected.GetProperty("errorCode").GetInt32());
-        Assert.Equal(2, (await test.Call(new(MongoOperation.Delete, "docs", Object("{}"), Many: true, AllowAll: true))).GetProperty("deletedCount").GetInt64());
-        Assert.Equal(0, await test.Collection.CountDocumentsAsync(new BsonDocument()));
-    }
-
-    [MongoIntegrationFact]
-    public async Task Find_EnforcesRowsBytesProjectionAndMultiBatchReads()
-    {
-        using var test = new MongoFixture();
-        await test.Collection.InsertManyAsync(Enumerable.Range(0, 140).Select(i => new BsonDocument { { "_id", i }, { "group", 1 }, { "payload", new string('汉', 1000) } }));
-        var bounded = await test.Call(new(MongoOperation.Find, "docs", MaxRows: 3));
-        Assert.Equal(3, bounded.GetProperty("returnedCount").GetInt32());
-        Assert.True(bounded.GetProperty("limitReached").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, bounded.GetProperty("truncated").ValueKind);
-        var commands = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        test.OnStarted = e => commands.Enqueue(e.CommandName);
-        var bytes = await test.Call(new(MongoOperation.Find, "docs", MaxResponseBytes: 1024));
-        Assert.Equal(0, bytes.GetProperty("returnedCount").GetInt32());
-        Assert.True(bytes.GetProperty("truncated").GetBoolean());
-        Assert.True(System.Text.Encoding.UTF8.GetByteCount(bytes.GetRawText()) <= 1024);
-        Assert.Contains("killCursors", commands);
-        Assert.DoesNotContain("getMore", commands);
-        commands.Clear();
-        var partialBytes = await test.Call(new(MongoOperation.Find, "docs", MaxResponseBytes: 7000));
-        Assert.Equal(2, partialBytes.GetProperty("returnedCount").GetInt32());
-        Assert.True(partialBytes.GetProperty("truncated").GetBoolean());
-        Assert.True(System.Text.Encoding.UTF8.GetByteCount(partialBytes.GetRawText()) <= 7000);
-        Assert.Contains("killCursors", commands);
-        var multi = await test.Call(new(MongoOperation.Find, "docs", Projection: Object("{\"payload\":0}"), Sort: Object("{\"group\":1}"), Skip: 1, MaxRows: 139));
-        Assert.Equal(139, multi.GetProperty("returnedCount").GetInt32());
-        Assert.Equal("1", multi.GetProperty("documents")[0].GetProperty("_id").GetProperty("$numberInt").GetString());
-        Assert.DoesNotContain("payload", multi.GetProperty("documents")[0].GetRawText());
-        var exact = await test.Call(new(MongoOperation.Find, "docs", Projection: Object("{\"payload\":0}"), MaxRows: 140));
-        Assert.Equal(JsonValueKind.Null, exact.GetProperty("truncated").ValueKind);
-        var exhausted = await test.Call(new(MongoOperation.Find, "docs", Projection: Object("{\"payload\":0}"), MaxRows: 141));
-        Assert.False(exhausted.GetProperty("limitReached").GetBoolean());
-        Assert.False(exhausted.GetProperty("truncated").GetBoolean());
-    }
-
-    [MongoIntegrationFact]
-    public async Task CollectionDiscovery_IsBoundedAndPrefixIsLiteral()
-    {
-        using var test = new MongoFixture();
-        foreach (var name in new[] { "a.one", "a.two", "aXthree" })
-            await test.Call(new(MongoOperation.Insert, name, Document: Object("{}")));
-        var matching = await test.Call(new(MongoOperation.List, NamePrefix: "a."));
-        Assert.Equal(new[] { "a.one", "a.two" }, matching.GetProperty("collections").EnumerateArray().Select(c => c.GetProperty("name").GetString()).Order());
-        var one = await test.Call(new(MongoOperation.List, NamePrefix: "a.", MaxRows: 1));
-        Assert.Equal(1, one.GetProperty("returnedCount").GetInt32());
-        Assert.Equal(JsonValueKind.Null, one.GetProperty("truncated").ValueKind);
-    }
-
-    [MongoIntegrationFact]
-    public async Task LargeUpsertConfirmation_ReportsAcknowledgedWriteWhenResponseDoesNotFit()
-    {
-        using var test = new MongoFixture();
-        var id = new string('x', 2000);
-        var filter = Object(JsonSerializer.Serialize(new { _id = id }));
-        var result = await test.Call(new(MongoOperation.Update, "docs", filter, Update: Object("{\"$set\":{\"created\":true}}"),
-            Upsert: true, MaxResponseBytes: 1024), false);
-        Assert.Equal(1013, result.GetProperty("errorCode").GetInt32());
-        Assert.Equal("acknowledged", result.GetProperty("writeOutcome").GetString());
-        Assert.True(result.GetProperty("acknowledged").GetBoolean());
-        Assert.Equal(1, await test.Collection.CountDocumentsAsync(new BsonDocument("_id", id)));
-    }
-
-    [MongoIntegrationFact]
-    public async Task DuplicateKey_DoesNotExposeDocumentOrUriAndFailureDoesNotClaimRollback()
-    {
-        using var test = new MongoFixture();
-        var document = Object("{\"_id\":\"private-value-123\",\"password\":\"secret-value-456\"}");
-        await test.Call(new(MongoOperation.Insert, "docs", Document: document));
-        var failure = await test.Call(new(MongoOperation.Insert, "docs", Document: document), false);
-        Assert.Equal(1002, failure.GetProperty("errorCode").GetInt32());
-        Assert.Equal("unknown", failure.GetProperty("writeOutcome").GetString());
-        Assert.DoesNotContain("private-value", failure.GetRawText());
-        Assert.DoesNotContain("secret-value", failure.GetRawText());
-        Assert.DoesNotContain("mongodb://", failure.GetRawText());
-        Assert.Equal(1, await test.Collection.CountDocumentsAsync(new BsonDocument()));
-    }
-
-    [MongoIntegrationFact]
-    public async Task DeadlineAndCancellation_AreDistinctAndNextQueryWorks()
-    {
-        using var test = new MongoFixture();
-        await test.Collection.InsertOneAsync(new BsonDocument("x", 1));
-        await test.FailCommand("find", block: true);
-        var timeout = await test.Call(new(MongoOperation.Find, "docs", CommandTimeoutSeconds: 1), false);
-        Assert.Equal(1011, timeout.GetProperty("errorCode").GetInt32());
-        await test.FailCommand("insert", block: true);
-        var write = await test.Call(new(MongoOperation.Insert, "docs", Document: Object("{\"x\":2}"), CommandTimeoutSeconds: 1), false);
-        Assert.Equal("unknown", write.GetProperty("writeOutcome").GetString());
-        await test.FailCommand("find", block: true);
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        test.OnStarted = e => { if (e.CommandName == "find") started.TrySetResult(); };
-        using var cancellation = new CancellationTokenSource();
-        var pending = test.Service.ExecuteAsync(new(MongoOperation.Find, "docs"), cancellation.Token);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
-        await test.DisableFailPoint();
-        Assert.True((await test.Call(new(MongoOperation.Count, "docs"))).GetProperty("matchedCount").GetInt64() >= 1);
-    }
-
-    [MongoIntegrationFact]
-    public async Task GetMoreFailure_ReleasesCursorAndAdmission()
-    {
-        using var test = new MongoFixture();
-        await test.Collection.InsertManyAsync(Enumerable.Range(0, 130).Select(i => new BsonDocument("_id", i)));
-        await test.FailCommand("getMore", block: false);
-        var failed = await test.Call(new(MongoOperation.Find, "docs", MaxRows: 130), false);
-        Assert.Equal(1002, failed.GetProperty("errorCode").GetInt32());
-        await test.DisableFailPoint();
-        Assert.Equal(130, (await test.Call(new(MongoOperation.Find, "docs", MaxRows: 131))).GetProperty("returnedCount").GetInt32());
-    }
-
-    [MongoIntegrationFact]
-    public async Task MongoTools_ExecuteThroughStdioCliAndWeb()
-    {
-        using var test = new MongoFixture();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(40));
-        var transport = new StdioClientTransport(new()
-        {
-            Command = "dotnet", Arguments = [typeof(ToolCatalog).Assembly.Location],
-            EnvironmentVariables = new Dictionary<string, string?> { ["DB_CONFIG_PATH"] = test.Fixture.Path,
-                ["ENABLE_MONITOR_CONFIG"] = "false", ["SEQ_SERVER_URL"] = "", ["SEQ_API_KEY"] = "" }
-        });
-        await using var client = await McpClient.CreateAsync(transport, cancellationToken: deadline.Token);
-        Assert.Equal(62, (await client.ListToolsAsync(cancellationToken: deadline.Token)).Count);
-        var inserted = Payload(await client.CallToolAsync("mongo_insert_one", new Dictionary<string, object?>
-        { ["collection"] = "docs", ["document"] = new { _id = "protocol", n = 1 } }, cancellationToken: deadline.Token));
-        Assert.Equal("protocol", inserted.GetProperty("insertedId").GetString());
-        var query = Payload(await client.CallToolAsync("mongo_find", new Dictionary<string, object?>
-        { ["collection"] = "docs", ["filter"] = new { _id = "protocol" } }, cancellationToken: deadline.Token));
-        Assert.Equal(1, query.GetProperty("returnedCount").GetInt32());
-
-        var cli = new CliRunner(new ToolCatalog(), new ConfigurationCommands(), new CliWebHost(), test.Fixture.StatePath, false);
-        using var cliOutput = new StringWriter();
-        using var cliError = new StringWriter();
-        var args = new[] { "tool", "mongo_insert_one", "--collection", "docs", "--document", "{\"_id\":\"cli\"}", "--config", test.Fixture.Path };
-        Assert.Equal(2, await cli.RunAsync(args, cliOutput, cliError, deadline.Token));
-        Assert.Contains("--yes", cliError.ToString());
-        Assert.Equal(0, await cli.RunAsync([.. args, "--yes"], cliOutput, cliError, deadline.Token));
-        Assert.Equal("cli", TestJson.Parse(cliOutput.ToString()).RootElement.GetProperty("insertedId").GetString());
-
-        var web = test.Fixture.Host.Services.GetRequiredService<CliWebToolService>();
-        var webResult = JsonSerializer.SerializeToElement(await web.InvokeAsync("mongo_update", new(new Dictionary<string, JsonElement>
-        { ["collection"] = JsonSerializer.SerializeToElement("docs"), ["filter"] = JsonSerializer.Deserialize<JsonElement>("{\"_id\":\"cli\"}"),
-            ["update"] = JsonSerializer.Deserialize<JsonElement>("{\"$set\":{\"changed\":true}}") }, "mongo_update"), deadline.Token));
-        Assert.True(webResult.GetProperty("toolSuccess").GetBoolean());
-        Assert.Equal(1, webResult.GetProperty("result").GetProperty("modifiedCount").GetInt64());
-        Assert.True((await test.Collection.Find(new BsonDocument("_id", "cli")).SingleAsync()).GetValue("changed").AsBoolean);
-    }
-
-    [MongoIntegrationFact]
-    public async Task AuthenticationFailures_AreSanitizedInQueriesAndDiagnostics()
-    {
-        var builder = new MongoUrlBuilder(Environment.GetEnvironmentVariable("DBMCP_TEST_MONGODB"))
-        { Password = "private-invalid-password" };
-        using var fixture = MongoCollectionServiceTests.Fixture(uri: builder.ToString());
-        var failure = Payload(await fixture.Host.Services.GetRequiredService<MongoCollectionService>()
-            .ExecuteAsync(new(MongoOperation.Find, "docs", CommandTimeoutSeconds: 10), default));
-        Assert.Equal(1001, failure.GetProperty("errorCode").GetInt32());
-        Assert.DoesNotContain("private-invalid-password", failure.GetRawText());
-        var ping = await fixture.Host.Services.GetRequiredService<ConnectionTools>().TestConnection();
-        Assert.False(TestJson.Parse(ping).RootElement.GetProperty("success").GetBoolean());
-        Assert.DoesNotContain("private-invalid-password", ping);
     }
 
     private sealed class MongoFixture : IDisposable
     {
         public RuntimeConsistencyTests.Fixture Fixture { get; }
         private readonly MongoClient _observer;
-        private readonly MongoClientRegistry _registry;
         private readonly string _databaseName = "dbmcp_" + Guid.NewGuid().ToString("N");
-        private readonly string _appName = "dbmcp-" + Guid.NewGuid().ToString("N");
         public IMongoCollection<BsonDocument> Collection => _observer.GetDatabase(_databaseName).GetCollection<BsonDocument>("docs");
         public MongoCollectionService Service => Fixture.Host.Services.GetRequiredService<MongoCollectionService>();
-        public Action<CommandStartedEvent>? OnStarted { get; set; }
-        public MongoFixture()
+        public MongoFixture(Action<IServiceCollection>? configure = null)
         {
             var uri = Environment.GetEnvironmentVariable("DBMCP_TEST_MONGODB") ?? throw new InvalidOperationException("Missing DBMCP_TEST_MONGODB");
-            var builder = new MongoUrlBuilder(uri) { DatabaseName = _databaseName, RetryWrites = false, RetryReads = false, ApplicationName = _appName };
+            var builder = new MongoUrlBuilder(uri) { DatabaseName = _databaseName, RetryWrites = false, RetryReads = false, ApplicationName = _databaseName };
             _observer = new MongoClient(uri);
-            _registry = new MongoClientRegistry((connection, token) =>
-            {
-                var settings = MongoClientSettings.FromConnectionString(connection);
-                settings.ClusterConfigurator = cluster => cluster.Subscribe<CommandStartedEvent>(e => OnStarted?.Invoke(e));
-                return Task.FromResult<IMongoClient>(new MongoClient(settings));
-            });
-            Fixture = MongoCollectionServiceTests.Fixture(dangerous: true, uri: builder.ToString(), configure: services => services.AddSingleton(_registry));
+            Fixture = MongoCollectionServiceTests.Fixture(dangerous: true, uri: builder.ToString(), configure: configure);
         }
         public async Task<JsonElement> Call(MongoCollectionRequest request, bool success = true)
         {
@@ -271,25 +204,34 @@ public class MongoIntegrationTests
             Assert.Equal(success, result.GetProperty("success").GetBoolean());
             return result;
         }
-        public async Task FailCommand(string command, bool block)
+        public async Task<long> FailCommand(string command, bool block)
         {
-            var data = new BsonDocument { { "failCommands", new BsonArray { command } }, { "appName", _appName } };
-            if (block) { data.Add("blockConnection", true); data.Add("blockTimeMS", 4000); }
+            var data = new BsonDocument { { "failCommands", new BsonArray { command } }, { "appName", _databaseName } };
+            if (block) { data.Add("blockConnection", true); data.Add("blockTimeMS", 8000); }
             else data.Add("errorCode", 2);
-            await _observer.GetDatabase("admin").RunCommandAsync<BsonDocument>(new BsonDocument
+            var result = await _observer.GetDatabase("admin").RunCommandAsync<BsonDocument>(new BsonDocument
             { { "configureFailPoint", "failCommand" }, { "mode", new BsonDocument("times", 1) }, { "data", data } });
+            return result["count"].ToInt64();
         }
+        public Task<BsonDocument> WaitForFailPoint(long count) => _observer.GetDatabase("admin").RunCommandAsync<BsonDocument>(new BsonDocument
+        { { "waitForFailPoint", "failCommand" }, { "timesEntered", count }, { "maxTimeMS", 5000 } });
         public Task<BsonDocument> DisableFailPoint() => _observer.GetDatabase("admin").RunCommandAsync<BsonDocument>(new BsonDocument
         { { "configureFailPoint", "failCommand" }, { "mode", "off" } });
         public void Dispose()
         {
-            try { _observer.GetDatabase("admin").RunCommand<BsonDocument>(new BsonDocument { { "configureFailPoint", "failCommand" }, { "mode", "off" } }); }
+            try
+            {
+                _observer.GetDatabase("admin").RunCommand<BsonDocument>(new BsonDocument
+                { { "configureFailPoint", "failCommand" }, { "mode", "off" } });
+            }
             finally
             {
-                Fixture.Dispose();
-                _registry.Dispose();
-                try { _observer.DropDatabase(_databaseName); }
-                finally { _observer.Dispose(); }
+                try { Fixture.Dispose(); }
+                finally
+                {
+                    try { _observer.DropDatabase(_databaseName); }
+                    finally { _observer.Dispose(); }
+                }
             }
         }
     }

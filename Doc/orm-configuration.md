@@ -7,10 +7,10 @@
 - 每次操作独占 SqlSugarClient，IsAutoCloseConnection=true；物理连接由驱动池复用。热更新只改变后续租约。
 - HG、GBase、TDengine、DuckDB 的 SqlSugar 扩展和 .NET 驱动已随包安装，启动时统一注册 CustomAssemblies。DuckDB 同时包含支持平台的原生库；GBase 仍需目标主机安装 ClientSDK/ODBC，TDengine 仍需匹配版本的原生客户端。版本和部署条件见[驱动清单](provider-drivers.md)。
 - 预设 available 表示扩展程序集可加载，不证明原生 SDK、网络或认证正常。发布文件缺失时仍显示 unavailable，并在连接前返回 UnsupportedCapability；配置校验产生 warning，其他连接仍可使用。
-- MongoDB 六个集合工具使用官方驱动，提供有界查询、EJSON 类型保真和写入保护；通用 SQL 查询/命令继续返回 unsupported。原生 ping、客户端生命周期和实测边界见[集合契约](mongodb-collections.md)。
+- MongoDB 六个集合工具使用 SqlSugar.MongoDbCore 内置 ADO，共用 SqlSugar 客户端租约；输入支持 Extended JSON v2，输出为 provider 转换后的 JSON，不承诺 BSON 无损往返。读取先限制服务器行数，物化后检查响应预算；探活使用内置 aggregate。通用 SQL/Schema 工具仍返回 unsupported。批量写权限、取消和类型转换边界见[集合契约](mongodb-collections.md)。
 - DB2/HANA 不在当前发布支持范围。ODBC/原生 SDK 的安装和平台位数仍须在部署目标检查。
-- config validate/doctor 使用原生 builder 检查 MySQL、PG、SQLServer、SQLite、Oracle、Kdbndp、GaussDBNative、MongoDB；其他 provider 仅检查通用连接串语法。离线检查不证明网络、认证或数据库功能正确。
-- 高级 TLS、证书、Schema、SRV/副本集等配置使用原始连接字符串；Web 向导仅覆盖预设字段，端口限定 1–65535。预设密码是示例，SQLServer TrustServerCertificate=True 只适用于本地开发，应为生产配置可信证书。
+- config validate/doctor 按实际驱动使用原生 builder 检查 MySQL、PostgreSQL/QuestDB、SQLServer、SQLite、Oracle、Kdbndp、Dm、Oscar、HG、GaussDBNative、MongoDB；其他 provider 检查通用连接串语法。离线检查不证明网络、认证或数据库功能正确。
+- 高级 TLS、证书、Schema、Mongo 副本集等配置使用 provider 支持的原始连接字符串；当前 Mongo provider 明确拒绝 mongodb+srv URI，需使用显式主机 mongodb URI。Web 向导仅覆盖预设字段，端口限定 1–65535。预设密码是示例，SQLServer TrustServerCertificate=True 只适用于本地开发，应为生产配置可信证书。
 
 ## 优化配置的真实含义
 

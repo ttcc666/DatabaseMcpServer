@@ -2,7 +2,7 @@
 
 本目录包含各数据库类型的详细配置文档，每个文档都包含完整的 JSON 配置和环境变量说明。
 
-当前发布的实际能力以 [ORM 配置约定](../Doc/orm-configuration.md) 和 `get_database_capabilities` 为准。HG/GBase/TDengine/DuckDB 扩展已安装，[驱动清单](../Doc/provider-drivers.md)说明原生客户端要求。MongoDB 已提供六个[集合工具](../Doc/mongodb-collections.md)；其他 SqlSugar 功能介绍不代表 MCP 已开放。池、TLS、Schema 等优化键不覆盖连接字符串，BulkCopy/原生数组开关未接入。
+当前源码的实际能力以 [ORM 配置约定](../Doc/orm-configuration.md) 和 `get_database_capabilities` 为准。HG/GBase/TDengine/DuckDB 扩展已安装，[驱动清单](../Doc/provider-drivers.md)说明原生客户端要求。MongoDB 已提供六个[集合工具](../Doc/mongodb-collections.md)；其他 SqlSugar 功能介绍不代表 MCP 已开放。池、TLS、Schema 等优化键不覆盖连接字符串，BulkCopy/原生数组开关未接入。
 
 ---
 
@@ -39,20 +39,18 @@
 |--------|------|------|
 | **OceanBase** | [OceanBase.md](./OceanBase.md) | MySQL/Oracle 双模式，租户隔离 |
 | **TiDB** | [TiDB.md](./TiDB.md) | MySQL 兼容分布式数据库 |
+| **TDSQL** | [MySQL.md](./MySQL.md) | MySQL 兼容模式（`dbType: "TDSQL"`） |
 
 ### 📊 分析型数据库
 
 | 数据库 | 文档 | 说明 |
 |--------|------|------|
 | **ClickHouse** | [ClickHouse.md](./ClickHouse.md) | 列式/分析型数据库 |
+| **Doris** | [Doris.md](./Doris.md) | Apache Doris OLAP（FE 默认端口 9030） |
 | **QuestDB** | [QuestDb.md](./QuestDb.md) | 时序数据库，追加写入 + 聚合场景 |
 | **DuckDB** | [DuckDB.md](./DuckDB.md) | 嵌入式列式 OLAP |
 | **TDengine** | [TDengine.md](./TDengine.md) | 时序库，ms/us/ns 精度 |
 
-### 🏢 企业级数据库
-
-| 数据库 | 文档 | 说明 |
-|--------|------|------|
 ---
 
 ## 🔧 配置方式
@@ -131,123 +129,31 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 }
 ```
 
-### 各数据库支持的优化选项
+### 优化选项的作用范围
 
-| 数据库 | 配置键名 | 说明 |
-|--------|---------|------|
-| MySQL / MariaDB | `enableBulkCopy` | 启用 BulkCopy（需连接串 AllowLoadLocalInfile=true） |
-| MySQL / MariaDB | `maxPoolSize` | 连接池最大连接数 |
-| MySQL / MariaDB | `charset` | 字符集（默认 utf8mb4） |
-| MySQL / MariaDB | `enableSsl` | 启用 SSL 连接 |
-| MySQL / MariaDB | `allowUserVariables` | 允许用户变量 |
-| SQL Server | `disableNvarchar` | 禁用 nvarchar 优化索引 |
-| Oracle | `camelCase` | 使用驼峰表名 |
-| Oracle | `enableIdentity` | 启用原生自增（12C+） |
-| Oracle | `maxParamLength` | 参数名长度限制（Oracle 11） |
-| PostgreSQL | `autoToLower` | 表名自动转小写 |
-| PostgreSQL | `enableILike` | 启用 ILike 不区分大小写 |
-| PostgreSQL | `identityStrategy` | 自增策略（Serial/Identity） |
-| SQLite | `enableDefaultValue` | CodeFirst 默认值支持 |
-| SQLite | `enableDescription` | CodeFirst 备注支持 |
-| SQLite | `enableDropColumn` | CodeFirst 删除列支持 |
-| 达梦 | `lowercaseTables` | 使用小写表名 |
-| 达梦 | `dockerMysqlMode` | Docker MySQL 兼容模式 |
-| 达梦 | `clobOptimization` | Clob 类型优化 |
-| 达梦 | `schema` | Schema 隔离 |
-| 达梦 | `maxPoolSize` | 连接池最大连接数 |
-| 人大金仓 | `mode` | 兼容模式（Oracle/MySQL/PostgreSQL/SqlServer） |
-| 人大金仓 | `camelCase` | 使用驼峰表名 |
-| 人大金仓 | `enableCursor` | 启用游标支持 |
-| 人大金仓 | `enableJson` | 启用 JSON 类型 |
-| 人大金仓 | `enableGeometry` | 启用 Geometry/Postgis |
-| 人大金仓 | `enableArray` | 启用数组类型 |
-| 人大金仓 | `maxPoolSize` | 连接池最大连接数 |
-| 人大金仓 | `schema` | Schema 隔离 |
-| GaussDB | `nativeDriver` | 使用原生驱动 |
-| GaussDB | `isOpenGauss` | 标识 OpenGauss 数据库 |
-| GaussDB | `schema` | Schema 隔离 |
-| GaussDB | `typeMapping` | 数据类型映射优化 |
-| GaussDB | `batchSize` | 批量操作大小 |
-| GaussDB | `maxPoolSize` | 连接池最大连接数 |
-| OceanBase | `disablePooling` | 禁用连接池（部分租户不支持池化） |
-| OceanBase | `disableNvarchar` | 可选禁用 nvarchar（少数兼容模式需要） |
-| OceanBase | `enableHints` | 启用 Optimizer Hints 支持 |
-| OceanBase | `tenantMode` | 租户兼容模式（mysql/oracle） |
-| OceanBase | `enableBulkCopy` | 批量写入优化 |
-| OceanBase | `maxPoolSize` | 连接池最大连接数 |
-| TiDB | `enableHints` | 启用 TiDB Optimizer Hints |
-| TiDB | `pessimisticTxn` | 启用悲观事务模式 |
-| TiDB | `maxPoolSize` | 连接池最大连接数 |
-| TiDB | `enableBulkCopy` | 批量导入优化 |
-| TiDB | `disableNvarchar` | 少数特殊环境禁用 nvarchar（官方提示兼容项） |
+以 `get_database_capabilities` 返回的 `optimizationSettings` 为准；完整约定见 [ORM 配置](../Doc/orm-configuration.md)。
 
-详见各数据库配置文档。
+| 状态 | 常见选项 | 当前行为 |
+| --- | --- | --- |
+| mapped | disableNvarchar、enableNoLock、autoToLower、enableILike、camelCase 等 | 映射到相应 provider 的 ConnMoreSettings；作用于对应 ORM 路径，不改写原始 SQL |
+| mapped（CodeFirst-only） | SQLite 的 enableDefaultValue、enableDescription、enableDropColumn | 仅用于 CodeFirst；本服务 schema 工具使用 DbMaintenance |
+| advisory | maxPoolSize、disablePooling、enableSsl、charset、allowUserVariables、schema、noResetOnClose | 保留并诊断；实际值必须在驱动连接字符串中设置 |
+| advisory | nativeDriver、tenantMode | 不选择驱动或切换租户模式；通过 dbType 和连接串选择 |
+| not-applicable | enableBulkCopy、enableCursor、enableJson、enableGeometry、enableArray、clobOptimization、typeMapping、batchSize、enableHints、pessimisticTxn | 当前 MCP 没有相应开关实现，设置为 true 也不会开启功能 |
+| unknown | 未识别键 | 保留配置、隐藏值，不宣称生效 |
+
+GaussDBNative 的 databaseModel / isOpenGauss 选择原生 provider 的数据库模式，冲突会报错；GaussDB/OpenGauss 的驱动选择仍由 dbType 决定。
 
 ---
 
-## 🎯 性能优化要点
+## 🎯 连接与执行要点
 
-### MySQL / MariaDB / TiDB
-- ✅ 字符集: `Charset=utf8mb4`
-- ✅ 连接池: `Pooling=true;Min Pool Size=1;Max Pool Size=100`
-- ✅ 批量导入: `AllowLoadLocalInfile=true`
-- ✅ 用户变量: `Allow User Variables=True`
-
-### SQL Server
-- ✅ 新版驱动: `Encrypt=True;TrustServerCertificate=True`
-- ✅ 自动 NoLock: 并发性能提升 60-70%
-- ✅ 可选禁用 nvarchar: 索引性能提升 20-30%
-- ✅ 连接池: `Min Pool Size=1;Max Pool Size=100`
-
-### Oracle
-- ✅ 连接池（必需）: `Pooling=true;Min Pool Size=5;Max Pool Size=150`
-- ✅ 表名处理: 智能大小写转换
-- ✅ 原生自增: Oracle 12C+ 支持
-- ✅ 参数名限制: Oracle 11 兼容
-
-### PostgreSQL
-- ✅ 连接池: `Pooling=true;Minimum Pool Size=1;Maximum Pool Size=100`
-- ✅ 表名规范: 自动转小写
-- ✅ ILike 支持: 不区分大小写查询
-- ✅ 自增策略: Serial/Identity 可选
-
-### SQLite
-- ✅ 共享缓存: `Cache=Shared`（性能提升 30-50%）
-- ✅ CodeFirst 增强: 默认值、备注、删除列
-- ✅ 内存模式: `Data Source=:memory:`
-- ✅ 加密模式: `Password=your_password`
-
-### 达梦数据库
-- ✅ 智能表名处理: 默认大写，可配置小写
-- ✅ Docker 模式兼容: 自动识别 MySQL 兼容模式
-- ✅ Clob 类型优化: 大文本字段优化
-- ✅ Schema 支持: 多租户隔离
-
-### 人大金仓
-- ✅ 多模式兼容: Oracle/MySQL/PostgreSQL/SqlServer
-- ✅ 游标支持: 存储过程游标参数
-- ✅ JSON 类型: 现代应用开发
-- ✅ Geometry 支持: 地理信息系统
-
-### GaussDB / OpenGauss
-- ✅ 原生驱动: 访问 GaussDB 特有特性
-- ✅ Npgsql 兼容: 成熟稳定，生态丰富
-- ✅ 数据类型映射: JSON、Geometry 等
-- ✅ 批量操作优化: 大数据导入性能提升
-
-### OceanBase
-- ✅ MySQL 模式: 默认支持 utf8mb4 与 MySQL 协议
-- ✅ 连接池开关: `disablePooling` 兼容不支持池化的租户
-- ✅ 租户模式: `tenantMode` 区分 mysql/oracle 兼容
-- ✅ Optimizer Hints: 支持查询计划调优
-- ✅ 批量写入: `enableBulkCopy` 优化大批量导入
-
-### TiDB
-- ✅ MySQL 兼容: 直接复用 MySQL 驱动
-- ✅ 悲观事务: `pessimisticTxn` 适配高并发冲突场景
-- ✅ 连接池: `maxPoolSize`、`Pooling` 建议更大池化配置
-- ✅ 优化提示: `enableHints` 支持 TiFlash/索引选择
-- ✅ 批量导入: `enableBulkCopy`、`AllowLoadLocalInfile=true` 加速写入
+- 每次操作独占 SqlSugarClient，物理连接由驱动池复用；连接池、TLS、Schema 使用目标驱动的连接串语法。
+- SQL Server 原始查询不会自动添加 WITH(NOLOCK)。生产 TLS 应校验证书；TrustServerCertificate=True 只适用于受控开发环境。
+- SQLite 使用文件库跨请求保存数据；普通 :memory: 数据库不会在独立租约间共享。CodeFirst 开关不扩大 MCP 的 schema 能力。
+- insert_row 只支持 SQL Server、MySQL、SQLite 的单行整数自增插入；SQL 批命令不是 BulkCopy。Mongo 文档批量写入使用 mongo_insert_many。
+- TiDB、OceanBase、PolarDB 等兼容产品的能力按配置产品判断，不能根据驱动相同推断分页、事务、过程或实库验证已支持。
+- 性能与数据量、查询、索引、网络及服务器配置有关。文档不承诺固定提升比例；已有验证范围见[驱动清单](../Doc/provider-drivers.md)。
 
 ---
 
@@ -264,8 +170,8 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
    - 性能优化参数
    - 可选参数
 
-3. **自动性能优化**
-   - DatabaseMcpServer 自动应用的优化
+3. **驱动与 ORM 设置**
+   - 实际映射项及生效范围
 
 4. **优化配置选项**
    - optimizationSettings 配置项详解
@@ -334,10 +240,10 @@ DatabaseMcpServer 使用 JSON 配置文件管理数据库连接。
 
 - 📖 每个配置文档都是独立的，可以单独查阅
 - 🔧 从 2.0.0 版本开始，统一使用 JSON 配置文件管理数据库连接
-- ⚡ 文档中的性能优化建议都经过实际测试验证
+- ⚡ 仅将有日期和环境记录的结果视为验证证据；其他配置建议需在目标环境确认
 - 🎯 遇到问题时，先查看对应数据库的"常见问题"章节
 - 🔄 优化配置选项从环境变量迁移到 optimizationSettings 配置项
 
 ---
 
-**最后更新**: 2025-12-08
+**最后更新**: 2026-11-26

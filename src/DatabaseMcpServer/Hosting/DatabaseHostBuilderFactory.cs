@@ -14,7 +14,8 @@ internal static class DatabaseHostBuilderFactory
         bool cliToolMode = false,
         string? currentDatabaseStateFilePath = null,
         bool? enableMonitorConfig = null,
-        string? configPath = null)
+        string? configPath = null,
+        bool allowUnconfigured = false)
     {
         var builder = Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
@@ -23,12 +24,12 @@ internal static class DatabaseHostBuilderFactory
 
         builder.Services.AddSerilog(serilogLogger);
 
-        SqlSugarProviderWarmup.Warmup(serilogLogger);
         builder.Services.AddDatabaseMcpApplicationServices(
             cliToolMode,
             currentDatabaseStateFilePath,
             enableMonitorConfig,
-            configPath);
+            configPath,
+            allowUnconfigured);
         builder.Services.AddDatabaseMcpToolServices();
 
         return builder;
@@ -47,7 +48,7 @@ internal static class DatabaseHostBuilderFactory
         loggerConfig
             .MinimumLevel.Debug()
             .WriteTo.Console(
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{TraceId}] {Message:lj}{NewLine}{Exception}",
                 standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose);
 
         var seqServerUrl = Environment.GetEnvironmentVariable("SEQ_SERVER_URL");

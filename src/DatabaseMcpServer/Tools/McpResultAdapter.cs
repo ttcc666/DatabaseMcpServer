@@ -20,6 +20,18 @@ internal static class McpResultAdapter
 
     public static async Task<string> Text(Task<object> result) => Text(await result.ConfigureAwait(false));
 
+    public static async Task<CallToolResult> Structured(Task<object> result)
+    {
+        var json = Text(await result.ConfigureAwait(false));
+        return StructuredJson(json, !ToolResultStatus.IsFailure(json));
+    }
+
+    public static CallToolResult Structured(object result)
+    {
+        var json = Text(result);
+        return StructuredJson(json, !ToolResultStatus.IsFailure(json));
+    }
+
     public static CallToolResult Structured<T>(T result, bool success)
         => StructuredJson(JsonSerializer.Serialize(result, JsonSerializationDefaults.CompactCamelCase), success);
 

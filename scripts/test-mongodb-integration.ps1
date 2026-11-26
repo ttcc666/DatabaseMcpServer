@@ -1,7 +1,7 @@
-# Requires PowerShell 7, Docker Linux containers, .NET 9/10 SDKs and Node.js.
+# Requires PowerShell 7, Docker Linux containers and .NET 10 SDK.
 [CmdletBinding()]
 param(
-    [ValidateSet('net9.0', 'net10.0')][string[]] $Framework = @('net9.0', 'net10.0'),
+    [ValidateSet('net10.0')][string[]] $Framework = @('net10.0'),
     [ValidateSet('Debug', 'Release')][string] $Configuration = 'Release'
 )
 $ErrorActionPreference = 'Stop'

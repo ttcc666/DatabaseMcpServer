@@ -13,33 +13,43 @@ jobs:
   dotnet:
     runs-on: windows-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        framework: [net9.0, net10.0]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            9.0.x
-            10.0.x
+          dotnet-version: '10.0.x'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: website/package-lock.json
-      - run: npm ci --prefix 'website'
       - run: dotnet restore 'DatabaseMcpServer.slnx' '-warnaserror:NU1901,NU1902,NU1903,NU1904'
-      - run: dotnet test 'tests/DatabaseMcpServer.Tests/DatabaseMcpServer.Tests.csproj' -c 'Release' -f '${{ matrix.framework }}' --filter 'Category!=Integration&Category!=MongoIntegration'
+      - run: dotnet test 'tests/DatabaseMcpServer.Tests/DatabaseMcpServer.Tests.csproj' -c 'Release' --filter 'Category!=Integration&Category!=MongoIntegration'
+      - name: Check generated tool and capability references
+        shell: pwsh
+        run: ./scripts/update-tool-manifest.ps1 -Check
       - uses: actions/setup-python@v5
-        if: matrix.framework == 'net10.0'
         with:
           python-version: '3.x'
       - name: Pack, install and exercise CLI and stdio
-        if: matrix.framework == 'net10.0'
         shell: pwsh
         run: ./scripts/test-package.ps1
+  linux-entry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Verify CLI, Web and configuration monitoring
+        run: dotnet test 'tests/DatabaseMcpServer.Tests/DatabaseMcpServer.Tests.csproj' -c 'Release' --filter 'FullyQualifiedName~CursorProcessTests|FullyQualifiedName~CliWebHostTests|FullyQualifiedName~DatabaseConfigFileMonitorServiceTests' --logger 'trx;LogFileName=linux-entry.trx' --results-directory 'TestResults/linux-entry'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-entry-test-results
+          path: TestResults/linux-entry/*.trx
+          if-no-files-found: error
   providers:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -47,15 +57,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            9.0.x
-            10.0.x
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: website/package-lock.json
-      - run: npm ci --prefix 'website'
+          dotnet-version: '10.0.x'
       - name: Test MySQL, PostgreSQL and SQL Server
         shell: pwsh
         run: ./scripts/test-integration.ps1
@@ -72,15 +74,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            9.0.x
-            10.0.x
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: website/package-lock.json
-      - run: npm ci --prefix 'website'
+          dotnet-version: '10.0.x'
       - name: Test MongoDB collection contracts
         shell: pwsh
         run: ./scripts/test-mongodb-integration.ps1

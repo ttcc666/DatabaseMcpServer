@@ -9,6 +9,18 @@ namespace DatabaseMcpServer.Tests;
 
 public class MongoDocumentContractTests
 {
+    [Fact]
+    public void SrvUri_IsRejectedByExecutionAndConfigurationWithoutExposingCredentials()
+    {
+        const string uri = "mongodb+srv://private-user:private-password@example.invalid/app";
+        var error = Assert.Throws<DatabaseMcpException>(() => MongoDocumentContract.ValidateUri(uri));
+        Assert.Equal(DatabaseErrorCode.InvalidParameters, error.ErrorCode);
+        Assert.Contains("mongodb+srv", error.Message);
+        Assert.DoesNotContain("private-", error.Message);
+        Assert.Equal(error.Message, DatabaseProviderCatalog.ConnectionStringError(SqlSugar.DbType.MongoDb, uri));
+        Assert.Null(DatabaseProviderCatalog.ConnectionStringError(SqlSugar.DbType.MongoDb, "mongodb://localhost/app"));
+    }
+
     internal static Dictionary<string, JsonElement> Object(string json) => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!;
     private static BsonDocument Parse(string json)
     {
@@ -84,6 +96,9 @@ public class MongoDocumentContractTests
     [InlineData("system.users")]
     [InlineData("bad$name")]
     [InlineData("nul\0name")]
+    [InlineData("two words")]
+    [InlineData("tab\tname")]
+    [InlineData("line\nname")]
     public void CollectionRules_RejectReservedNames(string name)
         => Assert.Throws<DatabaseMcpException>(() => MongoDocumentContract.ValidateCollection(name));
 
@@ -104,19 +119,19 @@ public class MongoDocumentContractTests
     }
 
     [Fact]
-    public void ManyAndEmptyFilter_RequireExplicitDangerousOptIn()
+    public void BatchMutationsAndEmptyFilter_RequireExplicitDangerousOptIn()
     {
         foreach (var empty in new[] { false, true })
-        foreach (var many in new[] { false, true })
         foreach (var allowAll in new[] { false, true })
         foreach (var dangerous in new[] { false, true })
         {
             var filter = empty ? new BsonDocument() : new BsonDocument("x", 1);
-            var error = Record.Exception(() => MongoDocumentContract.EnsureMutationAllowed(filter, many, false, allowAll, dangerous));
-            if ((many && !dangerous) || (empty && (!allowAll || !dangerous)))
+            var error = Record.Exception(() => MongoDocumentContract.EnsureBatchMutationAllowed(filter, allowAll, dangerous));
+            if (!dangerous || (empty && !allowAll))
                 Assert.Equal(DatabaseErrorCode.AccessDenied, Assert.IsType<DatabaseMcpException>(error).ErrorCode);
             else Assert.Null(error);
         }
-        Assert.Throws<DatabaseMcpException>(() => MongoDocumentContract.EnsureMutationAllowed(new("x", 1), true, true, true, true));
+        Assert.Equal("App", MongoDocumentContract.ValidateUri("mongodb://User:Secret@localhost:27017/App?authSource=admin").DatabaseName);
+        Assert.Throws<DatabaseMcpException>(() => MongoDocumentContract.ValidateUri("mongodb://localhost/?authSource=admin"));
     }
 }

@@ -15,6 +15,27 @@ namespace DatabaseMcpServer.Tests;
 public class QueryCancellationTests
 {
     [Fact]
+    public async Task StructuredQueryCancellation_RecordsCompletionAfterLeaseRelease()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var fixture = new RuntimeConsistencyTests.Fixture(client => client.Aop.OnLogExecuting = (_, _) => cancellation.Cancel());
+        var durations = new List<double>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, meter) =>
+        {
+            if (instrument.Meter.Name == DatabaseTelemetry.MeterName && instrument.Name == "dbmcp.cancellation.completion")
+                meter.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<double>((_, value, _, _) => durations.Add(value));
+        listener.Start();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Host.Services.GetRequiredService<DatabaseQueryTools>()
+            .QueryDatabase("SELECT 1", cancellationToken: cancellation.Token));
+        Assert.InRange(Assert.Single(durations), 0, 15000);
+        using var lease = fixture.Sessions.AcquireClient();
+        Assert.Equal(17, lease.Client.Ado.GetInt("SELECT 17"));
+    }
+
+    [Fact]
     public async Task PreCancelledQuery_DoesNotExecuteAndTokenIsNotAnOption()
     {
         using var fixture = new RuntimeConsistencyTests.Fixture();
@@ -51,7 +72,7 @@ public class QueryCancellationTests
         });
         var tool = fixture.Host.Services.GetRequiredService<QueryTools>();
         using var queries = JsonDocument.Parse("""["select 1", "select 2"]""");
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!, cancellationToken: cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.BatchSqlQuery(queries.RootElement.Deserialize<string[]>()!.Select(sql => new DatabaseMcpServer.Models.DatabaseCommand { Sql = sql }).ToArray(), cancellationToken: cancellation.Token));
         Assert.Single(executed);
         Assert.DoesNotContain("select 2", executed);
         using var next = fixture.Sessions.AcquireClient();
@@ -118,11 +139,11 @@ public class QueryCancellationTests
         services.GetRequiredService<DatabaseMcpServer.Models.DatabaseExecutionOptions>(), services.GetRequiredService<DatabaseMcpServer.Services.DatabaseMetadataCache>(),
         services.GetRequiredService<DatabaseMcpServer.Services.SqlDatabaseSessions>())
     {
-        public Task<object> Run(ControlledReader reader, bool nextResult, CancellationToken token) => WithClientAsync(async _ =>
+        public Task<object> Run(ControlledReader reader, bool nextResult, CancellationToken token) => WithDeadlineAsync(async (_, requestToken) =>
         {
             using (reader)
-                return nextResult ? await QueryReader.NextResultAsync(reader, token) : await QueryReader.ReadAsync(reader, token);
-        }, token);
+                return nextResult ? await QueryReader.NextResultAsync(reader, requestToken) : await QueryReader.ReadAsync(reader, requestToken);
+        }, null, token);
     }
 
     // Models a driver which observes cancellation immediately but needs cleanup before it returns.

@@ -29,6 +29,7 @@ public class DatabaseOptimizationStrategyFactory : IDatabaseOptimizationStrategy
         {
             // MySQL 系列
             [DbType.MySql] = () => new MySqlOptimizationStrategy(_logger),
+            [DbType.TDSQL] = () => new MySqlOptimizationStrategy(_logger),
 
             // SQL Server
             [DbType.SqlServer] = () => new SqlServerOptimizationStrategy(_logger),

@@ -7,10 +7,12 @@ using ModelContextProtocol.Server;
 
 namespace DatabaseMcpServer.Tools.Query;
 
+[ToolGroup("query", "sql", DatabaseMcpServer.Helpers.DatabaseToolAccess.Read)]
 [McpServerToolType]
 internal sealed class DatabaseQueryTools(DatabaseQueryService queries)
 {
-    [McpServerTool(ReadOnly = true, UseStructuredContent = true, OutputSchemaType = typeof(DatabaseQueryResult))]
+    [ToolPolicy(Analysis = true)]
+    [McpServerTool(Title = "Query Database", ReadOnly = true, UseStructuredContent = true, OutputSchemaType = typeof(DatabaseQueryResult))]
     [Description("Execute a read-only database query. Explicit database target, typed JSON parameters, bounded rows/bytes and structured results. Returns the actual database and configuration version. Use schema tools before writing SQL; limitReached means use narrower filters or stable pagination.")]
     public async Task<CallToolResult> QueryDatabase(
         [Description("One read-only SQL statement; bind values using parameters.")] string sql,
@@ -18,7 +20,7 @@ internal sealed class DatabaseQueryTools(DatabaseQueryService queries)
         [Description("Typed parameter array. NULL requires dbType. Bind IN (@ids) with an array value. Output parameters are not allowed.")] DatabaseParameter[]? parameters = null,
         [Description("Returned row limit; default 1000, subject to server policy.")] int? maxRows = null,
         [Description("Tool JSON UTF-8 budget; default 1 MiB, minimum 1024. Protocol text/structured envelopes add overhead.")] int? maxResponseBytes = null,
-        [Description("Command timeout; default 30 seconds, subject to server policy.")] int? commandTimeoutSeconds = null,
+        [Description("Total deadline including queue, execution and reading; default server query timeout (normally 30 seconds). 0 requires server permission for infinite timeout.")] int? commandTimeoutSeconds = null,
         CancellationToken cancellationToken = default)
     {
         var response = await queries.ExecuteAsync(sql, databaseName, parameters, maxRows, maxResponseBytes,

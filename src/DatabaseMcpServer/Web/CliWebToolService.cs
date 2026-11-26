@@ -20,14 +20,21 @@ internal sealed class CliWebToolService
 
     public object GetTools()
     {
+        var selected = ToolExposurePolicy.SelectFor(_serviceProvider, _catalog);
         return new
         {
             success = true,
-            tools = _catalog.Tools.Select(tool => new
+            tools = _catalog.Tools.Where(tool => selected.Contains(tool.Name)).Select(tool => new
             {
                 name = tool.Name,
                 description = tool.Description,
                 category = tool.Category,
+                provider = tool.Provider,
+                supportedProviders = tool.SupportedProviders,
+                unsupportedProviders = tool.UnsupportedProviders,
+                requiredAccess = tool.RequiredAccessName,
+                inputSchema = tool.ProtocolTool.InputSchema,
+                outputSchema = tool.ProtocolTool.OutputSchema,
                 requiresConfirmation = tool.RequiresConfirmation,
                 parameters = tool.Parameters.Select(parameter => new
                 {
@@ -51,6 +58,8 @@ internal sealed class CliWebToolService
         {
             throw new KeyNotFoundException($"未知 tool '{toolName}'。");
         }
+        if (!ToolExposurePolicy.SelectFor(_serviceProvider, _catalog).Contains(toolName))
+            throw new InvalidOperationException($"tool '{toolName}' 未在当前配置和权限下启用。");
 
         if (tool.RequiresConfirmation && !string.Equals(request.Confirmation, tool.Name, StringComparison.Ordinal))
         {
@@ -60,7 +69,7 @@ internal sealed class CliWebToolService
         var arguments = ToolInvoker.BindJsonArguments(tool, request.Arguments ?? new Dictionary<string, JsonElement>());
 
         var queuedAt = Stopwatch.GetTimestamp();
-        var serialize = tool.RequiresConfirmation || tool.ToolType == typeof(DatabaseMcpServer.Tools.Management.ConnectionTools);
+        var serialize = tool.RequiresConfirmation || tool.Category == "connection";
         if (serialize) await _invocationGate.WaitAsync(cancellationToken);
         try
         {

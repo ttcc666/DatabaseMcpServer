@@ -1,6 +1,6 @@
 # MCP 执行优化与验证记录
 
-日期：2026-11-20。基于计划 `plans/2026-11-19-mcp-execution-optimization.md` 实施。本文记录执行层优化基线；后续已升级 ModelContextProtocol 2.4.0、SqlSugarCore 5.1.4.221，当前工具接口已收敛，见[兼容清理记录](compatibility-cleanup.md)，详见 [依赖升级与验证](dependency-upgrade.md)。
+本文保留 2026-11-20 执行层优化的历史基线与测量。表分页、存储过程和元数据的当前行为见[工具契约](tool-evolution.md)。
 
 ## 生命周期
 
@@ -98,7 +98,7 @@ Web ToolPlayground 用 defineAsyncComponent 延迟加载，保留 visited/v-show
 
 配置更新/重命名共用 DatabaseConfigurationApplicationService，诊断共用 DatabaseConnectionDiagnostics；移除了重复重命名 helper、诊断嵌套 Host 和全局 Console 重定向。其他配置 CRUD 继续复用现有 CLI handler，没有扩展成通用命令框架。Web 查询放开全局串行门；写入/管理工具继续串行。
 
-`.github/workflows/verify.yml` 独立验证 net9/net10、前端和 Docker provider 集成，不发布；NuGet 安全告警在 CI 中作为错误处理。2026-11-20 已将 MySqlConnector 固定为 2.6.2、System.Security.Cryptography.Pkcs 固定为 8.0.2，修复原 2.2.5 / 8.0.1 的已知漏洞；后续 SqlSugar 升级记录见 [依赖升级与验证](dependency-upgrade.md)。
+`.github/workflows/verify.yml` 独立验证 .NET 10、前端和 Docker provider 集成，不发布；NuGet 安全告警在 CI 中作为错误处理。2026-11-20 已将 MySqlConnector 固定为 2.6.2、System.Security.Cryptography.Pkcs 固定为 8.0.2，修复原 2.2.5 / 8.0.1 的已知漏洞；后续 SqlSugar 升级记录见 [依赖升级与验证](dependency-upgrade.md)。
 
 数据库行为验证使用隔离 SQLite、可控替身和本轮 Docker 临时数据库，未操作真实业务数据库。配置跨文件原子事务、存储过程/GO 全异步和生产容量评估不在已完成声明内。
 

@@ -7,53 +7,64 @@ using ModelContextProtocol.Server;
 
 namespace DatabaseMcpServer.Tools.Command;
 
+[ToolGroup("mongo", "mongo", DatabaseMcpServer.Helpers.DatabaseToolAccess.Write)]
 [McpServerToolType]
 internal sealed class MongoCollectionCommandTools(MongoCollectionService service)
 {
     [ToolPolicy(RequiresConfirmation = true)]
-    [McpServerTool(Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
-    [Description("Insert one MongoDB document using a JSON object / Extended JSON v2. Generates ObjectId when _id is absent; returns Canonical EJSON insertedId and writeOutcome. Requires write access and acknowledged write concern (not w=0). Timeout/cancellation may leave committed writes; verify before retrying. No application retries.")]
-    public async Task<CallToolResult> MongoInsertOne(
+    [McpServerTool(Title = "Insert MongoDB Documents", Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
+    [Description("Insert one or more MongoDB documents via SqlSugar.MongoDbCore ADO insertMany using JSON / Extended JSON v2 objects (1-1000 documents, <= 4 MiB total). Requires write access and acknowledged write concern (not w=0).")]
+    public async Task<CallToolResult> MongoInsertMany(
         [Description("Collection name; system.* prohibited.")] string collection,
-        [Description("Required document object, at most 4 MiB total JSON input. Preserve BSON types with EJSON v2 wrappers.")] Dictionary<string, JsonElement> document,
-        [Description("Full tool JSON UTF-8 budget; minimum 1024. ID must fit before insertion.")] int? maxResponseBytes = null,
+        [Description("1-1000 document objects, JSON / Extended JSON v2, <= 4 MiB total input.")] Dictionary<string, JsonElement>[] documents,
+        [Description("Full tool JSON UTF-8 budget; minimum 1024.")] int? maxResponseBytes = null,
         [Description("Configured connection name; omitted captures current connection.")] string? databaseName = null,
         [Description("Operation deadline in seconds; default 30.")] int? commandTimeoutSeconds = null,
         CancellationToken cancellationToken = default)
-        => Adapt(await service.ExecuteAsync(new(MongoOperation.Insert, collection, Document: document, MaxResponseBytes: maxResponseBytes,
+        => Adapt(await service.ExecuteAsync(new(MongoOperation.InsertMany, collection, Documents: documents, MaxResponseBytes: maxResponseBytes,
             DatabaseName: databaseName, CommandTimeoutSeconds: commandTimeoutSeconds), cancellationToken));
 
     [ToolPolicy(RequiresConfirmation = true)]
-    [McpServerTool(Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
-    [Description("Update MongoDB documents; defaults to UpdateOne. Returns matched/modified counts and upsertedId in Canonical EJSON. Requires write access; many requires enableDangerousOperations. Empty filter also requires allowAll. Nonempty filters can still match every document. Multi-document writes are not atomic; timeout may partially apply. Verify unknown writeOutcome before retrying.")]
+    [McpServerTool(Title = "Update MongoDB Documents", Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
+    [Description("Batch update MongoDB documents via SqlSugar.MongoDbCore ADO updateMany. Requires write access and enableDangerousOperations. Empty filter also requires allowAll. Returns affected count and writeOutcome.")]
     public async Task<CallToolResult> MongoUpdate(
         [Description("Collection name.")] string collection,
-        [Description("Required filter object. {} requires allowAll and enableDangerousOperations.")] Dictionary<string, JsonElement> filter,
+        [Description("Required filter object. {} requires allowAll.")] Dictionary<string, JsonElement> filter,
         [Description("Nonempty operator object: $set/$unset/$inc/$mul/$min/$max/$push/$pull/$addToSet/$pop/$currentDate/$setOnInsert. Cannot update _id; no replacement or pipeline.")] Dictionary<string, JsonElement> update,
-        [Description("Update all matches; requires enableDangerousOperations. Default false.")] bool many = false,
-        [Description("Insert if unmatched; not supported with many=true.")] bool upsert = false,
         [Description("Explicitly permit empty filter; also requires enableDangerousOperations.")] bool allowAll = false,
         [Description("Full tool JSON UTF-8 budget; minimum 1024.")] int? maxResponseBytes = null,
         [Description("Configured connection name; omitted captures current connection.")] string? databaseName = null,
         [Description("Operation deadline in seconds; default 30.")] int? commandTimeoutSeconds = null,
         CancellationToken cancellationToken = default)
-        => Adapt(await service.ExecuteAsync(new(MongoOperation.Update, collection, filter, Update: update, Many: many, Upsert: upsert, AllowAll: allowAll,
+        => Adapt(await service.ExecuteAsync(new(MongoOperation.Update, collection, filter, Update: update, AllowAll: allowAll,
             MaxResponseBytes: maxResponseBytes, DatabaseName: databaseName, CommandTimeoutSeconds: commandTimeoutSeconds), cancellationToken));
 
     [ToolPolicy(RequiresConfirmation = true)]
-    [McpServerTool(Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
-    [Description("Delete MongoDB documents; defaults to DeleteOne. Requires write access; many requires enableDangerousOperations. Empty filter also requires allowAll. Nonempty filters can still match every document. Returns deletedCount and writeOutcome; multi-document operations may partially apply on timeout. Cancellation does not roll back committed writes.")]
+    [McpServerTool(Title = "Delete MongoDB Documents", Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
+    [Description("Batch delete MongoDB documents via SqlSugar.MongoDbCore ADO deleteMany. Requires write access and enableDangerousOperations. Empty filter also requires allowAll. Returns deletedCount and writeOutcome.")]
     public async Task<CallToolResult> MongoDelete(
         [Description("Collection name.")] string collection,
-        [Description("Required filter object. {} requires allowAll and enableDangerousOperations.")] Dictionary<string, JsonElement> filter,
-        [Description("Delete all matches; requires enableDangerousOperations. Default false.")] bool many = false,
+        [Description("Required filter object. {} requires allowAll.")] Dictionary<string, JsonElement> filter,
         [Description("Explicitly permit empty filter; also requires enableDangerousOperations.")] bool allowAll = false,
         [Description("Full tool JSON UTF-8 budget; minimum 1024.")] int? maxResponseBytes = null,
         [Description("Configured connection name; omitted captures current connection.")] string? databaseName = null,
         [Description("Operation deadline in seconds; default 30.")] int? commandTimeoutSeconds = null,
         CancellationToken cancellationToken = default)
-        => Adapt(await service.ExecuteAsync(new(MongoOperation.Delete, collection, filter, Many: many, AllowAll: allowAll,
+        => Adapt(await service.ExecuteAsync(new(MongoOperation.Delete, collection, filter, AllowAll: allowAll,
             MaxResponseBytes: maxResponseBytes, DatabaseName: databaseName, CommandTimeoutSeconds: commandTimeoutSeconds), cancellationToken));
+
+    [ToolPolicy(RequiresConfirmation = true, Access = DatabaseMcpServer.Helpers.DatabaseToolAccess.Schema)]
+    [McpServerTool(Title = "Truncate MongoDB Collection", Destructive = true, UseStructuredContent = true, OutputSchemaType = typeof(MongoCollectionResult))]
+    [Description("Remove all documents in a MongoDB collection via cancellable SqlSugar ADO deleteMany, preserving the collection and indexes. Requires schema-admin access and enableDangerousOperations; cancellation does not roll back writes.")]
+    public async Task<CallToolResult> MongoTruncate(
+        [Description("Collection name.")] string collection,
+        [Description("Full tool JSON UTF-8 budget; minimum 1024.")] int? maxResponseBytes = null,
+        [Description("Configured connection name; omitted captures current connection.")] string? databaseName = null,
+        [Description("Operation deadline in seconds; default 30.")] int? commandTimeoutSeconds = null,
+        CancellationToken cancellationToken = default)
+        => Adapt(await service.ExecuteAsync(new(MongoOperation.Truncate, collection, MaxResponseBytes: maxResponseBytes,
+            DatabaseName: databaseName, CommandTimeoutSeconds: commandTimeoutSeconds), cancellationToken));
+
     private static CallToolResult Adapt(MongoCollectionResult result)
         => McpResultAdapter.Structured(result, result.Success);
 }
