@@ -52,7 +52,7 @@
   },
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.ttcc666/database-mcp-server",
-  "description": "数据库 MCP 服务器，提供 54 个工具，涵盖连接管理、类型化有界 SQL 查询、结构管理、单行自增插入、存储过程及基于 SqlSugar.MongoDbCore 的 MongoDB 集合读写与清空。Mongo 输入支持 Extended JSON v2，输出为 provider 转换后的 JSON；写入受权限和危险操作策略约束。另提供 MCP Resources、Prompts、补全及进度通知。",
+  "description": "数据库 MCP 服务器，提供 54 个工具，支持多数据库连接、有界 SQL 查询、结构管理、MongoDB 集合操作、流式导出及 MCP 资源和提示词。",
   "packages": [
     {
       "packageArguments": [],

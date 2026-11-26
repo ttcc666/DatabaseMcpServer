@@ -22,6 +22,9 @@ try {
     $manifestReader = [IO.StreamReader]::new($archive.GetEntry('.mcp/server.json').Open())
     try { $manifest = $manifestReader.ReadToEnd() | ConvertFrom-Json }
     finally { $manifestReader.Dispose() }
+    if ([string]::IsNullOrWhiteSpace($manifest.description) -or $manifest.description.Length -gt 100) {
+        throw 'MCP server description must contain 1-100 characters, as required by the server schema.'
+    }
     $sourceManifest = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '../.mcp/server.json') | ConvertFrom-Json
     $toolNames = @($manifest.tools.name)
     if ($toolNames.Count -eq 0 -or @($toolNames | Sort-Object -CaseSensitive -Unique).Count -ne $toolNames.Count -or
